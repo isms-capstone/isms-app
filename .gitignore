@@ -1,0 +1,23 @@
+# Environment variables (CRITICAL: NEVER COMMIT REAL SECRETS)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE & OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
