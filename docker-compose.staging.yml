@@ -1,0 +1,12 @@
+services:
+  app:
+    container_name: isms-app-staging
+    ports:
+      - "8080:3000"
+    environment:
+      - NODE_ENV=staging
+
+  db:
+    container_name: isms-db-staging
+    ports:
+      - "5436:5432"

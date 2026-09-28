@@ -1,0 +1,32 @@
+name: ISMS Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: package*.json
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
+      - name: Build Docker Image Test
+        run: |
+          docker build -t isms-app:test .
