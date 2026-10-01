@@ -1,0 +1,12 @@
+services:
+  app:
+    container_name: isms-app-prod
+    ports:
+      - "80:3000"
+    environment:
+      - NODE_ENV=production
+
+  db:
+    container_name: isms-db-prod
+    ports:
+      - "5434:5432"
