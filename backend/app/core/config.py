@@ -1,20 +1,23 @@
-from pydantic_settings import BaseSettings
+﻿from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    APP_NAME: str = "ISMS API"
-    APP_ENV: str = "local"
-    PORT: int = 3000
-
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "isms_user"
-    DB_PASSWORD: str = "isms_password"
-    DB_NAME: str = "isms_db"
-
-    JWT_SECRET_KEY: str = "dev_secret_key_change_in_production"
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PROJECT_NAME: str = "ISMS Backend"
+    API_V1_STR: str = "/api/v1"
+    
+    # Security
+    SECRET_KEY: str = "SUPER_SECRET_KEY_ISMS_2026_CHANGE_IN_PROD"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    
+    # Database Configuration
+    MARIADB_SERVER: str = "127.0.0.1"
+    MARIADB_PORT: int = 3306
+    MARIADB_USER: str = "isms_user"
+    MARIADB_PASSWORD: str = "isms_password"
+    MARIADB_DB: str = "isms_db"
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"mysql+pymysql://{self.MARIADB_USER}:{self.MARIADB_PASSWORD}@{self.MARIADB_SERVER}:{self.MARIADB_PORT}/{self.MARIADB_DB}"
 
     class Config:
         env_file = ".env"

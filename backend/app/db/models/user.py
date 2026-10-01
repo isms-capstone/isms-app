@@ -2,7 +2,7 @@
 from typing import Optional
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.db.session import Base
+from app.db.base_class import Base
 
 class Role(Base):
     __tablename__ = "roles"
