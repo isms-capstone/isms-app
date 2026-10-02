@@ -1,5 +1,5 @@
 ﻿from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class TeamBase(BaseModel):
     name: str
@@ -13,7 +13,5 @@ class TeamUpdate(BaseModel):
     description: Optional[str] = None
 
 class TeamResponse(TeamBase):
-    id: int
-
-    class Config:
-        from_attributes = True
+     id: int
+     model_config = ConfigDict(from_attributes=True)

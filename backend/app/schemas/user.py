@@ -1,11 +1,11 @@
-﻿from typing import Optional
-from pydantic import BaseModel, EmailStr
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 class UserBase(BaseModel):
     username: str
     email: EmailStr
     full_name: Optional[str] = None
-    role_id: Optional[int] = 5
+    role_id: Optional[int] = None
     team_id: Optional[int] = None
     is_active: Optional[bool] = True
 
@@ -21,7 +21,5 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class UserResponse(UserBase):
-    id: int
-
-    class Config:
-        from_attributes = True
+     id: int
+     model_config = ConfigDict(from_attributes=True)
