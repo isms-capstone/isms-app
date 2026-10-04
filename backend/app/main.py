@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.v1.router import api_router
 from app.db.session import SessionLocal
 from app.db.init_db import init_db
+from app.registry_ui import mount_registry_ui
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,3 +25,4 @@ def health_check():
     return {"status": "ok"}
 
 app.include_router(api_router, prefix="/api/v1")
+mount_registry_ui(app)

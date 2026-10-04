@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customers & Products · Deverhood HT ISMS</title>
+  <link rel="stylesheet" href="/registry/assets/registry.css">
+  <script type="module" src="/registry/assets/registry.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">D</span><div>Deverhood HT<small>ISMS</small></div></div>
+    <div class="nav-label">CUSTOMERS</div>
+    <button class="nav active" data-view="customers">Customers</button>
+    <div class="nav-label">PRODUCTS</div>
+    <button class="nav" data-view="products">Product Registry</button>
+    <div class="nav-label">WORK</div>
+    <button class="nav" data-view="capture">เลือกบริบทลูกค้า</button>
+    <p class="sidebar-note">ทะเบียนกลางสำหรับทีมบริการ</p>
+  </aside>
+  <main>
+    <header class="topbar"><span>หน้าหลัก / <strong id="breadcrumb">Customers</strong></span><div><span id="user-label"></span> <button id="logout" hidden>ออกจากระบบ</button></div></header>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <section id="login-panel" class="login-card card">
+      <p class="eyebrow">CUSTOMER / PRODUCT REGISTRY</p>
+      <h1>เข้าสู่ระบบ ISMS</h1><p>ใช้บัญชีของทีมเพื่อจัดการลูกค้าและระบบที่ใช้งาน</p>
+      <form id="login-form">
+        <label>ชื่อผู้ใช้<input name="username" autocomplete="username" required></label>
+        <label>รหัสผ่าน<input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">เข้าสู่ระบบ</button>
+      </form>
+    </section>
+    <section id="workspace" hidden></section>
+  </main>
+  <dialog id="editor"><form id="editor-form"><h2 id="editor-title"></h2><div id="editor-fields"></div><p id="editor-error" role="alert"></p><footer><button type="button" id="cancel-editor">ยกเลิก</button><button type="submit" class="primary" id="save-editor">บันทึก</button></footer></form></dialog>
+</body>
+</html>
