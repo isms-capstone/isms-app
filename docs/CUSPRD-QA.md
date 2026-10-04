@@ -1,7 +1,7 @@
 # CUS/PRD QA report
 
-Checked on 2026-10-04 (Asia/Bangkok). Local branch: `feature/P1-CUSPRD`.
-Changes are committed locally in six task-scoped commits and remain unpushed. No deployment or live database mutation
+Updated on 2026-10-05 (Asia/Bangkok). Local branch: `feature/P1-CUSPRD`.
+Changes are committed and pushed. No deployment or live database mutation
 was performed. Requirement mapping and API contracts: [CUSPRD.md](CUSPRD.md).
 
 ## Delivery status
@@ -30,11 +30,11 @@ was performed. Requirement mapping and API contracts: [CUSPRD.md](CUSPRD.md).
 | `alembic upgrade head --sql` | MySQL SQL generation passed through `cusprd08` |
 | Desktop/mobile layout | 1440px and 390px screenshots; mobile has no document horizontal overflow |
 | Autocomplete input to visible choices | Local runs 211–223ms; latest 214ms |
-| Actual MariaDB execution | Not run: Docker engine pipe unavailable |
-| GitHub CI | Workflow configured; no remote run yet |
+| Actual MariaDB execution | MariaDB 11.4 isolated CI service: full upgrade/downgrade/re-upgrade and registry API workflow passed |
+| GitHub CI | All four jobs passed at `f6e1494`: backend, browser, MariaDB and lint/configuration |
 
 The timing is a local observation, not a staging load/network guarantee.
-Offline SQL generation and SQLite checks do not establish MariaDB compatibility.
+MariaDB checks now cover 11.4; the team deployment version remains unspecified.
 
 ## Coverage
 
@@ -72,15 +72,17 @@ The final run reported no JavaScript errors.
 
 ## Before release
 
-1. Run migrations and API/browser checks on a disposable database using the team's
-   actual MariaDB version, including collation and constraint behavior.
+1. If deployment differs from MariaDB 11.4, repeat checks with that version/configuration and migrated customer data in staging.
 2. Resolve INFRA deployment wiring: the current root Dockerfile starts a Node
    placeholder and Compose provisions PostgreSQL, while this backend uses MariaDB.
 3. Confirm the final customer-editor role policy. Legacy INFRA `User` currently
    retains editor access alongside Admin, Agent and Team Lead.
 4. Complete CAP/ADM/CAT/SLA/ESC/SIM integrations as listed above.
-5. Review the branch against integrated INFRA/develop, commit/push, and obtain
-   successful GitHub CI and staging results before deployment.
+5. Integrate against INFRA/develop and run deployment smoke checks before release. Commits, push and GitHub CI verification are complete for this branch.
 
-The implemented scope passes local QA. Full cross-module acceptance, production
+The implemented scope passes local QA and GitHub CI, including MariaDB 11.4. Tasks 01/02/03 can be marked implementation complete under this tested scope; tasks 05/06/08/09 have completed registry components with external integration pending. Full cross-module acceptance, production
 load testing and production readiness remain unverified.
+
+## Remote QA evidence (2026-10-05)
+
+[All four jobs passed](https://github.com/isms-capstone/isms-app/actions/runs/37221513127) at `f6e1494`. Real MariaDB QA found task 08 rollback dropped its foreign-key backing index too early. Commit `f6e1494` drops the foreign key first; the complete migration round trip and API test then passed. Local tests report 18 passed and one MariaDB test skipped without the isolated service; CI executes that test successfully. Browser QA uses isolated SQLite separately.

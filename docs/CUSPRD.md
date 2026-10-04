@@ -11,7 +11,7 @@ at `0b2ea25`. At inspection time `develop` contains only the initial repository
 commit, so it cannot yet serve as the implementation base. This is a stacked
 feature: merge/review INFRA into develop first, then update this branch and
 open its PR against develop. Do not merge unrelated ADM work into this branch.
-No remote branch has been pushed and no PR has been created.
+The feature branch has been pushed; no PR has been created.
 
 Suggested commit: `feat(cus): add customer registry [P1-CUSPRD-01]`.
 Task 02 commit: `feat(prd): add product registry [P1-CUSPRD-02]`.
@@ -70,7 +70,7 @@ placeholder and a PostgreSQL service, while this FastAPI backend targets MariaDB
 Those existing deployment files are not a verified backend deployment path.
 Use the backend commands above or the team's working backend environment; agree
 deployment wiring with the INFRA owner before staging/production deployment.
-No live database migrations, external deployments, push or PR have been run here.
+No customer database migrations or external deployments have been run. The branch is pushed; no PR has been opened.
 
 ## Isolated QA preview and browser checks
 
@@ -93,7 +93,7 @@ browser run to reset fixtures. Browser checks create data only in that preview.
 Screenshots are written to ignored `backend/tests/ui-output/`.
 For an installed Edge browser, set `PLAYWRIGHT_CHANNEL=msedge` before the test.
 CI now runs both backend tests and the isolated browser workflow, retaining
-screenshots and server logs as an artifact. CI has not yet run on GitHub.
+screenshots and server logs as an artifact. All four CI jobs passed at `f6e1494`, including MariaDB 11.4 migration/API checks; see the QA report.
 
 ## P1-CUSPRD-01 API
 
@@ -362,8 +362,7 @@ autocomplete auto-fill/stale-selection clearing and Auditor read-only controls.
 The final browser run also verified that a delayed customer response does not
 overwrite the product view after navigation.
 The 390px mobile viewport had no document-level horizontal overflow; desktop
-and mobile screenshots were inspected. No live MariaDB migration or deployment
-has been performed. Upstream deprecation warnings remain in existing schemas.
+and mobile screenshots were inspected. MariaDB 11.4 migration and API checks passed on an isolated CI service. No customer database migration or deployment has been performed. Upstream deprecation warnings remain in existing schemas.
 
 Migration order: `fef2a1063bc1 -> cusprd01 -> cusprd02 -> cusprd05 -> cusprd03 -> cusprd08`.
 The task number is a Jira reference, not a migration sequence; 03 follows 05
