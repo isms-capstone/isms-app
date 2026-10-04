@@ -16,6 +16,7 @@ from app.db.models.user import User, Role, Team
 from app.db.models.asset import Asset
 from app.db.models.customer import Organization, Contact, ChannelIdentity
 from app.db.models.product import Product, ProductModule, ProductInstance
+from app.db.models.customer_context import Department, CourseOrExam, ExamWindow
 
 config = context.config
 
