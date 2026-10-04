@@ -15,7 +15,8 @@ from app.db.base_class import Base
 from app.db.models.user import User, Role, Team
 from app.db.models.asset import Asset
 from app.db.models.master_data import (
-    Product, Module, ProblemType, Symptom, ServiceStage, TicketType, CauseCode, SolutionCode
+    Product, Module, ProblemType, Symptom, ServiceStage, TicketType, CauseCode, SolutionCode,
+    SlaPolicy, SlaPolicyRule, BusinessCalendar, BusinessHoliday
 )
 
 config = context.config

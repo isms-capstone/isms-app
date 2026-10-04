@@ -1,9 +1,90 @@
+from datetime import time
+
 from sqlalchemy.orm import Session
 
 from app.db.base_class import Base
 from app.db.session import engine, SessionLocal
 from app.db.models.user import Role, User, Team
+from app.db.models.master_data import (
+    TicketType,
+    SlaPolicy,
+    SlaPolicyRule,
+    BusinessCalendar,
+)
 from app.core.security import get_password_hash
+
+
+DEFAULT_TICKET_TYPES = [
+    "Issues",
+    "Bugs",
+    "Request",
+    "Question",
+    "Export Data",
+    "Data Transfer",
+    "Data Recovery",
+    "Change Request",
+]
+
+
+
+DEFAULT_SLA_POLICY = {
+    "name": "Default SLA Policy",
+    "description": "บริษัทใช้เป็นค่าเริ่มต้นสำหรับทุกลูกค้า",
+}
+
+DEFAULT_SLA_RULES = [
+    {
+        "severity": "S1",
+        "first_response_value": 15,
+        "first_response_unit": "MINUTES",
+        "resolution_min_value": 5,
+        "resolution_max_value": 5,
+        "resolution_unit": "HOURS",
+        "business_hours_only": False,
+    },
+    {
+        "severity": "S2",
+        "first_response_value": 30,
+        "first_response_unit": "MINUTES",
+        "resolution_min_value": 1,
+        "resolution_max_value": 1,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+    {
+        "severity": "S3",
+        "first_response_value": 4,
+        "first_response_unit": "HOURS",
+        "resolution_min_value": 1,
+        "resolution_max_value": 3,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+    {
+        "severity": "S4",
+        "first_response_value": 1,
+        "first_response_unit": "BUSINESS_DAYS",
+        "resolution_min_value": 5,
+        "resolution_max_value": 10,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+]
+
+DEFAULT_BUSINESS_CALENDAR = {
+    "name": "Thailand Business Calendar",
+    "description": "วันทำการมาตรฐานของบริษัท",
+    "timezone": "Asia/Bangkok",
+    "work_start_time": time(8, 0),
+    "work_end_time": time(17, 0),
+    "monday": True,
+    "tuesday": True,
+    "wednesday": True,
+    "thursday": True,
+    "friday": True,
+    "saturday": False,
+    "sunday": False,
+}
 
 
 SYSTEM_ROLES = [
@@ -76,6 +157,31 @@ def init_db(db: Session) -> None:
                 hashed_password=get_password_hash(password),
                 is_active=True,
             ))
+    # ADM-04: seed one default SLA policy, its S1-S4 rules, and the standard
+    # Thailand business calendar. All seeds are idempotent so startup never duplicates them.
+    sla_policy = db.query(SlaPolicy).filter(SlaPolicy.name == DEFAULT_SLA_POLICY["name"]).first()
+    if sla_policy is None:
+        sla_policy = SlaPolicy(**DEFAULT_SLA_POLICY)
+        db.add(sla_policy)
+        db.flush()
+
+    for rule_data in DEFAULT_SLA_RULES:
+        exists = db.query(SlaPolicyRule).filter(
+            SlaPolicyRule.sla_policy_id == sla_policy.id,
+            SlaPolicyRule.severity == rule_data["severity"],
+        ).first()
+        if exists is None:
+            db.add(SlaPolicyRule(sla_policy_id=sla_policy.id, **rule_data))
+
+    calendar = db.query(BusinessCalendar).filter(BusinessCalendar.name == DEFAULT_BUSINESS_CALENDAR["name"]).first()
+    if calendar is None:
+        db.add(BusinessCalendar(**DEFAULT_BUSINESS_CALENDAR))
+
+    # CAT-02: seed the organisation's standard ticket types idempotently.
+    # Admin can add/remove values later through the master-data API.
+    for ticket_type_name in DEFAULT_TICKET_TYPES:
+        if not db.query(TicketType).filter(TicketType.name == ticket_type_name).first():
+            db.add(TicketType(name=ticket_type_name))
     db.commit()
 
 
