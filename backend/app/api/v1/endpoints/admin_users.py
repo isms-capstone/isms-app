@@ -10,7 +10,12 @@ from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_admin
 
-router = APIRouter()
+from fastapi import APIRouter
+
+router = APIRouter(
+    prefix="/admin/users",
+    tags=["Admin - Users"],
+)
 
 
 # ---------- helpers ----------
@@ -19,6 +24,17 @@ def _get_user_or_404(db: Session, user_id: int) -> User:
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
     return user
+
+def _get_role_by_name(db: Session, role_name: str) -> Role:
+    role = db.query(Role).filter(Role.name == role_name).first()
+
+    if role is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Role not found: {role_name}",
+        )
+
+    return role
 
 
 def _validate_role_team(db: Session, role_id: Optional[int], team_id: Optional[int]) -> None:
@@ -48,10 +64,6 @@ def _guard_admin_loss(db: Session, user: User, actor: User) -> None:
 
 
 # ---------- endpoints ----------
-@router.get("/me", response_model=UserResponse)
-def read_user_me(current_user: User = Depends(get_current_user)):
-    return current_user
-
 
 @router.get("/", response_model=List[UserResponse], dependencies=[Depends(require_admin)])
 def read_users(
@@ -81,33 +93,47 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
     return _get_user_or_404(db, user_id)
 
 
-@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED,
-             dependencies=[Depends(require_admin)])
+@router.post(
+    "/",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
 def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == user_in.username).first():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Username already registered")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Username already registered",
+        )
+
     if db.query(User).filter(User.email == user_in.email).first():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already registered")
-    role_id = user_in.role_id
-    if role_id is None:
-        default_role = db.query(Role).filter(Role.name == "Agent").first()
-        if default_role is None:
-            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Default role Agent is not configured")
-        role_id = default_role.id
-    _validate_role_team(db, role_id, user_in.team_id)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Email already registered",
+        )
+
+    role = _get_role_by_name(db, user_in.role)
+
+    _validate_role_team(
+        db,
+        role.id,
+        user_in.team_id,
+    )
 
     user = User(
         username=user_in.username,
         email=user_in.email,
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
-        role_id=role_id,
+        role_id=role.id,
         team_id=user_in.team_id,
         is_active=user_in.is_active,
     )
+
     db.add(user)
     db.commit()
     db.refresh(user)
+
     return user
 
 
@@ -120,6 +146,18 @@ def update_user(
 ):
     user = _get_user_or_404(db, user_id)
     data = user_in.model_dump(exclude_unset=True)
+
+    if "role" in data:
+        role_name = data.pop("role")
+
+        if role_name is None:
+            raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "role cannot be null",
+        )
+
+        role = _get_role_by_name(db, role_name)
+        data["role_id"] = role.id
 
     # role_id / is_active ห้ามเป็น null (team_id เป็น null ได้ = ถอดออกจากทีม)
     for required in ("role_id", "is_active", "email"):
