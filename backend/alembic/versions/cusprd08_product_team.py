@@ -17,6 +17,6 @@ def upgrade():
 
 def downgrade():
     with op.batch_alter_table("product") as batch:
-        batch.drop_index("ix_product_default_team_id")
         batch.drop_constraint("fk_product_default_team", type_="foreignkey")
+        batch.drop_index("ix_product_default_team_id")
         batch.drop_column("default_team_id")
