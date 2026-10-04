@@ -2,36 +2,51 @@
 
 on:
   push:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ main, develop ]
+    branches:
+      - main
+      - develop
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          node-version: "18"
+          python-version: "3.11"
 
-      - name: Install dependencies & Run Tests
+      - name: Install dependencies
         run: |
-          if [ -f package.json ]; then
-            npm ci || npm install
-            npm run lint --if-present
-            npm test --if-present
-          else
-            echo "No package.json in root directory, skipping npm tasks."
-          fi
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
 
-      - name: Validate Docker Compose Configuration
+      - name: Run Ruff
+        run: ruff check backend --select E4,E7,E9
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
         run: |
-          docker compose config -q
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q || true
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q || true
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
 
+      - name: Run Pytest
+        run: pytest
