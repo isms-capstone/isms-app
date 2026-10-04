@@ -63,7 +63,7 @@ class ModuleRefOut(MasterDataOut):
 
 
 class ServiceStageCreate(ProductRefBase):
-    sort_order: int = 0
+    sort_order: int = 1
 
 
 class ServiceStageUpdate(ProductRefUpdate):
