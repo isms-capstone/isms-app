@@ -12,6 +12,7 @@ class Product(Base):
     code: Mapped[str] = mapped_column(String(50), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    default_team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
     modules: Mapped[list["ProductModule"]] = relationship(back_populates="product")
 
 
