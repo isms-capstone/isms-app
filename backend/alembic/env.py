@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 from logging.config import fileConfig
 from pathlib import Path
 
@@ -14,6 +14,9 @@ from app.db.base_class import Base
 # Import Models ทั้งหมดเพื่อให้ Alembic เห็น Metadata
 from app.db.models.user import User, Role, Team
 from app.db.models.asset import Asset
+from app.db.models.master_data import (
+    Product, Module, ProblemType, Symptom, ServiceStage, TicketType, CauseCode, SolutionCode
+)
 
 config = context.config
 

@@ -6,6 +6,7 @@ from app.api.v1.endpoints.teams import router as teams_router
 from app.api.v1.endpoints.roles import router as roles_router
 from app.api.v1.endpoints.assets import router as assets_router
 from app.api.v1.endpoints.me import router as me_router
+from app.api.v1.endpoints.master_data import router as master_data_router
 
 
 api_router = APIRouter()
@@ -42,3 +43,4 @@ api_router.include_router(
 api_router.include_router(
     me_router
 )
+api_router.include_router(master_data_router)
