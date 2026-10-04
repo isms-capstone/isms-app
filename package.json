@@ -6,9 +6,12 @@
   "scripts": {
     "start": "node index.js",
     "lint": "eslint . --ext .js || echo 'No JS files to lint yet'",
-    "test": "node --test || echo 'Dummy test passed'"
+    "test": "node --test || echo 'Dummy test passed'",
+    "test:registry-ui": "node backend/tests/browser_registry.cjs",
+    "lint:registry": "eslint --no-eslintrc --config backend/tests/registry-eslint.cjs backend/app/static/registry/*.js backend/tests/browser_registry.cjs"
   },
   "devDependencies": {
-    "eslint": "^8.57.0"
+    "eslint": "^8.57.0",
+    "playwright": "1.62.1"
   }
 }

@@ -2,6 +2,12 @@
 
 Project for Deverhood HT - Capstone Project.
 
+## Customer / Product Registry
+
+Implementation, local setup, task status and integration contracts:
+[docs/CUSPRD.md](docs/CUSPRD.md).
+The registry UI is served by FastAPI at `/registry`.
+
 ## Environments Setup
 - Refer to .env.example for environment variables configuration.
 - Do NOT commit .env files with sensitive secrets to this repository.
