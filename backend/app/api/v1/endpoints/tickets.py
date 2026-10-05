@@ -123,7 +123,7 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
     opened = Ticket.status.in_(OPEN_STATUSES)
     conditions = {
         'unassigned': and_(opened, Ticket.assignee_id.is_(None)),
-        'mine': and_(opened, or_(Ticket.owner_id == user.id, Ticket.assignee_id == user.id)),
+        'mine': and_(opened, Ticket.assignee_id == user.id),
         'today': and_(Ticket.created_at >= today, Ticket.status.not_in(['DRAFT', 'DUPLICATE', 'CANCELLED'])),
         'drafts': and_(Ticket.status == 'DRAFT', Ticket.created_by_id == user.id),
     }
@@ -145,7 +145,7 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
     if open_only:
         query = query.where(Ticket.status.in_(OPEN_STATUSES))
     if mine:
-        query = query.where(or_(Ticket.owner_id == user.id, Ticket.assignee_id == user.id))
+        query = query.where(Ticket.assignee_id == user.id)
     if unassigned:
         query = query.where(Ticket.assignee_id.is_(None))
     if drafts_only:

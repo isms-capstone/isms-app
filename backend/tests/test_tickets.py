@@ -225,11 +225,16 @@ def test_explicit_draft_and_queue_filters(capture):
     draft = client.post('/api/v1/tickets', json=body | {'save_as_draft': True}).json()
     assert draft['status'] == 'DRAFT' and draft['ticket_no'] is None
     new = client.post('/api/v1/tickets', json=body).json()
+    # My Work means Assignee = Me, not merely the person who captured the case.
+    assert client.get('/api/v1/tickets', params={'mine': True, 'q': marker}).json() == []
+    with factory() as db:
+        db.get(Ticket, new['id']).assignee_id = new['created_by_id']
+        db.commit()
     summary = client.get('/api/v1/tickets/queue-summary').json()
     assert summary['drafts'] == before['drafts'] + 1
     assert summary['mine'] == before['mine'] + 1
     assert summary['today'] == before['today'] + 1
-    assert summary['unassigned'] == before['unassigned'] + 1
+    assert summary['unassigned'] == before['unassigned']
     assert summary['sla_at_risk'] is None
     mine = client.get('/api/v1/tickets', params={'mine': True, 'open_only': True, 'q': marker}).json()
     assert [row['id'] for row in mine] == [new['id']]
