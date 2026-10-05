@@ -302,6 +302,23 @@ async function showCapture() {
   label.append(input); const suggestions = element('div', null, 'suggestions'); suggestions.id = 'customer-choices'; suggestions.hidden = true;
   wrap.append(label, suggestions); card.append(wrap);
   const detail = element('div'); card.append(detail); let selected = null, selectionVersion = 0;
+  const existing = element('div'); card.append(existing);
+  let existingOrganization = null, existingGeneration = 0;
+  card.addEventListener('customer-context-change', async event => {
+    const organizationId = event.detail.organization_id;
+    if (organizationId === existingOrganization) return;
+    existingOrganization = organizationId; existing.replaceChildren();
+    const generation = ++existingGeneration;
+    if (!organizationId) return;
+    try {
+      const summary = await request(`${orgPath(organizationId)}/case-summary`);
+      if (generation !== existingGeneration || !card.isConnected) return;
+      existing.append(element('h3', `เคสเปิดของลูกค้ารายนี้ (${summary.open_count})`));
+      collection(existing, `/tickets?organization_id=${organizationId}&open_only=true`,
+        [['เลขเคส', row => row.ticket_no], ['หัวข้อ', row => row.subject], ['สถานะ', row => row.status]],
+        row => [button('เพิ่มเข้าเคสเดิม', () => showTicket(row.id))]);
+    } catch (error) { if (generation === existingGeneration) failure(error); }
+  });
   const formCard = section('บันทึกเคส', '', null, false), form = element('form'), optional = element('div', null, 'context-fields');
   const subjectLabel = element('label', 'หัวข้อเคส'), subject = element('input'); subject.maxLength = 255; subject.setAttribute('aria-label', 'หัวข้อเคส'); subjectLabel.append(subject);
   const channelLabel = element('label', 'ช่องทางแจ้ง'), channel = element('select'); channel.setAttribute('aria-label', 'ช่องทางแจ้ง');

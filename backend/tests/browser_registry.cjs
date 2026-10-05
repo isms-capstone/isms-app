@@ -185,6 +185,16 @@ fs.mkdirSync(output, {recursive: true});
     assert.equal(await page.getByRole('cell', {name: '2', exact: true}).count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({path: path.join(output, 'registry-mobile.png'), fullPage: true});
+    await page.getByRole('button', {name: 'เลือกบริบทลูกค้า', exact: true}).click();
+    const captureSearch = page.getByRole('combobox', {name: 'ค้นหาลูกค้า', exact: true});
+    await captureSearch.fill('TU');
+    await page.getByRole('option', {name: /TU · คณะแพทยศาสตร์/}).click();
+    await page.getByRole('heading', {name: 'เคสเปิดของลูกค้ารายนี้ (2)', exact: true}).waitFor();
+    await page.getByRole('button', {name: 'เพิ่มเข้าเคสเดิม', exact: true}).first().click();
+    await page.getByRole('heading', {name: 'รายละเอียดเคส', exact: true}).waitFor();
+    await page.getByRole('button', {name: '← กลับลูกค้า', exact: true}).click();
+    await page.getByRole('heading', {name: 'เคสที่เปิดอยู่ (2)', exact: true}).waitFor();
+
     await page.getByRole('button', {name: 'ออกจากระบบ', exact: true}).click();
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-auditor');
     await page.getByLabel('รหัสผ่าน', {exact: true}).fill('test-only-password');
