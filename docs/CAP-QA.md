@@ -97,3 +97,9 @@ awaits login explicitly and the complete workflow passes.
 
 Do not mark all CAP or all Phase 1 Done from this round. No automatic draft recovery,
 state machine, SLA engine, attachments, REL links, assignment audit or real-user timing is claimed.
+
+## Wireframe UI update
+
+See [UI alignment QA](UI-WIREFRAME-QA.md) for the later shared shell, desktop/mobile
+capture, explicit draft action and operational queue changes. CAP-03 autosave, CAP-06
+inline editing and CAP-04 user timing remain open.
