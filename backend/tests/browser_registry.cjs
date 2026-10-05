@@ -202,6 +202,7 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-auditor');
     await page.getByLabel('รหัสผ่าน', {exact: true}).fill('test-only-password');
     await page.getByRole('button', {name: 'เข้าสู่ระบบ', exact: true}).click();
+    await page.locator('#login-panel').waitFor({state: 'hidden'});
     await page.getByRole('button', {name: 'Customers', exact: true}).click();
     await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).waitFor();
     assert.equal(await page.getByRole('button', {name: '+ เพิ่มองค์กร', exact: true}).count(), 0);
