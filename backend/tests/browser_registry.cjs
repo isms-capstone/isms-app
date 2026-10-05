@@ -147,6 +147,21 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByRole('combobox', {name: 'หน่วยงาน', exact: true}).selectOption({label: 'ภาควิชาอายุรศาสตร์'});
     await page.getByRole('combobox', {name: 'รายวิชา / การสอบ', exact: true}).selectOption({label: 'MED101 (รายวิชา)'});
     assert.match(await page.locator('.context-output').innerText(), /"course_or_exam_id": 1/);
+    await page.getByLabel('โมดูลของเคส', {exact: true}).selectOption({label: 'Teacher'});
+    await page.getByLabel('ประเภทปัญหาของเคส', {exact: true}).selectOption({label: 'รหัสผ่าน'});
+    await page.getByLabel('อาการของเคส', {exact: true}).selectOption({label: 'เข้าสู่ระบบไม่ได้'});
+    await page.getByLabel('ช่องทางแจ้ง', {exact: true}).selectOption('email');
+    for (let index = 0; index < 2; index++) {
+      await page.getByLabel('หัวข้อเคส', {exact: true}).fill(`Login QA ${index}`);
+      const created = page.waitForResponse(response => response.url().endsWith('/tickets') && response.request().method() === 'POST');
+      await page.getByRole('button', {name: 'บันทึกเคส / ร่าง', exact: true}).click();
+      const ticket = await (await created).json();
+      assert.equal(ticket.status, 'NEW');
+      assert.equal(ticket.department_id, 1);
+      assert.equal(ticket.course_or_exam_id, 1);
+      assert.equal(ticket.category_id, 1);
+      await page.getByRole('status').getByText(`บันทึก NEW: ${ticket.ticket_no}`, {exact: true}).waitFor();
+    }
     await search.fill('unknown-customer');
     assert.equal(await page.locator('.context-output').count(), 0);
     assert.deepEqual(JSON.parse(await page.locator('body').getAttribute('data-qa-context')), {
@@ -162,6 +177,12 @@ fs.mkdirSync(output, {recursive: true});
     await page.setViewportSize({width: 390, height: 844});
     await page.getByRole('button', {name: 'Customers', exact: true}).click();
     await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).waitFor();
+    await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).click();
+    await page.getByRole('heading', {name: 'เคสที่เปิดอยู่ (2)', exact: true}).waitFor();
+    await page.getByRole('cell', {name: 'Login QA 0', exact: true}).waitFor();
+    await page.getByRole('heading', {name: 'ประวัติปัญหาที่พบบ่อย', exact: true}).waitFor();
+    await page.getByRole('cell', {name: 'รหัสผ่าน', exact: true}).waitFor();
+    assert.equal(await page.getByRole('cell', {name: '2', exact: true}).count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({path: path.join(output, 'registry-mobile.png'), fullPage: true});
     await page.getByRole('button', {name: 'ออกจากระบบ', exact: true}).click();

@@ -60,3 +60,6 @@ api_router.include_router(product_configuration_router, tags=["Product Configura
 
 from app.api.v1.endpoints.tickets import router as tickets_router
 api_router.include_router(tickets_router, tags=["Case Capture"])
+
+from app.api.v1.endpoints.customer_cases import router as customer_cases_router
+api_router.include_router(customer_cases_router, tags=["Customer Cases"])

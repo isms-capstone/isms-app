@@ -149,6 +149,21 @@ async function showOrganization(org) {
   workspace.prepend(button('← กลับทะเบียนลูกค้า', showCustomers));
   const contract = await request(`${orgPath(org.id)}/contract`);
   if (version !== renderVersion || !user) return;
+  const overview = await request(`${orgPath(org.id)}/case-summary`);
+  if (version !== renderVersion || !user) return;
+  const openCases = section(`เคสที่เปิดอยู่ (${overview.open_count})`, '', null, false);
+  collection(openCases, `/tickets?organization_id=${org.id}&open_only=true`, [
+    ['เลขเคส', row => button(row.ticket_no, () => showTicket(row.id), 'link')],
+    ['หัวข้อ', row => row.subject], ['สถานะ', row => row.status],
+    ['เวลาที่แจ้ง', row => new Date(row.reported_at).toLocaleString('th-TH')]
+  ]);
+  const problems = section('ประวัติปัญหาที่พบบ่อย', '', null, false);
+  problems.append(element('p', 'รวมเคสใหม่และเคสที่แก้ไขแล้ว แยกตามผลิตภัณฑ์/โมดูล/ประเภทปัญหา/อาการ ไม่รวมร่าง เคสซ้ำ และเคสยกเลิก', 'muted'));
+  collection(problems, `${orgPath(org.id)}/problem-history`, [
+    ['ผลิตภัณฑ์', row => row.product_name || 'ยังไม่ระบุ'], ['โมดูล', row => row.module_name || '—'],
+    ['ประเภทปัญหา', row => row.category_name || 'ยังไม่จัดหมวดหมู่'], ['อาการ', row => row.symptom_name || '—'],
+    ['จำนวนครั้ง', row => row.frequency], ['แจ้งล่าสุด', row => new Date(row.last_reported_at).toLocaleString('th-TH')]
+  ]);
   const contractCard = section('สัญญาลูกค้า', 'แก้ไขสัญญา', () => edit('ช่วงสัญญา', [field('contract_start_date', 'วันเริ่มสัญญา', 'date', {required: false}), field('contract_end_date', 'วันสิ้นสุดสัญญา', 'date', {required: false})], contract, body => save(`${orgPath(org.id)}/contract`, 'PATCH', body), () => showOrganization(org)), user.can_edit_customers);
   contractCard.append(element('p', `${contract.contract_start_date || 'ยังไม่ระบุ'} → ${contract.contract_end_date || 'ยังไม่ระบุ'}`, 'muted'));
   let reloadContacts;
@@ -287,6 +302,62 @@ async function showCapture() {
   label.append(input); const suggestions = element('div', null, 'suggestions'); suggestions.id = 'customer-choices'; suggestions.hidden = true;
   wrap.append(label, suggestions); card.append(wrap);
   const detail = element('div'); card.append(detail); let selected = null, selectionVersion = 0;
+  const formCard = section('บันทึกเคส', '', null, false), form = element('form'), optional = element('div', null, 'context-fields');
+  const subjectLabel = element('label', 'หัวข้อเคส'), subject = element('input'); subject.maxLength = 255; subject.setAttribute('aria-label', 'หัวข้อเคส'); subjectLabel.append(subject);
+  const channelLabel = element('label', 'ช่องทางแจ้ง'), channel = element('select'); channel.setAttribute('aria-label', 'ช่องทางแจ้ง');
+  for (const [value, text] of [['', 'ยังไม่ระบุ'], ['line_oa', 'LINE OA'], ['line_group', 'LINE Group'], ['line_personal', 'LINE ส่วนตัว'], ['portal', 'Portal'], ['email', 'อีเมล'], ['phone', 'โทรศัพท์'], ['other', 'อื่น ๆ']]) {
+    const option = element('option', text); option.value = value; channel.append(option);
+  }
+  channelLabel.append(channel);
+  const descriptionLabel = element('label', 'รายละเอียดเคส'), description = element('textarea'); description.maxLength = 20000; description.setAttribute('aria-label', 'รายละเอียดเคส'); descriptionLabel.append(description);
+  const submit = element('button', 'บันทึกเคส / ร่าง', 'primary'); submit.type = 'submit'; submit.disabled = !user.can_create_cases;
+  const result = element('div'); result.setAttribute('role', 'status');
+  form.append(subjectLabel, channelLabel, descriptionLabel, optional,
+    element('p', 'ครบลูกค้า/ผู้แจ้ง หัวข้อ และช่องทาง จะสร้าง NEW; ข้อมูลยังไม่ครบจะบันทึก DRAFT', 'muted'), submit, result); formCard.append(form);
+  let optionsVersion = 0, optionsInstance = null, caseSelection = {}, loadingOptions = false;
+  card.addEventListener('customer-context-change', async event => {
+    const instanceId = event.detail.product_instance_id;
+    if (instanceId === optionsInstance) return;
+    optionsInstance = instanceId; caseSelection = {}; optional.replaceChildren();
+    const generation = ++optionsVersion; loadingOptions = !!instanceId;
+    if (!instanceId) return;
+    try {
+      const instance = await request(`/product-instances/${instanceId}`);
+      const options = await request(`/products/${instance.product_id}/case-options`);
+      if (generation !== optionsVersion || !card.isConnected) return;
+      const selectors = {};
+      for (const [name, title, items] of [['module_id', 'โมดูลของเคส', options.modules], ['category_id', 'ประเภทปัญหาของเคส', options.problem_types], ['symptom_id', 'อาการของเคส', options.symptoms], ['service_stage_id', 'ช่วงบริการของเคส', options.service_stages]]) {
+        const label = element('label', title), select = element('select'); select.setAttribute('aria-label', title); selectors[name] = select;
+        const populate = rows => {
+          select.replaceChildren(); const empty = element('option', 'ยังไม่ระบุ'); empty.value = ''; select.append(empty);
+          rows.forEach(row => { const option = element('option', row.name); option.value = row.id; select.append(option); });
+        };
+        populate(name === 'category_id' ? [] : items);
+        select.addEventListener('change', () => {
+          caseSelection[name] = select.value ? Number(select.value) : null;
+          if (name === 'module_id') {
+            caseSelection.category_id = null;
+            const categories = selectors.category_id; categories.replaceChildren(); const empty = element('option', 'ยังไม่ระบุ'); empty.value = ''; categories.append(empty);
+            options.problem_types.filter(row => row.module_id === caseSelection.module_id).forEach(row => { const option = element('option', row.name); option.value = row.id; categories.append(option); });
+          }
+        }); label.append(select); optional.append(label);
+      }
+    } catch (error) { if (generation === optionsVersion) failure(error); }
+    finally { if (generation === optionsVersion) loadingOptions = false; }
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (loadingOptions) { notify('รอโหลดหมวดหมู่ของผลิตภัณฑ์ก่อนบันทึก', true); return; }
+    submit.disabled = true;
+    try {
+      const ticket = await request('/tickets', {method: 'POST', body: {...selected, ...caseSelection,
+        subject: subject.value, channel: channel.value || null, description: description.value}});
+      if (!form.isConnected) return;
+      result.replaceChildren(element('p', `บันทึก ${ticket.status}: ${ticket.ticket_no || `ร่าง #${ticket.id}`}`), button('ดูเคสที่บันทึก', () => showTicket(ticket.id)));
+      subject.value = ''; description.value = '';
+    } catch (error) { failure(error); }
+    finally { submit.disabled = !user?.can_create_cases; }
+  });
   const clear = () => {
     ++selectionVersion; selected = null; detail.replaceChildren();
     card.dispatchEvent(new CustomEvent('customer-context-change', {detail: {
@@ -315,7 +386,7 @@ async function showCapture() {
         select.addEventListener('change', () => { selected[spec.name] = select.value ? Number(select.value) : null; draw(); }); label.append(select); fields.append(label);
       }
       detail.append(fields, element('p', 'ข้อมูลที่เลือกสำหรับฟอร์มสร้างเคส', 'subtle'), output,
-        element('p', 'หน้านี้เลือกบริบทจากทะเบียน ยังไม่สร้างเคสจนกว่าจะเชื่อมโมดูล CAP', 'muted')); draw();
+        element('p', 'ใช้ข้อมูลจากทะเบียนร่วมกับฟอร์มเคสด้านล่าง', 'muted')); draw();
     } catch (error) { if (current === selectionVersion) failure(error); }
   }, failure, clear);
 }
@@ -350,3 +421,15 @@ document.querySelector('#editor-form').addEventListener('submit', async event =>
   try { await saveAction(); } catch (error) { document.querySelector('#editor-error').textContent = error.message; }
   finally { submit.disabled = false; }
 });
+
+async function showTicket(id) {
+  const version = renderVersion;
+  const ticket = await request(`/tickets/${id}`);
+  if (version !== renderVersion || !user) return;
+  startView(ticket.ticket_no || `ร่าง #${ticket.id}`, ticket.subject || 'ยังไม่มีหัวข้อ');
+  if (ticket.organization_id) workspace.prepend(button('← กลับลูกค้า', async () => showOrganization(await request(orgPath(ticket.organization_id)))));
+  const card = section('รายละเอียดเคส', '', null, false);
+  card.append(element('p', `สถานะ: ${ticket.status} · ช่องทาง: ${ticket.channel || 'ยังไม่ระบุ'}`),
+    element('p', ticket.description || 'ยังไม่มีรายละเอียด'),
+    element('p', `แจ้งเมื่อ: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`));
+}

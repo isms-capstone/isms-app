@@ -48,7 +48,8 @@ def session(user: User = Depends(get_current_user)):
     name = user.role.name if user.role else None
     return {"username": user.username, "role": name,
             "can_edit_customers": name in REGISTRY_EDITOR_ROLES,
-            "can_edit_products": name == "Admin"}
+            "can_edit_products": name == "Admin",
+            "can_create_cases": name in {"Admin", "Agent", "Specialist", "Developer", "Team Lead"}}
 
 
 @router.get("/registry/teams")

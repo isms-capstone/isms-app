@@ -119,3 +119,63 @@ def test_numbering_and_permissions(capture):
     assert client.post('/api/v1/tickets', json=body).status_code == 403
     app.dependency_overrides.pop(get_current_user)
     assert client.get('/api/v1/tickets').status_code == 401
+
+
+def test_customer_summary_counts_and_pagination(capture):
+    client, _, factory, data, other = capture
+    ids = []
+    for _ in range(7):
+        result = client.post('/api/v1/tickets', json=dict(data, subject='Login', channel='email'))
+        assert result.status_code == 201
+        ids.append(result.json()['id'])
+    # Fixture-only status changes: lifecycle transitions are a separate task.
+    with factory() as db:
+        for record_id, status in zip(ids, ['NEW', 'IN_PROGRESS', 'PENDING_CUSTOMER', 'RESOLVED', 'CLOSED', 'DUPLICATE', 'CANCELLED']):
+            db.get(Ticket, record_id).status = status
+        db.commit()
+    assert client.post('/api/v1/tickets', json={'organization_id': data['organization_id']}).json()['status'] == 'DRAFT'
+    assert client.post('/api/v1/tickets', json={'organization_id': other, 'subject': 'Other', 'channel': 'email'}).status_code == 201
+    base = f"/api/v1/customers/organizations/{data['organization_id']}"
+    assert client.get(base + '/case-summary').json()['open_count'] == 3
+    rows = client.get(base + '/problem-history').json()
+    assert len(rows) == 1 and rows[0]['frequency'] == 5
+    assert rows[0]['category_id'] == data['category_id']
+    assert datetime.fromisoformat(rows[0]['last_reported_at']).utcoffset() == timedelta(0)
+    client.post('/api/v1/tickets', json={'organization_id': data['organization_id'], 'subject': 'Unclassified', 'channel': 'phone'})
+    rows = client.get(base + '/problem-history?limit=1').json()
+    assert rows[0]['frequency'] == 5
+    assert client.get(base + '/problem-history?offset=1&limit=1').json()[0]['category_id'] is None
+    assert len(client.get(f"/api/v1/tickets?organization_id={data['organization_id']}&open_only=true&limit=2").json()) == 2
+    assert len(client.get(f"/api/v1/tickets?organization_id={data['organization_id']}&open_only=true&offset=2&limit=2").json()) == 2
+    assert client.get(f'/api/v1/customers/organizations/{other}/case-summary').json()['open_count'] == 1
+    assert client.get('/api/v1/customers/organizations/999999999/case-summary').status_code == 404
+
+
+def test_empty_customer_summary(capture):
+    client, _, _, data, _ = capture
+    base = f"/api/v1/customers/organizations/{data['organization_id']}"
+    assert client.get(base + '/case-summary').json()['open_count'] == 0
+    assert client.get(base + '/problem-history').json() == []
+
+
+def test_concurrent_numbering_and_month_boundary(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.api.v1.endpoints.tickets import next_ticket_number
+    engine = create_engine(f'sqlite:///{(tmp_path / "counter.db").as_posix()}', connect_args={'timeout': 20})
+    TicketNumberSequence.__table__.create(engine)
+    factory = sessionmaker(bind=engine)
+    def allocate(_):
+        with factory() as db:
+            # UTC Sep 30 18:00 is October in Thailand.
+            number = next_ticket_number(db, datetime(2026, 9, 30, 18))
+            db.commit()
+            return number
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        numbers = list(executor.map(allocate, range(20)))
+    assert len(set(numbers)) == 20
+    assert all(number.startswith('DVHT-202610-') for number in numbers)
+    assert sorted(int(n[-5:]) for n in numbers) == list(range(1, 21))
+    with factory() as db:
+        assert next_ticket_number(db, datetime(2026, 10, 31, 18)) == 'DVHT-202611-00001'
+        db.rollback()
+    engine.dispose()
