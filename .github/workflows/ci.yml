@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ main, develop, feature/P1-CUSPRD ]
+    branches: [ main, develop, feature/P1-CUSPRD, feature/P1-CAP ]
   pull_request:
     branches: [ main, develop ]
 
@@ -46,7 +46,7 @@ jobs:
           python tests/seed_catalogue_migration.py verify
           python -m alembic downgrade base
           python -m alembic upgrade head
-          python -m pytest tests/test_registry_mariadb.py -q
+          python -m pytest tests/test_registry_mariadb.py tests/test_tickets.py -q
 
   registry-ui-tests:
     runs-on: ubuntu-latest

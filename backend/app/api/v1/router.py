@@ -57,3 +57,6 @@ api_router.include_router(customer_context_router, prefix="/customers", tags=["C
 api_router.include_router(registry_router, tags=["Registry Integration"])
 from app.api.v1.endpoints.product_configuration import router as product_configuration_router
 api_router.include_router(product_configuration_router, tags=["Product Configuration"])
+
+from app.api.v1.endpoints.tickets import router as tickets_router
+api_router.include_router(tickets_router, tags=["Case Capture"])
