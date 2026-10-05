@@ -8,6 +8,7 @@ from app.api.v1.endpoints.assets import router as assets_router
 from app.api.v1.endpoints.me import router as me_router
 from app.api.v1.endpoints.master_data import router as master_data_router, selection_router as master_data_selection_router
 from app.api.v1.endpoints.sla import router as sla_router
+from app.api.v1.endpoints.automation_rules import router as automation_rules_router
 
 
 api_router = APIRouter()
@@ -47,3 +48,4 @@ api_router.include_router(
 api_router.include_router(master_data_router)
 api_router.include_router(master_data_selection_router)
 api_router.include_router(sla_router)
+api_router.include_router(automation_rules_router)

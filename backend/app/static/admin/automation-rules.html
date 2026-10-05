@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ISMS · Automation Rules</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f5f7fb}
+*{box-sizing:border-box}
+body{margin:0}
+header{background:#172033;color:#fff;padding:20px 28px}
+header h1{margin:0;font-size:24px}
+main{max-width:1120px;margin:24px auto;padding:0 18px}
+.panel{background:#fff;border:1px solid #e1e6ef;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 2px 8px rgba(23,32,51,.04)}
+.panel h2{margin-top:0}
+.muted{color:#687386;font-size:13px;line-height:1.55}
+.helpbox{background:#f7f9fc;border:1px solid #e1e6ef;border-radius:10px;padding:14px;margin:14px 0 18px;color:#4b5565;font-size:13px;line-height:1.65}
+.helpbox strong{color:#172033}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.full{grid-column:1/-1}
+.field label{font-weight:700;font-size:14px;color:#172033}
+.field .required{color:#b42318}
+.field .help{font-size:12px;color:#687386;line-height:1.5;min-height:18px}
+input,select,button{font:inherit}
+input,select{width:100%;padding:10px 11px;border:1px solid #ccd4e1;border-radius:9px;background:#fff;color:#172033}
+input:focus,select:focus{outline:none;border-color:#2859c5;box-shadow:0 0 0 3px rgba(40,89,197,.12)}
+input[type=number]{appearance:textfield}
+.actions{display:flex;gap:10px;align-items:center;margin-top:4px;flex-wrap:wrap}
+button{padding:9px 13px;border:1px solid #ccd4e1;border-radius:9px;background:#fff;cursor:pointer}
+button:hover{background:#f7f9fc}
+button.primary{background:#2859c5;color:#fff;border-color:#2859c5}
+button.primary:hover{background:#214aa5}
+button.danger{color:#b42318;border-color:#f0b7b2}
+button.success{color:#087443;border-color:#a7d9c4}
+.status{padding:10px 0;min-height:28px;font-size:14px}
+.success{color:#087443}
+.error{color:#b42318}
+.mode{display:none;padding:8px 10px;border-radius:8px;background:#eef4ff;color:#244a9a;font-size:12px;margin-bottom:12px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:11px 10px;border-bottom:1px solid #edf0f5;vertical-align:top}
+th{font-size:12px;text-transform:none;color:#687386;background:#fafbfc}
+tbody tr:hover{background:#fbfcfe}
+.badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.on{background:#e9f7ef;color:#087443}
+.badge.off{background:#f4f5f7;color:#687386}
+.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.rule-actions{display:flex;gap:6px;flex-wrap:wrap}
+.empty{padding:20px;text-align:center;color:#687386;background:#fafbfc;border-radius:10px}
+@media(max-width:760px){.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}header{padding:18px}.panel{padding:16px}}
+</style>
+</head>
+<body>
+<header><h1>ISMS / Automation Rules</h1></header>
+<main>
+<section class="panel">
+  <h2>สร้าง / แก้กฎอัตโนมัติ</h2>
+  <p class="muted">กฎมีรูปแบบ <strong>“เมื่อเงื่อนไข X → ให้ทำ Y”</strong> เพื่อช่วยลดการ routing งานแบบ manual ซ้ำ ๆ</p>
+
+  <div class="helpbox">
+    <div><strong>ตัวอย่าง:</strong> เมื่อ <strong>Severity = S1</strong> → <strong>มอบหมายทีม Incident Team</strong></div>
+    <div><strong>Priority:</strong> ลำดับการพิจารณากฎ เลขน้อย = พิจารณาก่อน เช่น 10 มาก่อน 20</div>
+    <div><strong>เงื่อนไข:</strong> เลือกฟิลด์ของเคสที่ต้องการตรวจ แล้วเลือกค่าที่ต้องตรงกัน</div>
+    <div><strong>ทีมที่จะมอบหมาย:</strong> ทีมที่ระบบจะใช้เป็นผลลัพธ์เมื่อเงื่อนไขตรง</div>
+  </div>
+
+  <div id="editMode" class="mode">กำลังแก้ไขกฎเดิม — เมื่อบันทึกจะอัปเดตกฎเดิม ไม่สร้างรายการใหม่</div>
+
+  <form id="ruleForm">
+    <div class="form-grid">
+      <div class="field">
+        <label for="ruleName">ชื่อกฎ <span class="required">*</span></label>
+        <input id="ruleName" name="name" placeholder="เช่น S1 → Incident Team" required>
+        <div class="help">ชื่อสำหรับให้ Admin อ่านและค้นหาง่าย</div>
+      </div>
+
+      <div class="field">
+        <label for="priority">Priority (ลำดับกฎ) <span class="required">*</span></label>
+        <input id="priority" name="priority" type="number" min="1" max="9999" value="100" required>
+        <div class="help">เลขน้อยทำก่อน เช่น 10 ทำก่อน 20</div>
+      </div>
+
+      <div class="field full">
+        <label for="description">รายละเอียดกฎ</label>
+        <input id="description" name="description" placeholder="อธิบายว่ากฎนี้มีไว้ทำอะไร">
+        <div class="help">คำอธิบายเพิ่มเติมเพื่อให้ทีมเข้าใจกฎตรงกัน</div>
+      </div>
+
+      <div class="field">
+        <label for="conditionField">เงื่อนไข: ตรวจฟิลด์อะไร <span class="required">*</span></label>
+        <select name="condition_field" id="conditionField" required></select>
+        <div id="conditionHelp" class="help"></div>
+      </div>
+
+      <div class="field">
+        <label for="conditionValue">เงื่อนไข: ต้องมีค่าอะไร <span class="required">*</span></label>
+        <select name="condition_value" id="conditionValue" required></select>
+        <div id="conditionValueHelp" class="help">ระบบจะเทียบค่าแบบ “เท่ากับ” (equals)</div>
+      </div>
+
+      <div class="field full">
+        <label for="actionTeam">การทำงานเมื่อเงื่อนไขตรง: มอบหมายทีมไหน <span class="required">*</span></label>
+        <select name="action_team_id" id="actionTeam" required></select>
+        <div class="help">ถ้าเงื่อนไขเป็นจริง ระบบจะกำหนดทีมนี้เป็นทีมปลายทางของกฎ</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="primary" id="saveButton">บันทึกกฎ</button>
+      <button type="button" id="cancelEdit">ยกเลิก</button>
+    </div>
+  </form>
+  <div id="status" class="status"></div>
+</section>
+
+<section class="panel">
+  <div class="actions" style="margin-bottom:12px">
+    <h2 style="margin:0 auto 0 0">รายการกฎ</h2>
+    <button id="refresh">รีเฟรช</button>
+  </div>
+  <div id="rulesTable"></div>
+</section>
+</main>
+<script>
+const token = localStorage.getItem('isms_admin_token') || '';
+let editingId = null;
+let teams = [];
+let rules = [];
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function message(text, error = false) {
+  const el = $('#status');
+  el.textContent = text;
+  el.className = `status ${error ? 'error' : 'success'}`;
+}
+
+async function api(path, options = {}) {
+  const headers = {...(options.headers || {}), Authorization: `Bearer ${token}`};
+  if (options.body) headers['Content-Type'] = 'application/json';
+  const response = await fetch(`/api/v1${path}`, {...options, headers});
+  let data = null;
+  try { data = await response.json(); } catch {}
+  if (!response.ok) throw new Error(data?.detail || `HTTP ${response.status}`);
+  return data;
+}
+
+const conditionFields = [
+  ['product_id','Product'],
+  ['module_id','Module'],
+  ['problem_type_id','Problem Type'],
+  ['ticket_type_id','Ticket Type'],
+  ['symptom_id','Symptom'],
+  ['service_stage_id','Service Stage'],
+  ['severity','Severity'],
+  ['status','Status'],
+  ['channel','Channel']
+];
+
+const conditionDescriptions = {
+  product_id: 'Product = ผลิตภัณฑ์ที่เกี่ยวข้องกับเคส',
+  module_id: 'Module = โมดูล/ส่วนของผลิตภัณฑ์',
+  problem_type_id: 'Problem Type = ประเภทปัญหาในหมวดหมู่',
+  ticket_type_id: 'Ticket Type = ประเภทเคส เช่น Issues, Bugs, Request',
+  symptom_id: 'Symptom = อาการของปัญหา',
+  service_stage_id: 'Service Stage = ช่วงของกระบวนการให้บริการ',
+  severity: 'Severity = ระดับความรุนแรง S1–S4',
+  status: 'Status = สถานะของเคส เช่น NEW หรือ IN_PROGRESS',
+  channel: 'Channel = ช่องทางที่ลูกค้าแจ้งเข้ามา'
+};
+
+$('#conditionField').innerHTML = conditionFields
+  .map(([value, label]) => `<option value="${value}">${label}</option>`)
+  .join('');
+
+function updateConditionHelp() {
+  $('#conditionHelp').textContent = conditionDescriptions[$('#conditionField').value] || '';
+}
+
+function renderValueOptions(values) {
+  $('#conditionValue').innerHTML = values
+    .map((item) => `<option value="${esc(item.value)}">${esc(item.label)}</option>`)
+    .join('');
+}
+
+async function loadTeams() {
+  teams = await api('/teams/');
+  $('#actionTeam').innerHTML = teams.length
+    ? teams.map((team) => `<option value="${team.id}">ID ${team.id} · ${esc(team.name)}</option>`).join('')
+    : '<option value="">ไม่พบทีม</option>';
+}
+
+async function loadConditionValues(preferredValue = null) {
+  const field = $('#conditionField').value;
+  let values;
+
+  if (field === 'severity') {
+    values = ['S1','S2','S3','S4'].map((v) => ({value:v,label:v}));
+  } else if (field === 'status') {
+    values = ['DRAFT','NEW','IN_PROGRESS','PENDING_CUSTOMER','PENDING_EXTERNAL','RESOLVED','CLOSED','REOPENED','DUPLICATE','CANCELLED']
+      .map((v) => ({value:v,label:v}));
+  } else if (field === 'channel') {
+    values = ['LINE OA','LINE Group','LINE ส่วนตัว','Portal','อีเมล','โทรศัพท์','อื่นๆ']
+      .map((v) => ({value:v,label:v}));
+  } else {
+    const endpoints = {
+      product_id: '/admin/master-data/products?active=true',
+      module_id: '/admin/master-data/modules?active=true',
+      problem_type_id: '/admin/master-data/problem-types?active=true',
+      ticket_type_id: '/admin/master-data/ticket-types?active=true',
+      symptom_id: '/admin/master-data/symptoms?active=true',
+      service_stage_id: '/admin/master-data/service-stages?active=true'
+    };
+    const data = await api(endpoints[field]);
+    values = data.map((item) => ({value:String(item.id),label:`ID ${item.id} · ${item.name}`}));
+  }
+
+  renderValueOptions(values);
+  if (preferredValue !== null && preferredValue !== undefined) {
+    $('#conditionValue').value = String(preferredValue);
+  }
+}
+
+function resetForm() {
+  editingId = null;
+  $('#editMode').style.display = 'none';
+  $('#saveButton').textContent = 'บันทึกกฎ';
+  $('#ruleForm').reset();
+  $('#conditionField').value = 'product_id';
+  $('#priority').value = '100';
+  updateConditionHelp();
+  $('#actionTeam').value = teams[0]?.id || '';
+  void loadConditionValues();
+}
+
+function editRule(rule) {
+  editingId = rule.id;
+  $('#editMode').style.display = 'block';
+  $('#saveButton').textContent = 'บันทึกการแก้ไข';
+
+  const form = $('#ruleForm');
+  form.name.value = rule.name;
+  form.description.value = rule.description || '';
+  form.priority.value = rule.priority;
+  $('#conditionField').value = rule.condition_field;
+  updateConditionHelp();
+  $('#actionTeam').value = rule.action_team_id;
+  void loadConditionValues(rule.condition_value);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function formatCondition(rule) {
+  const label = conditionFields.find(([value]) => value === rule.condition_field)?.[1] || rule.condition_field;
+  return `${label} = ${rule.condition_value}`;
+}
+
+async function setRuleActive(ruleId, enabled) {
+  try {
+    await api(`/admin/automation-rules/${ruleId}`, {
+      method:'PATCH',
+      body:JSON.stringify({is_active:enabled})
+    });
+    await loadRules();
+    message(enabled ? 'เปิดใช้งานกฎแล้ว' : 'ปิดใช้งานกฎแล้ว');
+  } catch (error) {
+    message(error.message, true);
+  }
+}
+
+async function loadRules() {
+  rules = await api('/admin/automation-rules');
+  if (!rules.length) {
+    $('#rulesTable').innerHTML = '<div class="empty">ยังไม่มีกฎอัตโนมัติ</div>';
+    return;
+  }
+
+  $('#rulesTable').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ชื่อกฎ</th>
+            <th>เงื่อนไข</th>
+            <th>ทีมที่จะมอบหมาย</th>
+            <th>Priority</th>
+            <th>สถานะ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rules.map((rule) => {
+            const teamName = teams.find((team) => team.id === rule.action_team_id)?.name || `Team ID ${rule.action_team_id}`;
+            return `
+              <tr>
+                <td><strong>${esc(rule.name)}</strong><br><span class="muted">${esc(rule.description || '')}</span></td>
+                <td><span class="code">${esc(formatCondition(rule))}</span></td>
+                <td>${esc(teamName)}<br><span class="muted">ID ${rule.action_team_id}</span></td>
+                <td><strong>${rule.priority}</strong></td>
+                <td>${rule.is_active ? '<span class="badge on">ใช้งาน</span>' : '<span class="badge off">ปิด</span>'}</td>
+                <td>
+                  <div class="rule-actions">
+                    <button data-edit="${rule.id}">แก้ไข</button>
+                    ${rule.is_active
+                      ? `<button class="danger" data-disable="${rule.id}">ปิดใช้งาน</button>`
+                      : `<button class="success" data-enable="${rule.id}">เปิดใช้งาน</button>`}
+                  </div>
+                </td>
+              </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.querySelectorAll('[data-edit]').forEach((button) => {
+    button.onclick = () => {
+      const rule = rules.find((item) => item.id === Number(button.dataset.edit));
+      if (rule) editRule(rule);
+    };
+  });
+
+  document.querySelectorAll('[data-disable]').forEach((button) => {
+    button.onclick = () => setRuleActive(Number(button.dataset.disable), false);
+  });
+
+  document.querySelectorAll('[data-enable]').forEach((button) => {
+    button.onclick = () => setRuleActive(Number(button.dataset.enable), true);
+  });
+}
+
+$('#conditionField').onchange = () => {
+  updateConditionHelp();
+  void loadConditionValues();
+};
+
+$('#ruleForm').onsubmit = async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const teamId = Number(form.action_team_id.value);
+
+  if (!teamId) {
+    message('กรุณาเลือกทีมที่จะมอบหมาย', true);
+    return;
+  }
+
+  const body = {
+    name: form.name.value.trim(),
+    description: form.description.value.trim() || null,
+    priority: Number(form.priority.value),
+    condition_field: form.condition_field.value,
+    condition_operator: 'eq',
+    condition_value: form.condition_value.value,
+    action_type: 'assign_team',
+    action_team_id: teamId
+  };
+
+  try {
+    if (editingId) {
+      await api(`/admin/automation-rules/${editingId}`, {
+        method:'PATCH',
+        body:JSON.stringify(body)
+      });
+    } else {
+      await api('/admin/automation-rules', {
+        method:'POST',
+        body:JSON.stringify(body)
+      });
+    }
+    await loadRules();
+    resetForm();
+    message(editingId ? 'แก้ไขกฎแล้ว' : 'สร้างกฎแล้ว');
+  } catch (error) {
+    message(error.message, true);
+  }
+};
+
+$('#cancelEdit').onclick = resetForm;
+$('#refresh').onclick = () => void loadRules();
+
+(async () => {
+  if (!token) {
+    message('กรุณา login ที่ /admin ก่อน แล้วกลับมาหน้านี้', true);
+    return;
+  }
+  try {
+    await loadTeams();
+    updateConditionHelp();
+    await loadConditionValues();
+    await loadRules();
+  } catch (error) {
+    message(error.message, true);
+  }
+})();
+</script>
+</body>
+</html>

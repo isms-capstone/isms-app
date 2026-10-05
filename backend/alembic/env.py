@@ -18,7 +18,8 @@ from app.db.models.master_data import (
     Product, Module, ProblemType, Symptom, ServiceStage, TicketType, CauseCode, SolutionCode,
     SlaPolicy, SlaPolicyRule, BusinessCalendar, BusinessHoliday
 )
-
+# backend/alembic/env.py
+from app.db.models.automation_rule import AutomationRule
 config = context.config
 
 if config.config_file_name is not None:
