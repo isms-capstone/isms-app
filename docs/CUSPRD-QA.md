@@ -74,3 +74,9 @@ and [CUSPRD.md](CUSPRD.md) for the full registry API guide.
 
 Latest code verification: [all four jobs passed at 42a1a82](https://github.com/isms-capstone/isms-app/actions/runs/37264462685), including ADM writers that omit codes.
 For Jira status and downstream sequencing, see [CUSPRD-JIRA-STATUS.md](CUSPRD-JIRA-STATUS.md).
+
+## CAP integration update — 5 October 2026
+
+CUSPRD-04 and actual capture integration of 05/06/07 now pass on `feature/P1-CAP`.
+See [CAP QA](CAP-QA.md) for 32 passed local backend tests, final four-job CI evidence,
+375px browser capture and exact remaining CAP acceptance. Prior evidence above remains historical.

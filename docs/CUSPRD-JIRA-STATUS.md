@@ -1,5 +1,7 @@
 # สรุป CUS/PRD: Requirement → Task → QA → Jira
 
+**อัปเดตหลังเริ่ม CAP:** บน `feature/P1-CAP` มี CUSPRD-04 และการเชื่อม 05/06/07 กับฟอร์มเคสจริงแล้ว ดู [CAP QA และสถานะล่าสุด](CAP-QA.md) ตารางด้านล่างเป็น snapshot ก่อนเริ่ม CAP ที่ `42a1a82`; อย่าใช้สถานะ preparation เดิมแทนผล integration ล่าสุด.
+
 ตรวจเมื่อ 5 ตุลาคม 2026 (Asia/Bangkok) จาก Requirement Spec หัวข้อ 8.9,
 10.1–10.2, 15 และ Phase 1 PRD ของ P1-CUSPRD-01..09
 โค้ดที่ยืนยันผล: `42a1a82`, branch `feature/P1-CUSPRD`
