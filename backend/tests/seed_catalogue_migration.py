@@ -36,6 +36,17 @@ def verify(bind):
     module = bind.execute(sa.select(modules).where(modules.c.id == 10)).mappings().one()
     assert module['code'] == 'legacy-teacher' and module['product_id'] == 10
     assert bind.execute(sa.select(sa.func.count()).select_from(products).where(products.c.name == 'Migration Logbook')).scalar_one() == 1
+    # Reproduce an older ADM writer that does not know about registry code columns.
+    bind.execute(sa.text('INSERT INTO products (name, is_active, created_at, updated_at) '
+                        'VALUES (:name, 1, :stamp, :stamp)'),
+                 {'name': 'Old ADM Writer QA', 'stamp': '2026-10-05 00:00:00'})
+    added = bind.execute(sa.select(products).where(products.c.name == 'Old ADM Writer QA')).mappings().one()
+    assert added['code'] and len(added['code']) <= 50
+    bind.execute(sa.text('INSERT INTO modules (product_id, name, is_active, created_at, updated_at) '
+                        'VALUES (:product, :name, 1, :stamp, :stamp)'),
+                 {'product': added['id'], 'name': 'Old ADM Module QA', 'stamp': '2026-10-05 00:00:00'})
+    added_module = bind.execute(sa.select(modules).where(modules.c.product_id == added['id'])).mappings().one()
+    assert added_module['code'] and len(added_module['code']) <= 50
 
 
 if __name__ == '__main__':

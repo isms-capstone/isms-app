@@ -10,7 +10,8 @@ task 07 configuration: a4166fc. Implementation lives on feature/P1-CUSPRD.
 - `app.db.models.product.Product` / `ProductModule` are aliases, not second ORM
   models. Customer `product_instance.product_id` points to `products.id`.
 - ADM and registry endpoints read/write the same IDs. ADM-created catalogue rows
-  receive generated registry codes; registry-created rows are visible in ADM.
+  receive generated registry codes; database defaults also support older ADM
+  writers that omit code columns. Registry-created rows are visible in ADM.
 - Product code/default team are preserved from the legacy registry. Product
   names are unique and at most 150 characters; module names are at most 100.
 - Customer editor roles are Admin, Agent and Team Lead; legacy User cannot write.

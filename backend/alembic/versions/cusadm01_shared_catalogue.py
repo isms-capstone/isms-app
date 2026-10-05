@@ -76,6 +76,8 @@ def upgrade():
                     sa.Column("canonical_id", sa.Integer(), nullable=False, unique=True))
     mapping = sa.Table("cusprd_product_id_map", sa.MetaData(), autoload_with=bind)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Existing ADM writers omit registry codes; DB defaults keep them compatible.
+    code_default = sa.text("(lower(hex(randomblob(16))))") if bind.dialect.name == "sqlite" else sa.text("(UUID())")
     ids = {}
     for row in old_products:
         match = bind.execute(sa.select(products).where(products.c.name == row["name"])).mappings().first()
@@ -100,10 +102,10 @@ def upgrade():
             bind.execute(modules.insert().values(product_id=product_id, name=row["name"],
                 code=row["code"], is_active=row["is_active"], created_at=now, updated_at=now))
     with op.batch_alter_table("products") as batch:
-        batch.alter_column("code", existing_type=sa.String(50), nullable=False)
+        batch.alter_column("code", existing_type=sa.String(50), nullable=False, server_default=code_default)
         batch.create_unique_constraint("uq_products_code", ["code"])
     with op.batch_alter_table("modules") as batch:
-        batch.alter_column("code", existing_type=sa.String(50), nullable=False)
+        batch.alter_column("code", existing_type=sa.String(50), nullable=False, server_default=code_default)
         batch.create_unique_constraint("uq_modules_product_code", ["product_id", "code"])
     fk = _product_fk("product")
     with op.batch_alter_table("product_instance", naming_convention=NAMING) as batch:
