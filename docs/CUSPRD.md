@@ -6,18 +6,12 @@ Latest QA findings and release limits: [CUSPRD-QA.md](CUSPRD-QA.md).
 
 ## Git workflow
 
-Local branch: `feature/P1-CUSPRD`, based on `origin/feature/P1-INFRA`
-at `0b2ea25`. At inspection time `develop` contains only the initial repository
-commit, so it cannot yet serve as the implementation base. This is a stacked
-feature: merge/review INFRA into develop first, then update this branch and
-open its PR against develop. Do not merge unrelated ADM work into this branch.
-The feature branch has been pushed; no PR has been created.
-
-Suggested commit: `feat(cus): add customer registry [P1-CUSPRD-01]`.
-Task 02 commit: `feat(prd): add product registry [P1-CUSPRD-02]`.
-After INFRA integration, fetch and merge `origin/develop` into this feature,
-run tests, inspect the diff against develop, then push with
-`git push -u origin feature/P1-CUSPRD` and create a reviewed PR to develop.
+Branch: `feature/P1-CUSPRD`, initially based on INFRA `0b2ea25`.
+ADM `ffef73f` was merged in `bf737f8` at the user's request. Product/module
+catalogues and business roles now use ADM's canonical definitions. The branch
+is pushed; no PR has been opened and no deployment has been performed.
+Commit each completed scope with its P1-CUSPRD task reference. Integrate with
+the team's develop branch when the shared base is ready.
 
 ## Delivery and dependencies
 
@@ -29,13 +23,12 @@ run tests, inspect the diff against develop, then push with
 | P1-CUSPRD-04 | Open cases and frequent problems summary | Requires CAP ticket data and agreed aggregation |
 | P1-CUSPRD-05 | Departments and reusable course/exam registry | API + management UI + selectable context implemented; CAP connects IDs later |
 | P1-CUSPRD-06 | Case customer autocomplete and auto-fill | API + reusable picker + context selection UI implemented; final CAP form integration remains |
-| P1-CUSPRD-07 | Per-product categories and SLA | Coordinate with ADM/CAT/SLA |
+| P1-CUSPRD-07 | Per-product categories and SLA | ADM-backed configuration UI/API implemented and QA passed; actual CAP case-form acceptance remains |
 | P1-CUSPRD-08 | Default responsible product team | API + Admin UI implemented using INFRA teams; ESC consumes routing context later |
 | P1-CUSPRD-09 | Same-product search ranking hook | Query parameter + context API + SQL ordering hook implemented; SIM/KB consumes it later |
 
 Delivered in order: 01 -> 02 -> 05 -> 03 -> 06 -> 08 -> 09.
-All registry work independent of ADM is implemented. Tasks 04 and 07 are not
-implemented: 04 depends on CAP ticket data; 07 depends on ADM/CAT/SLA registries.
+All independent registry work is implemented, and ADM integration now enables task 07 configuration. Task 04 still needs CAP case data; task 07 still needs verification in the actual CAP case form.
 Task 06's actual case creation form remains CAP integration work, not a fake
 ticket form in this module. Existing repository branches had no frontend project;
 the registry now includes a same-origin vanilla HTML/CSS/JS UI served by FastAPI.
@@ -65,12 +58,12 @@ Tokens are kept in memory only; refresh/reload requires login again. The public
 HTML shell contains no customer data; each data API is authenticated separately.
 Writes remain protected by API RBAC even when a client bypasses the UI controls.
 
-The root Dockerfile/Compose in the checked-out INFRA branch still starts a Node
-placeholder and a PostgreSQL service, while this FastAPI backend targets MariaDB.
-Those existing deployment files are not a verified backend deployment path.
-Use the backend commands above or the team's working backend environment; agree
-deployment wiring with the INFRA owner before staging/production deployment.
-No customer database migrations or external deployments have been run. The branch is pushed; no PR has been opened.
+After the ADM merge, Dockerfile runs FastAPI and Compose provisions MariaDB.
+The isolated CI database uses MariaDB 11.4. Docker Desktop is unavailable on
+this machine, so a full Compose deployment has not been exercised here.
+Apply Alembic migrations before starting the app against an existing database;
+startup create_all does not upgrade existing tables. No customer database
+migration or external deployment has been performed.
 
 ## Isolated QA preview and browser checks
 
@@ -99,8 +92,7 @@ screenshots and server logs as an artifact. All four CI jobs passed at `f6e1494`
 
 All paths below are relative to `/api/v1/customers`. Authentication uses the
 existing access JWT. Authenticated active users can read. Admin, Agent and
-Team Lead can write; legacy INFRA User can write until ADM role migration.
-This interim permission mapping must be reviewed with the team before release.
+Team Lead can write. Legacy INFRA User has no editor permission after ADM alignment.
 Auditor and other roles cannot write. Role names avoid hard-coded database IDs.
 
 | Method | Path | Purpose |
@@ -169,8 +161,9 @@ Instance input:
 ```
 
 Codes are trimmed, lowercased and restricted to ASCII letters, digits, `_` and
-`-`, beginning with a letter/digit. Product codes are unique globally; module
+`-`, beginning with a letter/digit. ADM product names and registry codes are unique globally; module
 codes within a product; instance codes within an organization/product pair.
+Product names allow 150 characters; module names allow 100, matching ADM.
 One organization may have multiple installations/environments of a product.
 Duplicate codes return 409, unknown parents 404, invalid fields 422. Product and
 organization references cannot be reassigned through the instance update body.
@@ -268,7 +261,7 @@ current context UI dispatches `customer-context-change` with `organization_id`,
 `contact_id`, `product_instance_id`, `department_id`, `course_or_exam_id` when
 the selection changes. Editing the search dispatches all five IDs as null immediately.
 It does not POST tickets; wire these IDs into CAP's form.
-Local browser QA measured 211–223ms (latest 214ms) from input to visible choices; this is not a
+Local browser QA measured 204–223ms (latest 204ms) from input to visible choices; this is not a
 500ms guarantee for staging load/network or the final CAP integration.
 
 ## P1-CUSPRD-08 default product team
@@ -346,16 +339,16 @@ MariaDB deployment and live JWT integration require the team's actual environmen
 SQLite checks do not replace those staging checks. A new database should run
 the Alembic chain before startup; the existing startup uses create_all.
 
-Verified locally: 18 backend tests passed, covering the implemented registry scope.
+Verified locally after ADM integration: 22 backend tests passed and one MariaDB-only test skipped; the latter runs in isolated CI.
 Customer tests cover multiple channels, Thai/name/
 channel search, duplicate handling, shared groups, validation, permissions,
 unauthenticated access and migration upgrade/downgrade. Product tests cover
 adding ExamPlus/GetA/Logbook and a fourth service, product-scoped modules,
 multiple instances per customer, duplicate conflict rollback, scoped filters,
 Admin-only catalogue writes, invalid URLs and product migration rollback/reapply.
-The complete Alembic
-chain also generated MySQL SQL successfully with `alembic upgrade head --sql`.
-The complete upgrade chain emits MySQL SQL successfully through `cusprd08`.
+Historical SQL generation passed through cusprd08. The new catalogue consolidation
+is data-dependent and requires online Alembic execution; full offline SQL generation
+is intentionally rejected at cusadm01.
 Browser QA passed login, organization/contact/channel/product/module/instance
 creation, department/course management, contract/calendar/team setup,
 autocomplete auto-fill/stale-selection clearing and Auditor read-only controls.
@@ -369,3 +362,10 @@ The task number is a Jira reference, not a migration sequence; 03 follows 05
 because exam windows reference departments. Apply `alembic upgrade head` once
 after review. Downgrading removes the corresponding registry data; use backups
 and the team's migration review process for real environments.
+
+## ADM integration and task 07
+
+See [CUSPRD-ADM.md](CUSPRD-ADM.md) for canonical table mappings, populated-data
+migration behavior, SLA/category endpoints and the remaining CAP integration.
+The previous migration sequence above is historical: the CUS head and ADM head
+converge at `cusadm01`, then task 07 adds `cusprd07` as the single current head.

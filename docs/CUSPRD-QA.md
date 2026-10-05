@@ -1,88 +1,73 @@
 # CUS/PRD QA report
 
-Updated on 2026-10-05 (Asia/Bangkok). Local branch: `feature/P1-CUSPRD`.
-Changes are committed and pushed. No deployment or live database mutation
-was performed. Requirement mapping and API contracts: [CUSPRD.md](CUSPRD.md).
+Updated 2026-10-05 (Asia/Bangkok). Branch feature/P1-CUSPRD is committed and pushed.
+No customer database or external deployment was modified.
 
-## Delivery status
+## Current delivery
 
-| Task | Implemented | Remaining dependency |
+| Task | Implemented | Remaining scope |
 | --- | --- | --- |
-| 01 | Organizations, contacts, multiple channel identities, search, UI | Staging verification |
-| 02 | Products, per-product modules, customer instances, Admin UI | Staging verification |
-| 03 | Contract dates, organization/department exam windows, UI | SLA calendar consumption |
+| 01 | Customer/contact/channel API and UI | Deployment smoke check when deployed |
+| 02 | ADM-backed shared product/module catalogue and customer instances | Deployment smoke check when deployed |
+| 03 | Contract dates and organization/department exam calendar | SLA engine consumes calendar later |
 | 04 | Not implemented | CAP case data and summary aggregation |
-| 05 | Department and reusable course/exam registry, context selector | CAP form stores and validates selected IDs |
-| 06 | Customer autocomplete, selection context, reusable picker | Actual CAP case form integration |
-| 07 | Not implemented | ADM/CAT/SLA categories and SLA definitions |
-| 08 | Default product team API/UI and routing context | ESC assignment logic |
-| 09 | Instance context API and same-product SQL ranking hook | SIM/KB search endpoint integration |
+| 05 | Department/course registry and context selector | CAP form integration |
+| 06 | Autocomplete/context API and UI | CAP form integration and target-environment timing |
+| 07 | ADM-backed category/SLA configuration UI/API and ownership validation | Actual CAP case-form acceptance |
+| 08 | ADM team assignment and routing context | Future ADM-06/ESC rules consume it if present |
+| 09 | Instance parameter/search context, SQL ranking hook and SIM usage documentation | Future SIM/KB integration |
+
+01/02/03 meet their task implementation acceptance criteria. Task 09's requested
+hook/documentation exists; do not confuse that delivery with the future SIM engine.
+Do not mark the full task 07 case-form acceptance complete while CAP is absent.
 
 ## Executed checks
 
-| Check | Result |
-| --- | --- |
-| `python -m pytest tests -q` from backend | 18 passed; 27 upstream deprecation warnings; latest 7.50 seconds |
-| `npm run lint:registry` | Passed without errors |
-| `PLAYWRIGHT_CHANNEL=msedge npm run test:registry-ui` | Passed using installed Edge |
-| SQLite full Alembic upgrade/downgrade/reapply | Passed in backend tests |
-| Migrated registry schema versus SQLAlchemy metadata | No differences across nine registry tables |
-| `alembic upgrade head --sql` | MySQL SQL generation passed through `cusprd08` |
-| Desktop/mobile layout | 1440px and 390px screenshots; mobile has no document horizontal overflow |
-| Autocomplete input to visible choices | Local runs 211–223ms; latest 214ms |
-| Actual MariaDB execution | MariaDB 11.4 isolated CI service: full upgrade/downgrade/re-upgrade and registry API workflow passed |
-| GitHub CI | All four jobs passed at `f6e1494`: backend, browser, MariaDB and lint/configuration |
+- Local backend: 22 passed, one MariaDB-only test skipped without its disposable
+  database. Current deprecation warnings originate from existing config/assets
+  schemas and datetime defaults.
+- Registry JavaScript lint passed.
+- Browser on installed Edge passed actual login, customer/product/module/instance
+  creation, team assignment, department/course/contract/calendar, autocomplete,
+  desktop/mobile and read-only controls. The expanded workflow also creates
+  symptoms/stages/problem types and a product SLA/rule through UI.
+- Latest local autocomplete observation: 204ms, not a production-load guarantee.
+- Cross-product category IDs rejected; inactive categories/modules/policies
+  excluded; unknown policy 404; inactive assignment 409; non-Admin writes 403.
+- Actual JWT checks include expired/refresh tokens, inactive accounts and concurrent reads.
+- ADM-created products/modules are visible through registry endpoints; registry
+  writes are visible through ADM; edits/deactivation reflect immediately.
+- Schema comparison passes for the nine current registry tables.
+- Migration tests include populated legacy/ADM catalogues with different IDs,
+  preserved default teams/codes/modules and remapped customer instances.
 
-The timing is a local observation, not a staging load/network guarantee.
-MariaDB checks now cover 11.4; the team deployment version remains unspecified.
+[All four CI jobs passed for task 07 at a4166fc](https://github.com/isms-capstone/isms-app/actions/runs/37263852342):
+backend, browser, lint/configuration and MariaDB 11.4. MariaDB executes populated
+catalogue consolidation, verifies data references, downgrades to base, re-upgrades
+and runs registry plus category/SLA API checks. The earlier integration-only run
+also passed at bf737f8. Latest validation fixes are tracked in subsequent commits.
 
-## Coverage
+## Defects corrected
 
-Backend checks exercise Thai/name/channel search, literal wildcard escaping,
-multiple channels, duplicate handling, product extensibility and scoped modules,
-multiple instances, organization ownership, URL validation, reusable normalized
-course text, partial contract updates, timezone-aware calendar intervals,
-default teams and same-product ordering that retains other products.
+- Invalid email and unknown customer fields now return 422.
+- Search edits clear all selected IDs and dispatch context events; Escape cancels
+  pending autocomplete work; delayed responses cannot overwrite a new view.
+- QA SQLite preview uses separate connections rather than a shared transaction.
+- MariaDB rollback drops the default-team FK before its supporting index.
+- Duplicate Product/Module models were replaced by canonical ADM aliases;
+  instance references are migrated rather than assuming IDs coincide.
+- Product/module/stage/problem-type lengths agree with ADM database columns;
+  blank names and null updates to mandatory SLA rule fields are rejected.
+- Form selects now use their first option when no value/default is supplied.
+  Browser QA caught the previous invalid empty selection blocking problem creation.
 
-Authentication checks use actual login/password hashing and JWTs, independent
-role IDs, read/write permissions, expired tokens, refresh-token rejection at data
-APIs, inactive-user rejection, and 20 concurrent authenticated reads.
+## Remaining deployment/integration limits
 
-Browser checks create organization/contact/channel/product/module/instance data,
-departments/courses, contracts/exam windows and default teams. They verify context
-selection, clearing IDs after input changes, Escape dismissing pending suggestions,
-Auditor read-only controls, and delayed customer responses after navigation.
-The final run reported no JavaScript errors.
+Dockerfile/Compose now come from ADM and target FastAPI/MariaDB; the old
+Node/PostgreSQL mismatch is gone. Full Docker startup was not run locally because
+Docker Desktop is unavailable. CI exercises MariaDB 11.4; check any differing
+team database version/collation and migrated customer data before deployment.
+ADM-05/06 and CAP/ESC/SIM/SLA execution are outside this implementation.
 
-## Defects found and fixed during this QA
-
-- Invalid email channel values were accepted. They now return 422; regression
-  test failed before the fix and passes afterward.
-- Unknown customer input fields were silently ignored. They now return 422,
-  including attempts to override organization ownership through a body field.
-- Editing the selected customer cleared visible state without notifying the
-  consumer. The context event now immediately supplies all five IDs as null.
-- Pending autocomplete queries could reopen suggestions after Escape. Dismissal
-  now cancels debounce/request and invalidates late results.
-- The isolated QA server shared one SQLite connection across concurrent requests.
-  It now uses a temporary file database with independent connections and WAL;
-  concurrent-read and browser tests pass. Production database settings were unchanged.
-- The browser readiness loop had lint violations; these were corrected and the
-  dedicated registry lint command was added to CI.
-
-## Before release
-
-1. If deployment differs from MariaDB 11.4, repeat checks with that version/configuration and migrated customer data in staging.
-2. Resolve INFRA deployment wiring: the current root Dockerfile starts a Node
-   placeholder and Compose provisions PostgreSQL, while this backend uses MariaDB.
-3. Confirm the final customer-editor role policy. Legacy INFRA `User` currently
-   retains editor access alongside Admin, Agent and Team Lead.
-4. Complete CAP/ADM/CAT/SLA/ESC/SIM integrations as listed above.
-5. Integrate against INFRA/develop and run deployment smoke checks before release. Commits, push and GitHub CI verification are complete for this branch.
-
-The implemented scope passes local QA and GitHub CI, including MariaDB 11.4. Tasks 01/02/03 can be marked implementation complete under this tested scope; tasks 05/06/08/09 have completed registry components with external integration pending. Full cross-module acceptance, production
-load testing and production readiness remain unverified.
-
-## Remote QA evidence (2026-10-05)
-
-[All four jobs passed](https://github.com/isms-capstone/isms-app/actions/runs/37221513127) at `f6e1494`. Real MariaDB QA found task 08 rollback dropped its foreign-key backing index too early. Commit `f6e1494` drops the foreign key first; the complete migration round trip and API test then passed. Local tests report 18 passed and one MariaDB test skipped without the isolated service; CI executes that test successfully. Browser QA uses isolated SQLite separately.
+See [CUSPRD-ADM.md](CUSPRD-ADM.md) for migration safeguards and consuming API contracts,
+and [CUSPRD.md](CUSPRD.md) for the full registry API guide.
