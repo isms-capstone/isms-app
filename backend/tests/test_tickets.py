@@ -109,7 +109,8 @@ def test_old_draft_can_be_enriched_without_rewriting_capture_times(capture):
 
 def test_edit_reported_time_preserves_created_time_and_rechecks_exam(capture):
     client, app, _, data, _ = capture
-    now = datetime.now(timezone.utc)
+    # MariaDB's migrated DATETIME columns store seconds, not microseconds.
+    now = datetime.now(timezone.utc).replace(microsecond=0)
     reported = now - timedelta(days=1)
     org = data['organization_id']
     response = client.post(f'/api/v1/customers/organizations/{org}/exam-windows', json={
