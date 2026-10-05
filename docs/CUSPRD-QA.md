@@ -31,7 +31,7 @@ Do not mark the full task 07 case-form acceptance complete while CAP is absent.
   creation, team assignment, department/course/contract/calendar, autocomplete,
   desktop/mobile and read-only controls. The expanded workflow also creates
   symptoms/stages/problem types and a product SLA/rule through UI.
-- Latest local autocomplete observation: 204ms, not a production-load guarantee.
+- Latest local autocomplete observation: 216ms (recent runs 204–216ms), not a production-load guarantee.
 - Cross-product category IDs rejected; inactive categories/modules/policies
   excluded; unknown policy 404; inactive assignment 409; non-Admin writes 403.
 - Actual JWT checks include expired/refresh tokens, inactive accounts and concurrent reads.
@@ -71,3 +71,6 @@ ADM-05/06 and CAP/ESC/SIM/SLA execution are outside this implementation.
 
 See [CUSPRD-ADM.md](CUSPRD-ADM.md) for migration safeguards and consuming API contracts,
 and [CUSPRD.md](CUSPRD.md) for the full registry API guide.
+
+Latest code verification: [all four jobs passed at 42a1a82](https://github.com/isms-capstone/isms-app/actions/runs/37264462685), including ADM writers that omit codes.
+For Jira status and downstream sequencing, see [CUSPRD-JIRA-STATUS.md](CUSPRD-JIRA-STATUS.md).
