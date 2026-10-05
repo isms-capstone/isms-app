@@ -153,6 +153,7 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByLabel('ช่องทางแจ้ง', {exact: true}).selectOption('email');
     for (let index = 0; index < 2; index++) {
       await page.getByLabel('หัวข้อเคส', {exact: true}).fill(`Login QA ${index}`);
+      await page.getByLabel('ช่องทางแจ้ง', {exact: true}).selectOption(index === 0 ? 'phone' : 'face_to_face');
       const created = page.waitForResponse(response => response.url().endsWith('/tickets') && response.request().method() === 'POST');
       await page.getByRole('button', {name: 'บันทึกเคส / ร่าง', exact: true}).click();
       const ticket = await (await created).json();
@@ -199,6 +200,7 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-auditor');
     await page.getByLabel('รหัสผ่าน', {exact: true}).fill('test-only-password');
     await page.getByRole('button', {name: 'เข้าสู่ระบบ', exact: true}).click();
+    await page.getByRole('button', {name: 'Customers', exact: true}).click();
     await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).waitFor();
     assert.equal(await page.getByRole('button', {name: '+ เพิ่มองค์กร', exact: true}).count(), 0);
     // A slow customer detail response must not append content to a new view.

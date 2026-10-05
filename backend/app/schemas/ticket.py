@@ -8,7 +8,7 @@ class TicketCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     subject: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=20000)
-    channel: Literal['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'other'] | None = None
+    channel: Literal['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'face_to_face', 'other'] | None = None
     organization_id: int | None = Field(default=None, ge=1)
     contact_id: int | None = Field(default=None, ge=1)
     department_id: int | None = Field(default=None, ge=1)

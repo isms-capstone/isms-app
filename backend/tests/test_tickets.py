@@ -161,21 +161,57 @@ def test_empty_customer_summary(capture):
 def test_concurrent_numbering_and_month_boundary(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     from app.api.v1.endpoints.tickets import next_ticket_number
-    engine = create_engine(f'sqlite:///{(tmp_path / "counter.db").as_posix()}', connect_args={'timeout': 20})
-    TicketNumberSequence.__table__.create(engine)
+    external = os.getenv('REGISTRY_MARIADB_QA') == '1'
+    if external:
+        from app.db.session import engine
+    else:
+        engine = create_engine(f'sqlite:///{(tmp_path / "counter.db").as_posix()}', connect_args={'timeout': 20})
+        TicketNumberSequence.__table__.create(engine)
     factory = sessionmaker(bind=engine)
+    with factory() as db:
+        baseline = db.get(TicketNumberSequence, '209810')
+        previous = baseline.value if baseline else 0
     def allocate(_):
         with factory() as db:
             # UTC Sep 30 18:00 is October in Thailand.
-            number = next_ticket_number(db, datetime(2026, 9, 30, 18))
+            number = next_ticket_number(db, datetime(2098, 9, 30, 18))
             db.commit()
             return number
     with ThreadPoolExecutor(max_workers=4) as executor:
         numbers = list(executor.map(allocate, range(20)))
     assert len(set(numbers)) == 20
-    assert all(number.startswith('DVHT-202610-') for number in numbers)
-    assert sorted(int(n[-5:]) for n in numbers) == list(range(1, 21))
+    assert all(number.startswith('DVHT-209810-') for number in numbers)
+    assert sorted(int(n[-5:]) for n in numbers) == list(range(previous + 1, previous + 21))
     with factory() as db:
-        assert next_ticket_number(db, datetime(2026, 10, 31, 18)) == 'DVHT-202611-00001'
+        assert next_ticket_number(db, datetime(2098, 10, 31, 18)) == 'DVHT-209811-00001'
         db.rollback()
-    engine.dispose()
+    if not external:
+        engine.dispose()
+
+
+def test_offline_channels_share_case_queries(capture):
+    client, _, _, data, _ = capture
+    for channel in ('phone', 'face_to_face'):
+        result = client.post('/api/v1/tickets', json=dict(data, subject='Offline contact', channel=channel))
+        assert result.status_code == 201 and result.json()['channel'] == channel
+    base = f"/api/v1/customers/organizations/{data['organization_id']}"
+    assert client.get(base + '/case-summary').json()['open_count'] == 2
+    assert client.get(base + '/problem-history').json()[0]['frequency'] == 2
+
+
+def test_product_policy_snapshot_and_isolation(capture):
+    from app.db.models.product import ProductInstance
+    client, _, factory, data, _ = capture
+    with factory() as db:
+        product_id = db.get(ProductInstance, data['product_instance_id']).product_id
+    policy = client.post('/api/v1/admin/master-data/sla-policies', json={'name': uuid4().hex}).json()['id']
+    assert client.put(f'/api/v1/products/{product_id}/sla-policy', json={'sla_policy_id': policy}).status_code == 200
+    body = dict(data, subject='Product case', channel='phone')
+    record = client.post('/api/v1/tickets', json=body).json()
+    assert record['sla_policy_id'] == policy
+    foreign_product = client.post('/api/v1/products', json={'code': uuid4().hex, 'name': uuid4().hex}).json()['id']
+    symptom = client.post('/api/v1/admin/master-data/symptoms', json={'name': 'Other product symptom', 'product_id': foreign_product}).json()['id']
+    assert client.post('/api/v1/tickets', json=body | {'symptom_id': symptom}).status_code == 422
+    assert client.patch(f'/api/v1/admin/master-data/sla-policies/{policy}', json={'is_active': False}).status_code == 200
+    assert client.post('/api/v1/tickets', json=body).json()['sla_policy_id'] is None
+    assert client.get(f"/api/v1/tickets/{record['id']}").json()['sla_policy_id'] == policy

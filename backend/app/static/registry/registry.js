@@ -322,7 +322,7 @@ async function showCapture() {
   const formCard = section('บันทึกเคส', '', null, false), form = element('form'), optional = element('div', null, 'context-fields');
   const subjectLabel = element('label', 'หัวข้อเคส'), subject = element('input'); subject.maxLength = 255; subject.setAttribute('aria-label', 'หัวข้อเคส'); subjectLabel.append(subject);
   const channelLabel = element('label', 'ช่องทางแจ้ง'), channel = element('select'); channel.setAttribute('aria-label', 'ช่องทางแจ้ง');
-  for (const [value, text] of [['', 'ยังไม่ระบุ'], ['line_oa', 'LINE OA'], ['line_group', 'LINE Group'], ['line_personal', 'LINE ส่วนตัว'], ['portal', 'Portal'], ['email', 'อีเมล'], ['phone', 'โทรศัพท์'], ['other', 'อื่น ๆ']]) {
+  for (const [value, text] of [['', 'ยังไม่ระบุ'], ['line_oa', 'LINE OA'], ['line_group', 'LINE Group'], ['line_personal', 'LINE ส่วนตัว'], ['portal', 'Portal'], ['email', 'อีเมล'], ['phone', 'โทรศัพท์'], ['face_to_face', 'พบหน้า'], ['other', 'อื่น ๆ']]) {
     const option = element('option', text); option.value = value; channel.append(option);
   }
   channelLabel.append(channel);
