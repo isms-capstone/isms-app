@@ -129,6 +129,8 @@ function edit(title, fields, record, save, reload) {
 const activeField = field('is_active', 'สถานะ', 'select', {boolean: true, default: true, options: [{value: true, label: 'ใช้งาน'}, {value: false, label: 'ปิดใช้งาน'}]});
 const nameFields = [field('name', 'ชื่อ', 'text', {maxLength: 255}), activeField];
 const codeFields = [field('code', 'รหัส (a-z, 0-9, ขีดกลาง/ขีดล่าง)', 'text', {maxLength: 50}), ...nameFields];
+const productFields = codeFields.map(spec => spec.name === 'name' ? {...spec, maxLength: 150} : spec);
+const moduleFields = codeFields.map(spec => spec.name === 'name' ? {...spec, maxLength: 100} : spec);
 const orgPath = id => `/customers/organizations/${id}`;
 const save = (path, method, body) => request(path, {method, body});
 
@@ -199,8 +201,8 @@ async function showContact(org, contact) {
 async function showProducts() {
   startView('ทะเบียนผลิตภัณฑ์', 'ระบบและโมดูลที่ทีมให้บริการ เพิ่มผลิตภัณฑ์ได้ตามการใช้งาน');
   let reload;
-  const card = section('ผลิตภัณฑ์', '+ เพิ่มผลิตภัณฑ์', () => edit('เพิ่มผลิตภัณฑ์', codeFields, {}, body => save('/products', 'POST', body), reload), user.can_edit_products);
-  reload = collection(card, '/products', [['ผลิตภัณฑ์', row => button(row.name, () => showProduct(row), 'link')], ['รหัส', row => row.code], ['จำนวนโมดูล', row => row.modules.length], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขผลิตภัณฑ์', codeFields, row, body => save(`/products/${row.id}`, 'PUT', body), reload))] : [], true);
+  const card = section('ผลิตภัณฑ์', '+ เพิ่มผลิตภัณฑ์', () => edit('เพิ่มผลิตภัณฑ์', productFields, {}, body => save('/products', 'POST', body), reload), user.can_edit_products);
+  reload = collection(card, '/products', [['ผลิตภัณฑ์', row => button(row.name, () => showProduct(row), 'link')], ['รหัส', row => row.code], ['จำนวนโมดูล', row => row.modules.length], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขผลิตภัณฑ์', productFields, row, body => save(`/products/${row.id}`, 'PUT', body), reload))] : [], true);
 }
 async function showProduct(product) {
   startView(product.name, `รหัส ${product.code}`); workspace.prepend(button('← กลับทะเบียนผลิตภัณฑ์', showProducts));
@@ -210,8 +212,8 @@ async function showProduct(product) {
   const team = section('ทีมผู้รับผิดชอบเริ่มต้น', 'เลือกทีม', () => edit('ทีมผู้รับผิดชอบเริ่มต้น', [field('default_team_id', 'ทีม', 'select', {number: true, required: false, options: [{value: '', label: 'ยังไม่กำหนด'}, ...teams.map(t => ({value: t.id, label: t.name}))]})], current, body => save(`/products/${product.id}/default-team`, 'PUT', body), () => showProduct(product)), user.can_edit_products);
   team.append(element('p', teams.find(t => t.id === current.default_team_id)?.name || 'ยังไม่กำหนด', 'muted'));
   const reload = () => showProduct(product);
-  const card = section('โมดูลของผลิตภัณฑ์', '+ เพิ่มโมดูล', () => edit('เพิ่มโมดูล', codeFields, {}, body => save(`/products/${product.id}/modules`, 'POST', body), reload), user.can_edit_products);
-  collection(card, `/products/${product.id}/modules`, [['ชื่อ', row => row.name], ['รหัส', row => row.code], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขโมดูล', codeFields, row, body => save(`/products/${product.id}/modules/${row.id}`, 'PUT', body), reload))] : []);
+  const card = section('โมดูลของผลิตภัณฑ์', '+ เพิ่มโมดูล', () => edit('เพิ่มโมดูล', moduleFields, {}, body => save(`/products/${product.id}/modules`, 'POST', body), reload), user.can_edit_products);
+  collection(card, `/products/${product.id}/modules`, [['ชื่อ', row => row.name], ['รหัส', row => row.code], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขโมดูล', moduleFields, row, body => save(`/products/${product.id}/modules/${row.id}`, 'PUT', body), reload))] : []);
   await showProductConfiguration(product, current, version);
 }
 async function showProductConfiguration(product, current, version) {
