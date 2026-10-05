@@ -8,18 +8,34 @@
   <script type="module" src="/registry/assets/registry.js"></script>
 </head>
 <body>
-  <aside class="sidebar">
-    <div class="brand"><span class="brand-mark">D</span><div>Deverhood HT<small>ISMS</small></div></div>
-    <div class="nav-label">CUSTOMERS</div>
-    <button class="nav active" data-view="customers">Customers</button>
-    <div class="nav-label">PRODUCTS</div>
-    <button class="nav" data-view="products">Product Registry</button>
-    <div class="nav-label">WORK</div>
-    <button class="nav" data-view="capture">เลือกบริบทลูกค้า</button>
-    <p class="sidebar-note">ทะเบียนกลางสำหรับทีมบริการ</p>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><span class="brand-mark">IS</span><div>DEVERHOOD HT<small>ISMS</small></div></div>
+    <nav aria-label="เมนูหลัก">
+      <div class="nav-label">WORK</div>
+      <button class="nav" data-view="work">▣ <span>My Work</span></button>
+      <button class="nav" data-view="cases">☷ <span>All Cases</span></button>
+      <button class="nav" data-view="unassigned">♧ <span>Unassigned</span></button>
+      <button class="nav" data-view="capture">＋ <span>สร้างเคส</span></button>
+      <div class="nav-label">PRODUCTS</div>
+      <div id="product-navigation"></div>
+      <button class="nav" data-view="products">▤ <span>Product Registry</span></button>
+      <div class="nav-label">KNOWLEDGE</div>
+      <button class="nav" disabled title="ยังไม่เปิดใช้งาน">▥ <span>Knowledge Base</span></button>
+      <div class="nav-label">CUSTOMERS</div>
+      <button class="nav active" data-view="customers">♧ <span>Customers</span></button>
+      <div class="nav-label">REPORTS</div>
+      <button class="nav" disabled title="ยังไม่เปิดใช้งาน">▥ <span>Dashboard</span></button>
+      <div class="nav-label">ADMINISTRATION</div>
+      <a class="nav admin-navigation" href="/admin/">⚙ <span>Users &amp; Teams</span></a>
+      <a class="nav admin-navigation" href="/admin/">▤ <span>Master Data</span></a>
+      <button class="nav" disabled title="ยังไม่เปิดใช้งาน">◷ <span>SLA &amp; Business Hours</span></button>
+      <button class="nav" disabled title="ยังไม่เปิดใช้งาน">ϟ <span>Automation Rules</span></button>
+      <button class="nav" disabled title="ยังไม่เปิดใช้งาน">↶ <span>Audit Log</span></button>
+    </nav>
+    <div class="sidebar-user"><span class="avatar" id="sidebar-initials">IS</span><div id="sidebar-account">ISMS<small>Service Operations</small></div></div>
   </aside>
   <main>
-    <header class="topbar"><span>หน้าหลัก / <strong id="breadcrumb">Customers</strong></span><div><span id="user-label"></span> <button id="logout" hidden>ออกจากระบบ</button></div></header>
+    <header class="topbar"><div class="breadcrumbs"><button id="toggle-sidebar" type="button" aria-label="เปิดหรือปิดเมนู" aria-expanded="true" aria-controls="sidebar">☰</button><span>หน้าหลัก / <strong id="breadcrumb">Customers</strong></span></div><div class="topbar-actions"><button id="new-case" class="primary" hidden>＋ สร้างเคส</button><span id="user-label"></span><button id="logout" hidden>ออกจากระบบ</button></div></header>
     <div id="notice" role="status" aria-live="polite" hidden></div>
     <section id="login-panel" class="login-card card">
       <p class="eyebrow">CUSTOMER / PRODUCT REGISTRY</p>

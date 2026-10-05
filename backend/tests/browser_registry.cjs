@@ -25,6 +25,8 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-admin');
     await page.getByLabel('รหัสผ่าน', {exact: true}).fill('test-only-password');
     await page.getByRole('button', {name: 'เข้าสู่ระบบ', exact: true}).click();
+    await page.getByRole('heading', {name: 'งานของฉัน', exact: true}).waitFor();
+    await page.getByRole('button', {name: 'Customers', exact: true}).click();
     await page.getByRole('button', {name: '+ เพิ่มองค์กร', exact: true}).waitFor();
     await page.getByRole('button', {name: '+ เพิ่มองค์กร', exact: true}).click();
     await page.locator('dialog').getByLabel('ชื่อ', {exact: true}).fill('TU · คณะแพทยศาสตร์');
@@ -131,7 +133,7 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByRole('cell', {name: 'สอบปลายภาค', exact: true}).waitFor();
     await page.evaluate(() => scrollTo(0, 0));
     await page.screenshot({path: path.join(output, 'registry-desktop.png'), fullPage: true});
-    await page.getByRole('button', {name: 'เลือกบริบทลูกค้า', exact: true}).click();
+    await page.locator('[data-view="capture"]').click();
     await page.evaluate(() => {
       document.addEventListener('customer-context-change', event => {
         document.body.dataset.qaContext = JSON.stringify(event.detail);
@@ -142,20 +144,22 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByRole('option', {name: /TU · คณะแพทยศาสตร์/}).waitFor();
     console.log('Autocomplete visible after', Date.now() - started, 'ms (local QA)');
     await page.getByRole('option', {name: /TU · คณะแพทยศาสตร์/}).click();
+    await page.getByText('รายละเอียดเพิ่มเติม · เติมภายหลังได้', {exact: true}).click();
     await page.getByRole('combobox', {name: 'ระบบที่ลูกค้าใช้งาน', exact: true}).waitFor();
     assert.notEqual(await page.getByRole('combobox', {name: 'ระบบที่ลูกค้าใช้งาน', exact: true}).inputValue(), '');
     await page.getByRole('combobox', {name: 'หน่วยงาน', exact: true}).selectOption({label: 'ภาควิชาอายุรศาสตร์'});
     await page.getByRole('combobox', {name: 'รายวิชา / การสอบ', exact: true}).selectOption({label: 'MED101 (รายวิชา)'});
-    assert.match(await page.locator('.context-output').innerText(), /"course_or_exam_id": 1/);
+    assert.equal(JSON.parse(await page.locator('body').getAttribute('data-qa-context')).course_or_exam_id, 1);
     await page.getByLabel('โมดูลของเคส', {exact: true}).selectOption({label: 'Teacher'});
     await page.getByLabel('ประเภทปัญหาของเคส', {exact: true}).selectOption({label: 'รหัสผ่าน'});
     await page.getByLabel('อาการของเคส', {exact: true}).selectOption({label: 'เข้าสู่ระบบไม่ได้'});
-    await page.getByLabel('ช่องทางแจ้ง', {exact: true}).selectOption('email');
+    await page.locator('.channel-options').getByRole('button', {name: 'อีเมล', exact: true}).click();
     for (let index = 0; index < 2; index++) {
       await page.getByLabel('หัวข้อเคส', {exact: true}).fill(`Login QA ${index}`);
-      await page.getByLabel('ช่องทางแจ้ง', {exact: true}).selectOption(index === 0 ? 'phone' : 'face_to_face');
+      await page.locator('.channel-options').getByRole('button', {name: index === 0 ? 'โทรศัพท์' : 'พบหน้า', exact: true}).click();
+      if (index === 0) { await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({path: path.join(output, 'capture-desktop.png')}); }
       const created = page.waitForResponse(response => response.url().endsWith('/tickets') && response.request().method() === 'POST');
-      await page.getByRole('button', {name: 'บันทึกเคส / ร่าง', exact: true}).click();
+      await page.locator('.capture-footer').getByRole('button', {name: 'สร้างเคส', exact: true}).click();
       const ticket = await (await created).json();
       assert.equal(ticket.status, 'NEW');
       assert.equal(ticket.department_id, 1);
@@ -163,8 +167,14 @@ fs.mkdirSync(output, {recursive: true});
       assert.equal(ticket.category_id, 1);
       await page.getByRole('status').getByText(`บันทึก NEW: ${ticket.ticket_no}`, {exact: true}).waitFor();
     }
+    await page.getByLabel('หัวข้อเคส', {exact: true}).fill('Draft QA');
+    const draftResponse = page.waitForResponse(response => response.url().endsWith('/tickets') && response.request().method() === 'POST');
+    await page.getByRole('button', {name: 'บันทึกเป็นร่าง', exact: true}).click();
+    const draft = await (await draftResponse).json();
+    assert.equal(draft.status, 'DRAFT'); assert.equal(draft.ticket_no, null);
+    await page.getByRole('status').getByText(`บันทึก DRAFT: ร่าง #${draft.id}`, {exact: true}).waitFor();
     await search.fill('unknown-customer');
-    assert.equal(await page.locator('.context-output').count(), 0);
+    assert.equal(await page.locator('.selected-customer').count(), 0);
     assert.deepEqual(JSON.parse(await page.locator('body').getAttribute('data-qa-context')), {
       organization_id: null, contact_id: null, product_instance_id: null,
       department_id: null, course_or_exam_id: null,
@@ -176,6 +186,7 @@ fs.mkdirSync(output, {recursive: true});
     assert.equal(await page.locator('#customer-choices').isVisible(), false);
     assert.equal(await search.getAttribute('aria-expanded'), 'false');
     await page.setViewportSize({width: 375, height: 844});
+    await page.getByRole('button', {name: 'เปิดหรือปิดเมนู', exact: true}).click();
     await page.getByRole('button', {name: 'Customers', exact: true}).click();
     await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).waitFor();
     await page.getByRole('button', {name: 'TU · คณะแพทยศาสตร์', exact: true}).click();
@@ -186,17 +197,35 @@ fs.mkdirSync(output, {recursive: true});
     assert.equal(await page.getByRole('cell', {name: '2', exact: true}).count(), 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     await page.screenshot({path: path.join(output, 'registry-mobile.png'), fullPage: true});
-    await page.getByRole('button', {name: 'เลือกบริบทลูกค้า', exact: true}).click();
+    await page.getByRole('button', {name: 'เปิดหรือปิดเมนู', exact: true}).click();
+    await page.locator('[data-view="capture"]').click();
     const captureSearch = page.getByRole('combobox', {name: 'ค้นหาลูกค้า', exact: true});
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    assert.ok(await page.getByRole('button', {name: 'บันทึกเคส / ร่าง', exact: true}).evaluate(node => node.getBoundingClientRect().height >= 44));
+    assert.ok(await page.locator('.capture-footer').getByRole('button', {name: 'สร้างเคส', exact: true}).evaluate(node => node.getBoundingClientRect().height >= 44));
     await captureSearch.fill('TU');
     await page.getByRole('option', {name: /TU · คณะแพทยศาสตร์/}).click();
     await page.getByRole('heading', {name: 'เคสเปิดของลูกค้ารายนี้ (2)', exact: true}).waitFor();
+    await page.getByLabel('หัวข้อเคส', {exact: true}).fill('Mobile preview');
+    await page.locator('.channel-options').getByRole('button', {name: 'โทรศัพท์', exact: true}).click();
+    assert.equal(await page.locator('.context-output').count(), 0);
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({path: path.join(output, 'capture-mobile.png')});
+
     await page.getByRole('button', {name: 'เพิ่มเข้าเคสเดิม', exact: true}).first().click();
     await page.getByRole('heading', {name: 'รายละเอียดเคส', exact: true}).waitFor();
     await page.getByRole('button', {name: '← กลับลูกค้า', exact: true}).click();
     await page.getByRole('heading', {name: 'เคสที่เปิดอยู่ (2)', exact: true}).waitFor();
+
+    await page.setViewportSize({width: 1440, height: 1000});
+    await page.getByRole('button', {name: 'My Work', exact: true}).click();
+    await page.getByRole('heading', {name: 'เคสร่างของคุณ (1)', exact: true}).waitFor();
+    await page.getByRole('cell', {name: 'Draft QA', exact: true}).waitFor();
+    assert.equal(await page.locator('.action-count').count(), 4);
+    await page.getByRole('heading', {name: 'คิวเคสที่เปิดอยู่', exact: true}).waitFor();
+    assert.match(await page.locator('.queue-note').textContent(), /ยังไม่มีข้อมูลเวลา SLA/);
+    const shell = await page.evaluate(() => ({background: getComputedStyle(document.body).backgroundColor, sidebar: getComputedStyle(document.querySelector('.sidebar')).backgroundColor, header: document.querySelector('.topbar').getBoundingClientRect().height}));
+    assert.equal(shell.sidebar, 'rgb(51, 69, 78)'); assert.equal(shell.header, 56);
+    await page.screenshot({path: path.join(output, 'my-work-desktop.png'), fullPage: true});
 
     await page.getByRole('button', {name: 'ออกจากระบบ', exact: true}).click();
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-auditor');
