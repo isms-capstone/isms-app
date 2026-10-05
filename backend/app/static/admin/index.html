@@ -1,81 +1,470 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ISMS · Admin</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ISMS · Admin Console</title>
 <style>
 :root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f5f7fb}
-*{box-sizing:border-box}body{margin:0}header{background:#172033;color:white;padding:20px 28px;display:flex;justify-content:space-between;align-items:center}
-h1{font-size:20px;margin:0}main{max-width:1200px;margin:24px auto;padding:0 18px}.panel{background:white;border:1px solid #e1e6ef;border-radius:12px;padding:18px;margin-bottom:18px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tabs{display:flex;gap:8px;margin-bottom:14px}
-button,.tab{border:1px solid #ccd4e1;background:#fff;border-radius:8px;padding:9px 13px;cursor:pointer;color:#172033}
-button.primary{background:#2859c5;color:white;border-color:#2859c5}.tab.active{background:#172033;color:white}
-input,select{padding:9px 10px;border:1px solid #ccd4e1;border-radius:8px;min-width:150px;max-width:100%}
-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}th,td{text-align:left;padding:11px 9px;border-bottom:1px solid #edf0f5}th{color:#5a6578;font-weight:600}
-.muted{color:#687386;font-size:13px}.error{color:#b42318}.success{color:#087443}.hidden{display:none}.status{padding:8px 0;min-height:24px}
-@media(max-width:700px){header{padding:16px}table{display:block;overflow-x:auto}input,select{width:100%}.row>*{flex:1}}
-</style></head>
+*{box-sizing:border-box}body{margin:0}header{background:#172033;color:#fff;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:20}
+h1{font-size:20px;margin:0}main{max-width:1400px;margin:20px auto;padding:0 16px}.layout{display:grid;grid-template-columns:220px 1fr;gap:16px}
+.panel{background:#fff;border:1px solid #e1e6ef;border-radius:12px;padding:16px;margin-bottom:16px}.sidebar{position:sticky;top:84px;height:max-content}.nav{display:grid;gap:7px}.nav button{width:100%;text-align:left}.nav button.active{background:#172033;color:#fff;border-color:#172033}
+button,.tab{border:1px solid #ccd4e1;background:#fff;border-radius:8px;padding:9px 12px;cursor:pointer;color:#172033}button:hover{background:#f4f6fa}button.primary{background:#2859c5;color:#fff;border-color:#2859c5}button.danger{color:#b42318}.subtabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}.tab.active{background:#2859c5;color:white;border-color:#2859c5}
+input,select,textarea{padding:9px 10px;border:1px solid #ccd4e1;border-radius:8px;width:100%;background:white;color:#172033}textarea{min-height:80px;resize:vertical}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.field{display:grid;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:13px;font-weight:600}.field small,.muted{color:#687386;font-size:12px;line-height:1.45}.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sectionhead{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}.sectionhead h2,.sectionhead h3{margin:0}.status{padding:8px 0;min-height:24px}.success{color:#087443}.error{color:#b42318}.hidden{display:none}.helpbox{background:#f7f9fc;border:1px solid #e1e6ef;border-radius:10px;padding:11px;margin:10px 0 14px;color:#4b5565;font-size:13px;line-height:1.5}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #edf0f5;vertical-align:top}th{color:#5a6578;font-weight:600}td.actions-cell{white-space:nowrap}.badge{display:inline-block;padding:3px 8px;border-radius:999px;background:#edf2ff;font-size:12px}.badge.off{background:#f3f4f6;color:#667085}.empty{padding:16px;text-align:center;color:#687386}.checkrow{display:flex;gap:10px;flex-wrap:wrap}.checkrow label{display:flex;gap:5px;align-items:center;font-size:13px}.checkrow input{width:auto}.login-wrap{max-width:520px;margin:60px auto}.dangerbox{border:1px solid #f1c5c0;background:#fff8f7;border-radius:10px;padding:10px;margin:10px 0}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{position:static}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.formgrid{grid-template-columns:1fr}}
+@media(max-width:600px){.nav{grid-template-columns:1fr}table{display:block;overflow-x:auto}.actions-cell{white-space:normal!important}}
+</style>
+</head>
 <body>
-<header><h1>ISMS / Admin Console</h1><button id="logout" class="hidden">ออกจากระบบ</button></header>
+<header><h1>ISMS / Admin Console</h1><div class="actions"><span id="who" class="muted" style="color:#dbe3f0"></span><button id="logout" class="hidden">ออกจากระบบ</button></div></header>
+
 <main>
-<section id="login" class="panel">
-<h2>เข้าสู่ระบบผู้ดูแล</h2><p class="muted">ใช้บัญชี Admin ของระบบ</p>
-<form id="loginForm" class="row"><input name="username" placeholder="Username" required autocomplete="username"><input name="password" type="password" placeholder="Password" required autocomplete="current-password"><button class="primary">เข้าสู่ระบบ</button></form>
-<div id="loginStatus" class="status"></div>
+<section id="login" class="panel login-wrap">
+  <h2>เข้าสู่ระบบผู้ดูแล</h2>
+  <p class="muted">ใช้บัญชี Admin ของระบบ</p>
+  <form id="loginForm" class="formgrid">
+    <div class="field"><label>Username</label><input name="username" required autocomplete="username"></div>
+    <div class="field"><label>Password</label><input name="password" type="password" required autocomplete="current-password"></div>
+    <div class="field full"><button class="primary">เข้าสู่ระบบ</button></div>
+  </form>
+  <div id="loginStatus" class="status"></div>
 </section>
+
 <section id="app" class="hidden">
-<div class="panel"><div class="tabs"><button class="tab active" data-tab="users">ผู้ใช้</button><button class="tab" data-tab="teams">ทีม</button><button class="tab" data-tab="roles">บทบาท</button></div><div id="status" class="status"></div>
-<div id="users" class="tabbody">
-<h2>จัดการผู้ใช้</h2><form id="userForm" class="row">
-<input name="username" placeholder="Username" required><input name="email" type="email" placeholder="Email" required><input name="full_name" placeholder="ชื่อที่แสดง">
-<input name="password" type="password" placeholder="Password (ตอนสร้าง)">
-<select name="role_id" id="userRole" required></select><select name="team_id" id="userTeam"><option value="">ไม่สังกัดทีม</option></select>
-<button class="primary">เพิ่มผู้ใช้</button><button type="button" id="cancelEdit">ยกเลิกแก้ไข</button>
-</form>
-<div class="row" style="margin-top:12px"><input id="userSearch" placeholder="ค้นหา username / email / ชื่อ"><select id="userStatus"><option value="">ทุกสถานะ</option><option value="true">ใช้งาน</option><option value="false">ระงับ</option></select><button id="refreshUsers">ค้นหา / รีเฟรช</button></div>
-<div id="usersTable"></div></div>
-<div id="teams" class="tabbody hidden"><h2>จัดการทีม</h2><form id="teamForm" class="row"><input name="name" placeholder="ชื่อทีม" required><input name="description" placeholder="รายละเอียด"><button class="primary">เพิ่มทีม</button></form><div id="teamsTable"></div></div>
-<div id="roles" class="tabbody hidden"><h2>จัดการบทบาท</h2><p class="muted">บทบาทระบบตาม SRS: Admin, Agent, Specialist, Developer, Team Lead และ Executive ไม่สามารถเปลี่ยนชื่อหรือลบได้</p><form id="roleForm" class="row"><input name="name" placeholder="ชื่อบทบาท" required><input name="description" placeholder="รายละเอียด"><button class="primary">เพิ่มบทบาท</button></form><div id="rolesTable"></div></div>
-</div></section>
+  <div class="layout">
+    <aside class="panel sidebar">
+      <div class="nav" id="mainNav">
+        <button data-section="users" class="active">ผู้ใช้</button>
+        <button data-section="teams">ทีม</button>
+        <button data-section="roles">บทบาท</button>
+        <button data-section="master">Master Data</button>
+        <button data-section="sla">SLA & Calendar</button>
+        <button data-section="templates">Templates & Messages</button>
+        <button data-section="automation">Automation Rules</button>
+      </div>
+    </aside>
+
+    <div>
+      <div id="status" class="status"></div>
+
+      <section id="section-users" class="section">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>จัดการผู้ใช้</h2><div class="muted">เพิ่ม แก้ไข ระงับ และเปิดใช้งานผู้ใช้จากหน้า Admin</div></div><button id="refreshUsers">รีเฟรช</button></div>
+          <form id="userForm" class="formgrid" style="margin-top:14px">
+            <div class="field"><label>Username</label><input name="username" required></div>
+            <div class="field"><label>Email</label><input name="email" type="email" required></div>
+            <div class="field"><label>ชื่อที่แสดง</label><input name="full_name"></div>
+            <div class="field"><label>Password</label><input name="password" type="password" required><small>ตอนแก้ไขจะเว้นว่างได้</small></div>
+            <div class="field"><label>Role</label><select name="role" id="userRole" required></select></div>
+            <div class="field"><label>Team</label><select name="team_id" id="userTeam"><option value="">ไม่สังกัดทีม</option></select></div>
+            <div class="field full"><div class="actions"><button class="primary">เพิ่มผู้ใช้</button><button type="button" id="cancelUserEdit">ล้าง/ยกเลิกแก้ไข</button></div></div>
+          </form>
+          <div class="row" style="margin-top:12px"><div class="actions"><input id="userSearch" placeholder="ค้นหา username / email / ชื่อ" style="max-width:320px"><select id="userStatus" style="width:auto"><option value="">ทุกสถานะ</option><option value="true">ใช้งาน</option><option value="false">ระงับ</option></select><button id="searchUsers">ค้นหา</button></div></div>
+          <div id="usersTable"></div>
+        </div>
+      </section>
+
+      <section id="section-teams" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>ทีม</h2><div class="muted">จัดการทีมที่ใช้กับผู้ใช้และ Automation Rules</div></div><button id="refreshTeams">รีเฟรช</button></div>
+          <form id="teamForm" class="formgrid" style="margin-top:14px"><div class="field"><label>ชื่อทีม</label><input name="name" required></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field full"><button class="primary">เพิ่มทีม</button></div></form>
+          <div id="teamsTable"></div>
+        </div>
+      </section>
+
+      <section id="section-roles" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>บทบาท</h2><div class="muted">บทบาทระบบหลักจะไม่แสดงปุ่มแก้/ลบ</div></div><button id="refreshRoles">รีเฟรช</button></div>
+          <form id="roleForm" class="formgrid" style="margin-top:14px"><div class="field"><label>ชื่อบทบาท</label><input name="name" required></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field full"><button class="primary">เพิ่มบทบาท</button></div></form>
+          <div id="rolesTable"></div>
+        </div>
+      </section>
+
+      <section id="section-master" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>Master Data</h2><div class="muted">ทะเบียนกลางที่ Admin ปรับได้โดยไม่ต้องแก้ code</div></div><button id="refreshMaster">รีเฟรช</button></div>
+          <div class="subtabs" id="masterTabs" style="margin-top:14px">
+            <button class="tab active" data-master="products">Product</button><button class="tab" data-master="modules">Module</button><button class="tab" data-master="problem-types">Problem Type</button><button class="tab" data-master="symptoms">Symptom</button><button class="tab" data-master="service-stages">Service Stage</button><button class="tab" data-master="ticket-types">Ticket Type</button><button class="tab" data-master="cause-codes">Cause Code</button><button class="tab" data-master="solution-codes">Solution Code</button>
+          </div>
+          <div id="masterContent"></div>
+        </div>
+      </section>
+
+      <section id="section-sla" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>SLA & Calendar</h2><div class="muted">จัดการ SLA Policy, SLA Rule, Business Calendar และวันหยุด</div></div><button id="refreshSla">รีเฟรช</button></div>
+          <div class="subtabs" id="slaTabs" style="margin-top:14px"><button class="tab active" data-sla="policies">SLA Policy</button><button class="tab" data-sla="calendars">Business Calendar</button></div>
+          <div id="slaContent"></div>
+        </div>
+      </section>
+
+      <section id="section-templates" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>Templates & Messages</h2><div class="muted">Case Template และข้อความสำเร็จรูปสำหรับใช้งานต่อใน Case form</div></div><button id="refreshTemplates">รีเฟรช</button></div>
+          <div class="subtabs" id="templateTabs" style="margin-top:14px"><button class="tab active" data-template="case-templates">Case Template</button><button class="tab" data-template="canned-messages">Canned Message</button></div>
+          <div id="templateContent"></div>
+        </div>
+      </section>
+
+      <section id="section-automation" class="section hidden">
+        <div class="panel">
+          <div class="sectionhead"><div><h2>Automation Rules</h2><div class="muted">รูปแบบกฎ: เมื่อเงื่อนไข X → ให้ทำ Y</div></div><button id="refreshAutomation">รีเฟรช</button></div>
+          <div class="helpbox"><strong>Priority</strong> เลขน้อย = พิจารณาก่อน เมื่อมีกฎหลายข้อที่ตรงกัน<br><strong>เงื่อนไข</strong> เลือกฟิลด์ของเคส + ค่าที่ต้องตรง<br><strong>Action</strong> ตอนนี้รองรับมอบหมายทีม และสามารถปิด/เปิดกฎได้โดยไม่ต้องลบ</div>
+          <form id="ruleForm" class="formgrid">
+            <div class="field"><label>ชื่อกฎ</label><input name="name" placeholder="เช่น S1 → Incident Team" required></div>
+            <div class="field"><label>รายละเอียด</label><input name="description"></div>
+            <div class="field"><label>Priority</label><input name="priority" type="number" min="1" max="9999" value="100" required><small>เลขน้อย = พิจารณาก่อน</small></div>
+            <div class="field"><label>Condition Field</label><select name="condition_field" id="conditionField" required></select></div>
+            <div class="field"><label>Condition Value</label><select name="condition_value" id="conditionValue" required></select><small id="conditionHelp"></small></div>
+            <div class="field"><label>ทีมที่จะมอบหมาย</label><select name="action_team_id" id="actionTeam" required></select></div>
+            <div class="field full"><div class="actions"><button class="primary">เพิ่มกฎ</button><button type="button" id="cancelRuleEdit">ล้าง/ยกเลิกแก้ไข</button></div></div>
+          </form>
+          <div id="automationTable"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
 </main>
+
 <script>
-let token=localStorage.getItem('isms_admin_token')||'', roles=[], teams=[], editingUser=null;
+'use strict';
+let token=localStorage.getItem('isms_admin_token')||'';
+let roles=[],teams=[],products=[],modules=[],problemTypes=[],editingUser=null,editingRule=null;
+let currentMaster='products',currentSla='policies',currentTemplate='case-templates';
+const API='/api/v1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function message(t,error=false,where='#status'){const el=$(where);if(el){el.textContent=t;el.className='status '+(error?'error':'success')}}
-async function api(path,opts={}){const headers={...(opts.headers||{}),'Authorization':'Bearer '+token};if(opts.body&&!(opts.body instanceof FormData))headers['Content-Type']='application/json';const r=await fetch('/api/v1'+path,{...opts,headers});if(r.status===204)return null;let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.detail||('HTTP '+r.status));return d}
-function signedIn(on){$('#login').classList.toggle('hidden',on);$('#app').classList.toggle('hidden',!on);$('#logout').classList.toggle('hidden',!on)}
-$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:f.get('username'),password:f.get('password')})});const d=await r.json();if(!r.ok)throw Error(d.detail||'เข้าสู่ระบบไม่สำเร็จ');token=d.access_token;localStorage.setItem('isms_admin_token',token);signedIn(true);await loadAll()}catch(err){message(err.message,true,'#loginStatus')}});
-$('#logout').onclick=()=>{token='';localStorage.removeItem('isms_admin_token');signedIn(false)};
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tabbody').forEach(x=>x.classList.toggle('hidden',x.id!==b.dataset.tab))});
-async function loadAll(){try{[roles,teams]=await Promise.all([api('/roles/'),api('/teams/')]);$('#userRole').innerHTML=roles.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');$('#userTeam').innerHTML='<option value="">ไม่สังกัดทีม</option>'+teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');await Promise.all([loadUsers(),loadTeams(),loadRoles()]);message('โหลดข้อมูลแล้ว')}catch(e){message(e.message,true);if(/401|403/.test(e.message))signedIn(false)}}
-async function loadUsers(){const q=new URLSearchParams();if($('#userSearch').value)q.set('q',$('#userSearch').value);if($('#userStatus').value)q.set('is_active',$('#userStatus').value);const data=await api('/admin/users/?'+q);$('#usersTable').innerHTML='<table><thead><tr><th>ผู้ใช้</th><th>อีเมล</th><th>Role ID</th><th>Team ID</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>'+data.map(u=>`<tr><td>${esc(u.username)}<br><span class="muted">${esc(u.full_name)}</span></td><td>${esc(u.email)}</td><td>${esc(roles.find(r=>r.id===u.role_id)?.name||u.role_id)}</td><td>${esc(teams.find(t=>t.id===u.team_id)?.name||'-')}</td><td>${u.is_active?'ใช้งาน':'ระงับ'}</td><td><button data-edit="${u.id}">แก้ไข</button> <button data-toggle="${u.id}" data-active="${u.is_active}">${u.is_active?'ระงับ':'เปิดใช้'}</button> <button data-delete="${u.id}">ลบ</button></td></tr>`).join('')+'</tbody></table>';
-$('#usersTable').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editUser(data.find(u=>u.id==b.dataset.edit)));
-$('#usersTable').querySelectorAll('[data-toggle]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.toggle;if(b.dataset.active==='true')await api('/admin/users/'+id+'/suspend',{method:'POST'});else await api('/admin/users/'+id+'/activate',{method:'POST'});await loadUsers();message('บันทึกสถานะแล้ว')}catch(e){message(e.message,true)}});
-$('#usersTable').querySelectorAll('[data-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบผู้ใช้นี้?'))return;try{await api('/admin/users/'+b.dataset.delete,{method:'DELETE'});await loadUsers();message('ลบผู้ใช้แล้ว')}catch(e){message(e.message,true)}});
+const errText=e=>e?.message||String(e);
+function message(text,error=false,where='#status'){const el=$(where);if(!el)return;el.textContent=text;el.className='status '+(error?'error':'success')}
+function setSignedIn(on){$('#login').classList.toggle('hidden',on);$('#app').classList.toggle('hidden',!on);$('#logout').classList.toggle('hidden',!on)}
+async function api(path,opts={}){
+  const headers={...(opts.headers||{}),Authorization:'Bearer '+token};
+  if(opts.body&&!(opts.body instanceof FormData))headers['Content-Type']='application/json';
+  const res=await fetch(API+path,{...opts,headers});
+  if(res.status===204)return null;
+  let data={};try{data=await res.json()}catch{}
+  if(!res.ok){
+    if(res.status===401 || res.status===403){
+      token='';
+      localStorage.removeItem('isms_admin_token');
+      setSignedIn(false);
+    }
+    if(res.status===403)throw Error('Permission denied: Admin only');
+    if(res.status===401)throw Error('Session หมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่');
+    throw Error(data.detail||('HTTP '+res.status));
+  }
+  return data;
 }
-function editUser(u){editingUser=u.id;const f=$('#userForm');f.username.value=u.username;f.username.disabled=true;f.email.value=u.email;f.full_name.value=u.full_name||'';f.password.value='';f.password.required=false;f.role_id.value=u.role_id;f.team_id.value=u.team_id||'';f.querySelector('button.primary').textContent='บันทึกการแก้ไข'}
-$('#cancelEdit').onclick=()=>{editingUser=null;const f=$('#userForm');f.reset();f.username.disabled=false;f.password.required=true;f.querySelector('button.primary').textContent='เพิ่มผู้ใช้'}
-$('#userForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target;const selectedRole = roles.find(
-  r => r.id === Number(f.role_id.value)
-);
+async function verifyAdminAccess(){
+  if(!token) throw Error('กรุณาเข้าสู่ระบบ');
+  try{
+    await fetch(API+'/roles/',{headers:{Authorization:'Bearer '+token}}).then(async res=>{
+      let data={};try{data=await res.json()}catch{}
+      if(res.status===403)throw Error('Permission denied: Admin only');
+      if(res.status===401)throw Error('Session หมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่');
+      if(!res.ok)throw Error(data.detail||('HTTP '+res.status));
+      return data;
+    });
+  }catch(e){
+    token='';
+    localStorage.removeItem('isms_admin_token');
+    setSignedIn(false);
+    throw e;
+  }
+}
+function opts(items,valueKey='id',labelKey='name',includeBlank=false,blankLabel='-- เลือก --'){
+  return (includeBlank?`<option value="">${blankLabel}</option>`:'')+items.map(x=>`<option value="${esc(x[valueKey])}">${esc(x[labelKey])}</option>`).join('')
+}
+function badge(active){return `<span class="badge ${active?'':'off'}">${active?'ใช้งาน':'ปิดใช้งาน'}</span>`}
+function masterName(list,id){return list.find(x=>Number(x.id)===Number(id))?.name||'-'}
 
-const body = {
-  email: f.email.value,
-  full_name: f.full_name.value || null,
-  role: selectedRole?.name,
-  team_id: f.team_id.value ? Number(f.team_id.value) : null
-};;try{if(editingUser){if(f.password.value)body.password=f.password.value;await api('/admin/users/'+editingUser,{method:'PATCH',body:JSON.stringify(body)})}else{body.username=f.username.value;body.password=f.password.value;await api('/admin/users/',{method:'POST',body:JSON.stringify(body)})}$('#cancelEdit').click();await loadUsers();message('บันทึกผู้ใช้แล้ว')}catch(err){message(err.message,true)}});
-$('#refreshUsers').onclick=()=>loadUsers();$('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadUsers()});
-async function loadTeams(){const data=teams;$('#teamsTable').innerHTML='<table><thead><tr><th>ทีม</th><th>รายละเอียด</th><th>จัดการ</th></tr></thead><tbody>'+data.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.description||'')}</td><td><button data-team-edit="${t.id}">แก้ไข</button> <button data-team-del="${t.id}">ลบ</button></td></tr>`).join('')+'</tbody></table>';
-$('#teamsTable').querySelectorAll('[data-team-edit]').forEach(b=>b.onclick=async()=>{const t=data.find(x=>x.id==b.dataset.teamEdit);const name=prompt('ชื่อทีม',t.name);if(name===null)return;const description=prompt('รายละเอียด',t.description||'');try{await api('/teams/'+t.id,{method:'PATCH',body:JSON.stringify({name,description})});await loadAll()}catch(e){message(e.message,true)}});
-$('#teamsTable').querySelectorAll('[data-team-del]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบทีม?'))return;try{await api('/teams/'+b.dataset.teamDel,{method:'DELETE'});await loadAll()}catch(e){message(e.message,true)}});
+// ---------- navigation ----------
+document.querySelectorAll('#mainNav button').forEach(b=>b.addEventListener('click',async()=>{
+  document.querySelectorAll('#mainNav button').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('hidden',s.id!=='section-'+b.dataset.section));
+  await loadSection(b.dataset.section);
+}));
+async function loadSection(name){
+  try{
+    if(name==='users'){await loadUsers()}
+    if(name==='teams'){await loadTeams()}
+    if(name==='roles'){await loadRoles()}
+    if(name==='master'){await loadMasterDependencies();await loadMaster()}
+    if(name==='sla'){await loadSla()}
+    if(name==='templates'){await loadTemplateDependencies();await loadTemplates()}
+    if(name==='automation'){await loadAutomationDependencies();await loadAutomation()}
+  }catch(e){message(errText(e),true)}
 }
-$('#teamForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('/teams/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();message('เพิ่มทีมแล้ว')}catch(err){message(err.message,true)}};
-async function loadRoles(){const data=roles;$('#rolesTable').innerHTML='<table><thead><tr><th>บทบาท</th><th>รายละเอียด</th><th>จัดการ</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.description||'')}</td><td>${['Admin','Agent','Specialist','Developer','Team Lead','Executive'].includes(r.name)?'<span class="muted">บทบาทระบบ</span>':`<button data-role-edit="${r.id}">แก้ไข</button> <button data-role-del="${r.id}">ลบ</button>`}</td></tr>`).join('')+'</tbody></table>';
-$('#rolesTable').querySelectorAll('[data-role-edit]').forEach(b=>b.onclick=async()=>{const r=data.find(x=>x.id==b.dataset.roleEdit);const name=prompt('ชื่อบทบาท',r.name);if(name===null)return;const description=prompt('รายละเอียด',r.description||'');try{await api('/roles/'+r.id,{method:'PATCH',body:JSON.stringify({name,description})});await loadAll()}catch(e){message(e.message,true)}});
-$('#rolesTable').querySelectorAll('[data-role-del]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบบทบาท?'))return;try{await api('/roles/'+b.dataset.roleDel,{method:'DELETE'});await loadAll()}catch(e){message(e.message,true)}});
+
+// ---------- login ----------
+$('#loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();const f=new FormData(e.target);
+  try{
+    const res=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:f.get('username'),password:f.get('password')})});
+    let data={};try{data=await res.json()}catch{} if(!res.ok)throw Error(data.detail||'เข้าสู่ระบบไม่สำเร็จ');
+    token=data.access_token;
+    await verifyAdminAccess();
+    localStorage.setItem('isms_admin_token',token);
+    $('#who').textContent=f.get('username');
+    e.target.reset();
+    setSignedIn(true);
+    await loadAll();
+    message('โหลดข้อมูล Admin แล้ว');
+  }catch(e){
+    message(errText(e),true,'#loginStatus');
+  }
+});
+$('#logout').addEventListener('click',()=>{token='';localStorage.removeItem('isms_admin_token');$('#who').textContent='';setSignedIn(false)});
+
+// ---------- bootstrap ----------
+async function loadAll(){
+  try{
+    [roles,teams]=await Promise.all([api('/roles/'),api('/teams/')]);
+    $('#userRole').innerHTML=opts(roles);
+    $('#userTeam').innerHTML=opts(teams,'id','name',true,'ไม่สังกัดทีม');
+    await loadUsers();
+  }catch(e){message(errText(e),true);throw e}
 }
-$('#roleForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('/roles/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();message('เพิ่มบทบาทแล้ว')}catch(err){message(err.message,true)}};
-if(token){signedIn(true);loadAll()}else signedIn(false);
-</script></body></html>
+if(token){
+  setSignedIn(false);
+  verifyAdminAccess()
+    .then(()=>{setSignedIn(true);return loadAll()})
+    .catch(e=>message(errText(e),true,'#loginStatus'));
+}else{
+  setSignedIn(false);
+}
+
+// ---------- users ----------
+async function loadUsers(){
+  const q=new URLSearchParams();const search=$('#userSearch')?.value;if(search)q.set('q',search);if($('#userStatus')?.value)q.set('is_active',$('#userStatus').value);
+  const data=await api('/admin/users/?'+q.toString());
+  $('#usersTable').innerHTML=data.length?`<table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${data.map(u=>`<tr><td><strong>${esc(u.username)}</strong><br><span class="muted">${esc(u.full_name||'')}</span></td><td>${esc(u.email)}</td><td>${esc(masterName(roles,u.role_id))}</td><td>${esc(masterName(teams,u.team_id))}</td><td>${badge(u.is_active)}</td><td class="actions-cell"><button data-edit-user="${u.id}">แก้ไข</button> <button data-toggle-user="${u.id}" data-active="${u.is_active}">${u.is_active?'ระงับ':'เปิดใช้'}</button> <button data-delete-user="${u.id}" class="danger">ลบ</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ไม่พบผู้ใช้</div>';
+  $('#usersTable').querySelectorAll('[data-edit-user]').forEach(b=>b.onclick=()=>startUserEdit(data.find(u=>Number(u.id)===Number(b.dataset.editUser))));
+  $('#usersTable').querySelectorAll('[data-toggle-user]').forEach(b=>b.onclick=async()=>{try{await api('/admin/users/'+b.dataset.toggleUser+(b.dataset.active==='true'?'/suspend':'/activate'),{method:'POST'});await loadUsers();message('บันทึกสถานะผู้ใช้แล้ว')}catch(e){message(errText(e),true)}});
+  $('#usersTable').querySelectorAll('[data-delete-user]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบผู้ใช้นี้?'))return;try{await api('/admin/users/'+b.dataset.deleteUser,{method:'DELETE'});await loadUsers();message('ลบผู้ใช้แล้ว')}catch(e){message(errText(e),true)}});
+}
+function startUserEdit(u){editingUser=u.id;const f=$('#userForm');f.username.value=u.username;f.username.disabled=true;f.email.value=u.email||'';f.full_name.value=u.full_name||'';f.password.value='';f.password.required=false;f.role.value=String(u.role_id ?? '');f.team_id.value=u.team_id||'';f.querySelector('button.primary').textContent='บันทึกผู้ใช้';}
+function resetUserForm(){editingUser=null;const f=$('#userForm');f.reset();f.username.disabled=false;f.password.required=true;f.querySelector('button.primary').textContent='เพิ่มผู้ใช้'}
+$('#cancelUserEdit').onclick=resetUserForm;$('#refreshUsers').onclick=()=>loadUsers();$('#searchUsers').onclick=()=>loadUsers();$('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadUsers()});
+$('#userForm').addEventListener('submit',async e=>{
+  e.preventDefault();const f=e.target;
+  try{
+    const body={email:f.email.value,full_name:f.full_name.value||null,role:masterName(roles,f.role.value),team_id:f.team_id.value?Number(f.team_id.value):null};
+    if(!body.role||body.role==='-')throw Error('Role not found: '+f.role.value);
+    if(editingUser){if(f.password.value)body.password=f.password.value;await api('/admin/users/'+editingUser,{method:'PATCH',body:JSON.stringify(body)})}
+    else{body.username=f.username.value;body.password=f.password.value;await api('/admin/users/',{method:'POST',body:JSON.stringify(body)})}
+    resetUserForm();await loadUsers();message('บันทึกผู้ใช้แล้ว')
+  }catch(e){message(errText(e),true)}
+});
+
+// ---------- teams / roles ----------
+async function loadTeams(){
+  teams=await api('/teams/');
+  $('#userTeam').innerHTML=opts(teams,'id','name',true,'ไม่สังกัดทีม');
+  $('#teamsTable').innerHTML=teams.length?`<table><thead><tr><th>Team</th><th>Description</th><th>จัดการ</th></tr></thead><tbody>${teams.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.description||'')}</td><td class="actions-cell"><button data-edit-team="${t.id}">แก้ไข</button> <button data-delete-team="${t.id}" class="danger">ลบ</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มีทีม</div>';
+  $('#teamsTable').querySelectorAll('[data-edit-team]').forEach(b=>b.onclick=async()=>{const t=teams.find(x=>Number(x.id)===Number(b.dataset.editTeam));const name=prompt('ชื่อทีม',t.name);if(name===null)return;const description=prompt('รายละเอียด',t.description||'');if(description===null)return;try{await api('/teams/'+t.id,{method:'PATCH',body:JSON.stringify({name,description:description||null})});await loadAll();await loadTeams();message('บันทึกทีมแล้ว')}catch(e){message(errText(e),true)}});
+  $('#teamsTable').querySelectorAll('[data-delete-team]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบทีม?'))return;try{await api('/teams/'+b.dataset.deleteTeam,{method:'DELETE'});await loadAll();await loadTeams();message('ลบทีมแล้ว')}catch(e){message(errText(e),true)}});
+}
+$('#refreshTeams').onclick=()=>loadTeams();
+$('#teamForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target;try{await api('/teams/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();await loadTeams();message('เพิ่มทีมแล้ว')}catch(e){message(errText(e),true)}});
+async function loadRoles(){
+  roles=await api('/roles/');
+  $('#userRole').innerHTML=opts(roles);
+  $('#rolesTable').innerHTML=roles.length?`<table><thead><tr><th>Role</th><th>Description</th><th>จัดการ</th></tr></thead><tbody>${roles.map(r=>{const system=['Admin','Agent','Specialist','Developer','Team Lead','Executive'].includes(r.name);return `<tr><td>${esc(r.name)}</td><td>${esc(r.description||'')}</td><td>${system?'<span class="muted">บทบาทระบบ</span>':`<button data-edit-role="${r.id}">แก้ไข</button> <button data-delete-role="${r.id}" class="danger">ลบ</button>`}</td></tr>`}).join('')}</tbody></table>`:'<div class="empty">ยังไม่มีบทบาท</div>';
+  $('#rolesTable').querySelectorAll('[data-edit-role]').forEach(b=>b.onclick=async()=>{const r=roles.find(x=>Number(x.id)===Number(b.dataset.editRole));const name=prompt('ชื่อบทบาท',r.name);if(name===null)return;const description=prompt('รายละเอียด',r.description||'');if(description===null)return;try{await api('/roles/'+r.id,{method:'PATCH',body:JSON.stringify({name,description:description||null})});await loadAll();await loadRoles();message('บันทึกบทบาทแล้ว')}catch(e){message(errText(e),true)}});
+  $('#rolesTable').querySelectorAll('[data-delete-role]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบบทบาท?'))return;try{await api('/roles/'+b.dataset.deleteRole,{method:'DELETE'});await loadAll();await loadRoles();message('ลบบทบาทแล้ว')}catch(e){message(errText(e),true)}});
+}
+$('#refreshRoles').onclick=()=>loadRoles();
+$('#roleForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target;try{await api('/roles/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();await loadRoles();message('เพิ่มบทบาทแล้ว')}catch(e){message(errText(e),true)}});
+
+// ---------- master data ----------
+async function loadMasterDependencies(){
+  [products,modules,problemTypes]=await Promise.all([api('/admin/master-data/products'),api('/admin/master-data/modules'),api('/admin/master-data/problem-types')]);
+}
+function masterConfig(kind){
+  const base={
+    products:{title:'Product',path:'products',type:'master',fields:[['name','ชื่อ Product','text','',true],['description','รายละเอียด','text','',false]]},
+    modules:{title:'Module',path:'modules',type:'productRef',parentKey:'product_id',parentLabel:'Product',fields:[['name','ชื่อ Module','text','',true],['description','รายละเอียด','text','',false]]},
+    'problem-types':{title:'Problem Type',path:'problem-types',type:'moduleRef',parentKey:'module_id',parentLabel:'Module',fields:[['name','ชื่อ Problem Type','text','',true],['description','รายละเอียด','text','',false]]},
+    symptoms:{title:'Symptom',path:'symptoms',type:'productRef',parentKey:'product_id',parentLabel:'Product',fields:[['name','ชื่อ Symptom','text','',true],['description','รายละเอียด','text','',false]]},
+    'service-stages':{title:'Service Stage',path:'service-stages',type:'serviceStage',parentKey:'product_id',parentLabel:'Product',fields:[['name','ชื่อ Service Stage','text','',true],['sort_order','ลำดับแสดงผล','number','เลขน้อยแสดงก่อน',true],['description','รายละเอียด','text','',false]]},
+    'ticket-types':{title:'Ticket Type',path:'ticket-types',type:'master',fields:[['name','ชื่อ Ticket Type','text','',true],['description','รายละเอียด','text','',false]]},
+    'cause-codes':{title:'Cause Code',path:'cause-codes',type:'code',fields:[['code','Code','text','เช่น AUTH-01',true],['name','ชื่อ','text','',true],['description','รายละเอียด','text','',false]]},
+    'solution-codes':{title:'Solution Code',path:'solution-codes',type:'code',fields:[['code','Code','text','เช่น FIX-01',true],['name','ชื่อ','text','',true],['description','รายละเอียด','text','',false]]}
+  };return base[kind]
+}
+function renderMaster(){
+  const c=masterConfig(currentMaster);const parents=c.parentKey==='product_id'?products:(c.parentKey==='module_id'?modules:[]);
+  let form='';
+  if(c.parentKey)form+=`<div class="field"><label>${esc(c.parentLabel)}</label><select name="${c.parentKey}" required>${opts(parents)}</select></div>`;
+  c.fields.forEach(([key,label,type,help,required])=>{form+=`<div class="field"><label>${esc(label)}</label><input name="${key}" type="${type}" ${required?'required':''} placeholder="${esc(help)}"><small>${esc(help)}</small></div>`});
+  $('#masterContent').innerHTML=`<div class="helpbox">แก้ไขและปิดใช้งานได้จากหน้านี้ ค่าที่ปิดจะไม่ควรถูกเลือกในหน้าฟอร์มธุรกิจภายหลัง</div><form id="masterForm" class="formgrid">${form}<div class="field full"><div class="actions"><button class="primary">เพิ่ม ${esc(c.title)}</button><button type="button" id="cancelMasterEdit">ล้าง</button></div></div></form><div id="masterTable"></div>`;
+  $('#masterForm').addEventListener('submit',saveMaster);
+  $('#cancelMasterEdit').onclick=()=>resetMasterForm();loadMasterTable();
+}
+function dataForMaster(){switch(currentMaster){case'products':return products;case'modules':return modules;case'problem-types':return problemTypes;default:return window['_md_'+currentMaster]||[]}}
+async function loadMaster(){
+  const endpoints=['symptoms','service-stages','ticket-types','cause-codes','solution-codes'];
+  const vals=await Promise.all(endpoints.map(x=>api('/admin/master-data/'+x)));
+  endpoints.forEach((x,i)=>window['_md_'+x]=vals[i]);
+  await loadMasterDependencies();renderMaster();
+}
+async function refreshCurrentMasterData(){
+  const all=await api('/admin/master-data/'+masterConfig(currentMaster).path);
+  if(currentMaster==='products')products=all;else if(currentMaster==='modules')modules=all;else if(currentMaster==='problem-types')problemTypes=all;else window['_md_'+currentMaster]=all;
+}
+function resetMasterForm(){const f=$('#masterForm');if(f){f.reset();f.querySelector('button.primary').textContent='เพิ่ม '+masterConfig(currentMaster).title;f.dataset.editId=''}}
+function editMaster(item){
+  const f=$('#masterForm');f.dataset.editId=item.id;
+  Object.entries(item).forEach(([k,v])=>{if(f.elements[k])f.elements[k].value=v??''});
+  f.querySelector('button.primary').textContent='บันทึก '+masterConfig(currentMaster).title;
+  f.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function saveMaster(e){
+  e.preventDefault();const f=e.target,c=masterConfig(currentMaster),body={};
+  c.fields.forEach(([k])=>{const v=f.elements[k].value;body[k]=k==='sort_order'?Number(v):v});
+  if(c.parentKey)body[c.parentKey]=Number(f.elements[c.parentKey].value);
+  try{
+    const id=f.dataset.editId;
+    if(id)await api('/admin/master-data/'+c.path+'/'+id,{method:'PATCH',body:JSON.stringify(body)});else await api('/admin/master-data/'+c.path,{method:'POST',body:JSON.stringify(body)});
+    resetMasterForm();await refreshCurrentMasterData();await loadMasterTable();message('บันทึก '+c.title+' แล้ว');
+  }catch(e){message(errText(e),true)}
+}
+async function loadMasterTable(){
+  const c=masterConfig(currentMaster);let data=dataForMaster();
+  const parentList=c.parentKey==='product_id'?products:(c.parentKey==='module_id'?modules:[]);
+  if(c.parentKey==='product_id'&&parentList.length&&c.parentKey==='product_id'){
+    // keep all rows; parent name is for display only
+  }
+  if(!data.length){$('#masterTable').innerHTML='<div class="empty">ยังไม่มีข้อมูล</div>';return}
+  let rows=data.map(x=>{
+    const parent=c.parentKey==='product_id'?masterName(products,x.product_id):c.parentKey==='module_id'?masterName(modules,x.module_id):'';
+    const extra=c.type==='serviceStage'?`<td>${esc(x.sort_order)}</td>`:'';
+    const code=c.type==='code'?`<td>${esc(x.code)}</td>`:'';
+    return `<tr>${c.parentKey?`<td>${esc(parent)}</td>`:''}${code}<td><strong>${esc(x.name)}</strong>${x.description?`<br><span class="muted">${esc(x.description)}</span>`:''}</td>${extra}<td>${badge(x.is_active)}</td><td class="actions-cell"><button data-md-edit="${x.id}">แก้ไข</button> <button data-md-toggle="${x.id}" data-active="${x.is_active}">${x.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`
+  }).join('');
+  const headers=(c.parentKey?'<th>'+esc(c.parentLabel)+'</th>':'')+(c.type==='code'?'<th>Code</th>':'')+'<th>ชื่อ / รายละเอียด</th>'+(c.type==='serviceStage'?'<th>ลำดับ</th>':'')+'<th>สถานะ</th><th>จัดการ</th>';
+  $('#masterTable').innerHTML=`<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+  $('#masterTable').querySelectorAll('[data-md-edit]').forEach(b=>b.onclick=()=>editMaster(data.find(x=>Number(x.id)===Number(b.dataset.mdEdit))));
+  $('#masterTable').querySelectorAll('[data-md-toggle]').forEach(b=>b.onclick=async()=>{try{if(b.dataset.active==='true')await api('/admin/master-data/'+c.path+'/'+b.dataset.mdToggle,{method:'DELETE'});else await api('/admin/master-data/'+c.path+'/'+b.dataset.mdToggle,{method:'PATCH',body:JSON.stringify({is_active:true})});await refreshCurrentMasterData();await loadMasterTable();message('บันทึกสถานะแล้ว')}catch(e){message(errText(e),true)}});
+}
+document.querySelectorAll('#masterTabs .tab').forEach(b=>b.addEventListener('click',async()=>{document.querySelectorAll('#masterTabs .tab').forEach(x=>x.classList.toggle('active',x===b));currentMaster=b.dataset.master;await refreshCurrentMasterData();renderMaster()}));
+$('#refreshMaster').onclick=async()=>{try{await loadMaster();message('รีเฟรช Master Data แล้ว')}catch(e){message(errText(e),true)}};
+
+// ---------- SLA ----------
+async function loadSla(){
+  if(currentSla==='policies')await renderPolicies();else await renderCalendars();
+}
+document.querySelectorAll('#slaTabs .tab').forEach(b=>b.addEventListener('click',async()=>{document.querySelectorAll('#slaTabs .tab').forEach(x=>x.classList.toggle('active',x===b));currentSla=b.dataset.sla;await loadSla()}));
+$('#refreshSla').onclick=()=>loadSla();
+async function renderPolicies(){
+  const policies=await api('/admin/master-data/sla-policies');
+  $('#slaContent').innerHTML=`<div class="helpbox">SLA Policy เป็นทะเบียนกลาง และแต่ละ Policy สามารถมี SLA Rule ตาม severity ได้</div><form id="slaPolicyForm" class="formgrid"><div class="field"><label>ชื่อ Policy</label><input name="name" required placeholder="เช่น Default Support SLA"></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field full"><div class="actions"><button class="primary">เพิ่ม SLA Policy</button><button type="button" id="cancelSlaPolicy">ล้าง</button></div></div></form><div id="slaPolicyTable"></div>`;
+  $('#slaPolicyForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('/admin/master-data/sla-policies',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await renderPolicies();message('เพิ่ม SLA Policy แล้ว')}catch(e){message(errText(e),true)}};
+  $('#cancelSlaPolicy').onclick=()=>$('#slaPolicyForm').reset();
+  $('#slaPolicyTable').innerHTML=policies.length?`<table><thead><tr><th>Policy</th><th>Status</th><th>Rules</th><th>จัดการ</th></tr></thead><tbody>${policies.map(p=>`<tr><td><strong>${esc(p.name)}</strong><br><span class="muted">${esc(p.description||'')}</span></td><td>${badge(p.is_active)}</td><td><button data-view-rules="${p.id}">ดู/จัดการ Rules</button></td><td class="actions-cell"><button data-edit-sla="${p.id}">แก้ไข</button> <button data-toggle-sla="${p.id}" data-active="${p.is_active}">${p.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มี SLA Policy</div>';
+  $('#slaPolicyTable').querySelectorAll('[data-edit-sla]').forEach(b=>b.onclick=async()=>{const p=policies.find(x=>Number(x.id)===Number(b.dataset.editSla));const name=prompt('ชื่อ Policy',p.name);if(name===null)return;const description=prompt('รายละเอียด',p.description||'');if(description===null)return;try{await api('/admin/master-data/sla-policies/'+p.id,{method:'PATCH',body:JSON.stringify({name,description:description||null})});await renderPolicies();message('บันทึก SLA Policy แล้ว')}catch(e){message(errText(e),true)}});
+  $('#slaPolicyTable').querySelectorAll('[data-toggle-sla]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.toggleSla;if(b.dataset.active==='true')await api('/admin/master-data/sla-policies/'+id,{method:'DELETE'});else await api('/admin/master-data/sla-policies/'+id,{method:'PATCH',body:JSON.stringify({is_active:true})});await renderPolicies();message('บันทึกสถานะ SLA Policy แล้ว')}catch(e){message(errText(e),true)}});
+  $('#slaPolicyTable').querySelectorAll('[data-view-rules]').forEach(b=>b.onclick=()=>showSlaRules(Number(b.dataset.viewRules)));
+}
+async function showSlaRules(policyId){
+  const rules=await api('/admin/master-data/sla-policies/'+policyId+'/rules');
+  const existing=$('#slaContent').querySelector('[data-sla-rules-panel]');
+  if(existing) existing.remove();
+  const html=`<div class="panel" style="margin-top:14px" data-sla-rules-panel="true"><div class="sectionhead"><div><h3>SLA Rules · Policy #${policyId}</h3><div class="muted">First Response ต้องมากกว่า 0 และ Resolution Min/Max ต้องมากกว่า 0 โดย Max ต้องไม่น้อยกว่า Min</div></div><button type="button" id="closeSlaRulesPanel">ปิด</button></div><form id="slaRuleForm" class="formgrid" style="margin-top:12px"><div class="field"><label>Severity</label><select name="severity" required><option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option><option value="S4">S4</option></select></div><div class="field"><label>First Response Value</label><input name="first_response_value" type="number" min="1" step="1" required><small class="muted">ต้องเป็นจำนวนเต็มมากกว่า 0</small></div><div class="field"><label>First Response Unit</label><select name="first_response_unit" required><option value="MINUTES">MINUTES</option><option value="HOURS">HOURS</option><option value="BUSINESS_DAYS">BUSINESS_DAYS</option></select></div><div class="field"><label>Resolution Min</label><input name="resolution_min_value" type="number" min="1" step="1" required><small class="muted">ค่าต่ำสุด ต้องมากกว่า 0</small></div><div class="field"><label>Resolution Max</label><input name="resolution_max_value" type="number" min="1" step="1" required><small class="muted">ต้องมากกว่าหรือเท่ากับ Resolution Min</small></div><div class="field"><label>Resolution Unit</label><select name="resolution_unit" required><option value="MINUTES">MINUTES</option><option value="HOURS">HOURS</option><option value="BUSINESS_DAYS">BUSINESS_DAYS</option></select></div><div class="field full"><label><input type="checkbox" name="business_hours_only" checked style="width:auto"> นับตาม business hours</label></div><div class="field full"><div id="slaRuleValidation" class="helpbox" style="display:none"></div><button class="primary">เพิ่ม SLA Rule</button></div></form><div id="slaRulesTable"></div></div>`;
+  const holder=document.createElement('div');holder.innerHTML=html;$('#slaContent').appendChild(holder.firstElementChild);
+  const sec=$('#slaContent').querySelector('[data-sla-rules-panel]');
+  const form=sec.querySelector('#slaRuleForm');
+  const validation=sec.querySelector('#slaRuleValidation');
+  const validateRuleForm=()=>{
+    const first=Number(form.first_response_value.value);
+    const min=Number(form.resolution_min_value.value);
+    const max=Number(form.resolution_max_value.value);
+    const errors=[];
+    if(!Number.isInteger(first)||first<=0) errors.push('First Response Value ต้องเป็นจำนวนเต็มมากกว่า 0');
+    if(!Number.isInteger(min)||min<=0) errors.push('Resolution Min ต้องเป็นจำนวนเต็มมากกว่า 0');
+    if(!Number.isInteger(max)||max<=0) errors.push('Resolution Max ต้องเป็นจำนวนเต็มมากกว่า 0');
+    if(Number.isInteger(min)&&Number.isInteger(max)&&max<min) errors.push('Resolution Max ต้องมากกว่าหรือเท่ากับ Resolution Min');
+    if(errors.length){validation.style.display='block';validation.textContent=errors.join(' • ');return false;}
+    validation.style.display='none';validation.textContent='';return true;
+  };
+  ['first_response_value','resolution_min_value','resolution_max_value'].forEach(name=>form[name].addEventListener('input',validateRuleForm));
+  form.onsubmit=async e=>{e.preventDefault();if(!validateRuleForm())return;const f=e.target;const body={severity:f.severity.value,first_response_value:Number(f.first_response_value.value),first_response_unit:f.first_response_unit.value,resolution_min_value:Number(f.resolution_min_value.value),resolution_max_value:Number(f.resolution_max_value.value),resolution_unit:f.resolution_unit.value,business_hours_only:f.business_hours_only.checked};try{await api('/admin/master-data/sla-policies/'+policyId+'/rules',{method:'POST',body:JSON.stringify(body)});await showSlaRules(policyId);message('เพิ่ม SLA Rule แล้ว')}catch(e){message(errText(e),true)}};
+  sec.querySelector('#closeSlaRulesPanel').onclick=()=>sec.remove();
+  const renderRules=()=>{sec.querySelector('#slaRulesTable').innerHTML=rules.length?`<table><thead><tr><th>Severity</th><th>First Response</th><th>Resolution</th><th>Business Hours</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${rules.map(r=>`<tr><td>${esc(r.severity)}</td><td>${esc(r.first_response_value)} ${esc(r.first_response_unit)}</td><td>${esc(r.resolution_min_value)}–${esc(r.resolution_max_value)} ${esc(r.resolution_unit)}</td><td>${r.business_hours_only?'ใช่':'ไม่'}</td><td>${badge(r.is_active)}</td><td><button data-toggle-slarule="${r.id}" data-active="${r.is_active}">${r.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มี SLA Rule</div>'};
+  renderRules();
+  sec.querySelector('#slaRulesTable').onclick=async e=>{const b=e.target.closest('[data-toggle-slarule]');if(!b)return;try{const id=b.dataset.toggleSlarule;if(b.dataset.active==='true')await api('/admin/master-data/sla-policies/'+policyId+'/rules/'+id,{method:'DELETE'});else await api('/admin/master-data/sla-policies/'+policyId+'/rules/'+id,{method:'PATCH',body:JSON.stringify({is_active:true})});const updated=await api('/admin/master-data/sla-policies/'+policyId+'/rules');rules.splice(0,rules.length,...updated);renderRules();message('บันทึกสถานะ SLA Rule แล้ว')}catch(e){message(errText(e),true)}};
+}
+async function renderCalendars(){
+  const calendars=await api('/admin/master-data/business-calendars');
+  $('#slaContent').innerHTML=`<div class="helpbox">Default working time ใช้ 08:00–17:00 และวันทำงานเลือกได้ในแต่ละ Calendar</div><form id="calendarForm" class="formgrid"><div class="field"><label>ชื่อ Calendar</label><input name="name" required placeholder="เช่น Thailand Business Calendar"></div><div class="field"><label>Timezone</label><input name="timezone" value="Asia/Bangkok" required></div><div class="field"><label>เริ่มงาน</label><input name="work_start_time" type="time" value="08:00" required></div><div class="field"><label>เลิกงาน</label><input name="work_end_time" type="time" value="17:00" required></div><div class="field full"><label>วันทำงาน</label><div class="checkrow">${['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map((d,i)=>`<label><input type="checkbox" name="${d}" ${i<5?'checked':''}> ${d.slice(0,3)}</label>`).join('')}</div></div><div class="field full"><div class="actions"><button class="primary">เพิ่ม Business Calendar</button><button type="button" id="cancelCalendar">ล้าง</button></div></div></form><div id="calendarTable"></div>`;
+  $('#calendarForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{const body={name:f.name.value,description:null,timezone:f.timezone.value,work_start_time:f.work_start_time.value,work_end_time:f.work_end_time.value,...Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d=>[d,f[d].checked]))};await api('/admin/master-data/business-calendars',{method:'POST',body:JSON.stringify(body)});f.reset();f.timezone.value='Asia/Bangkok';f.work_start_time.value='08:00';f.work_end_time.value='17:00';['monday','tuesday','wednesday','thursday','friday'].forEach(d=>f[d].checked=true);await renderCalendars();message('เพิ่ม Business Calendar แล้ว')}catch(e){message(errText(e),true)}};
+  $('#cancelCalendar').onclick=()=>$('#calendarForm').reset();
+  $('#calendarTable').innerHTML=calendars.length?`<table><thead><tr><th>Calendar</th><th>เวลา</th><th>วันทำงาน</th><th>Status</th><th>Holiday</th><th>จัดการ</th></tr></thead><tbody>${calendars.map(c=>`<tr><td><strong>${esc(c.name)}</strong><br><span class="muted">${esc(c.timezone)}</span></td><td>${esc(c.work_start_time)}–${esc(c.work_end_time)}</td><td>${['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].filter(d=>c[d]).map(d=>d.slice(0,3)).join(', ')}</td><td>${badge(c.is_active)}</td><td><button data-calendar-holiday="${c.id}">ดู/จัดการวันหยุด</button></td><td><button data-edit-calendar="${c.id}">แก้ไข</button> <button data-toggle-calendar="${c.id}" data-active="${c.is_active}">${c.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มี Business Calendar</div>';
+  $('#calendarTable').querySelectorAll('[data-edit-calendar]').forEach(b=>b.onclick=async()=>{const c=calendars.find(x=>Number(x.id)===Number(b.dataset.editCalendar));const name=prompt('ชื่อ Calendar',c.name);if(name===null)return;const timezone=prompt('Timezone',c.timezone);if(timezone===null)return;try{await api('/admin/master-data/business-calendars/'+c.id,{method:'PATCH',body:JSON.stringify({name,timezone})});await renderCalendars();message('บันทึก Calendar แล้ว')}catch(e){message(errText(e),true)}});
+  $('#calendarTable').querySelectorAll('[data-toggle-calendar]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.toggleCalendar;if(b.dataset.active==='true')await api('/admin/master-data/business-calendars/'+id,{method:'DELETE'});else await api('/admin/master-data/business-calendars/'+id,{method:'PATCH',body:JSON.stringify({is_active:true})});await renderCalendars();message('บันทึกสถานะ Calendar แล้ว')}catch(e){message(errText(e),true)}});
+  $('#calendarTable').querySelectorAll('[data-calendar-holiday]').forEach(b=>b.onclick=()=>showHolidays(Number(b.dataset.calendarHoliday)));
+}
+async function showHolidays(calendarId){
+  const holidays=await api('/admin/master-data/business-calendars/'+calendarId+'/holidays');
+  const existing=$('#slaContent').querySelector('[data-holiday-panel]');
+  if(existing) existing.remove();
+  const box=document.createElement('div');box.className='panel';box.dataset.holidayPanel='true';box.innerHTML=`<div class="sectionhead"><div><h3>Holiday · Calendar #${calendarId}</h3><div class="muted">ประเภท: ANNUAL หรือ SPECIAL</div></div><button type="button" id="closeHolidayPanel">ปิด</button></div><form id="holidayForm" class="formgrid" style="margin-top:12px"><div class="field"><label>วันที่</label><input name="holiday_date" type="date" required></div><div class="field"><label>ชื่อวันหยุด</label><input name="name" required></div><div class="field"><label>ประเภท</label><select name="holiday_type"><option>ANNUAL</option><option>SPECIAL</option></select></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field full"><button class="primary">เพิ่ม Holiday</button></div></form><div id="holidayTable"></div>`;
+  $('#slaContent').appendChild(box);
+  box.querySelector('#closeHolidayPanel').onclick=()=>box.remove();
+  const render=()=>box.querySelector('#holidayTable').innerHTML=holidays.length?`<table><thead><tr><th>Date</th><th>Name</th><th>Type</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${holidays.map(h=>`<tr><td>${esc(h.holiday_date)}</td><td>${esc(h.name)}</td><td>${esc(h.holiday_type)}</td><td>${badge(h.is_active)}</td><td><button data-toggle-holiday="${h.id}" data-active="${h.is_active}">${h.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มีวันหยุด</div>';
+  render();
+  box.querySelector('#holidayForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{const h=await api('/admin/master-data/business-calendars/'+calendarId+'/holidays',{method:'POST',body:JSON.stringify({holiday_date:f.holiday_date.value,name:f.name.value,holiday_type:f.holiday_type.value,description:f.description.value||null})});holidays.push(h);render();f.reset();message('เพิ่ม Holiday แล้ว')}catch(e){message(errText(e),true)}};
+  box.querySelector('#holidayTable').onclick=async e=>{const b=e.target.closest('[data-toggle-holiday]');if(!b)return;try{if(b.dataset.active==='true')await api('/admin/master-data/business-calendars/'+calendarId+'/holidays/'+b.dataset.toggleHoliday,{method:'DELETE'});else await api('/admin/master-data/business-calendars/'+calendarId+'/holidays/'+b.dataset.toggleHoliday,{method:'PATCH',body:JSON.stringify({is_active:true})});const updated=await api('/admin/master-data/business-calendars/'+calendarId+'/holidays');holidays.splice(0,holidays.length,...updated);render();message('บันทึกสถานะ Holiday แล้ว')}catch(e){message(errText(e),true)}};
+}
+
+// ---------- templates ----------
+async function loadTemplateDependencies(){[products,modules,problemTypes]=await Promise.all([api('/admin/master-data/products'),api('/admin/master-data/modules'),api('/admin/master-data/problem-types')])}
+async function loadTemplates(){if(currentTemplate==='case-templates')await renderCaseTemplates();else await renderCannedMessages()}
+document.querySelectorAll('#templateTabs .tab').forEach(b=>b.addEventListener('click',async()=>{document.querySelectorAll('#templateTabs .tab').forEach(x=>x.classList.toggle('active',x===b));currentTemplate=b.dataset.template;await loadTemplates()}));
+$('#refreshTemplates').onclick=()=>loadTemplates();
+async function renderCaseTemplates(){
+  const data=await api('/admin/master-data/case-templates');
+  $('#templateContent').innerHTML=`<div class="helpbox">Case Template ต้องเลือก Product → Module → Problem Type ที่สัมพันธ์กัน และ Severity ต้องเป็น S1–S4</div><form id="caseTemplateForm" class="formgrid"><div class="field"><label>ชื่อ Template</label><input name="name" required></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field"><label>Product</label><select name="product_id" id="ctProduct" required>${opts(products)}</select></div><div class="field"><label>Module</label><select name="module_id" id="ctModule" required></select></div><div class="field"><label>Problem Type</label><select name="problem_type_id" id="ctProblem" required></select></div><div class="field"><label>Default Severity</label><select name="default_severity"><option>S1</option><option>S2</option><option>S3</option><option>S4</option></select></div><div class="field full"><div class="actions"><button class="primary">เพิ่ม Case Template</button><button type="button" id="cancelCt">ล้าง</button></div></div></form><div id="caseTemplateTable"></div>`;
+  const f=$('#caseTemplateForm');
+  const sync=()=>{const p=Number(f.product_id.value);const ms=modules.filter(x=>Number(x.product_id)===p);f.module_id.innerHTML=opts(ms);const m=Number(f.module_id.value);f.problem_type_id.innerHTML=opts(problemTypes.filter(x=>Number(x.module_id)===m))};
+  f.product_id.onchange=sync;f.module_id.onchange=()=>{const m=Number(f.module_id.value);f.problem_type_id.innerHTML=opts(problemTypes.filter(x=>Number(x.module_id)===m))};sync();
+  f.onsubmit=async e=>{e.preventDefault();try{await api('/admin/master-data/case-templates',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null,product_id:Number(f.product_id.value),module_id:Number(f.module_id.value),problem_type_id:Number(f.problem_type_id.value),default_severity:f.default_severity.value})});f.reset();sync();await renderCaseTemplates();message('เพิ่ม Case Template แล้ว')}catch(e){message(errText(e),true)}};
+  $('#cancelCt').onclick=()=>{f.reset();sync()};
+  $('#caseTemplateTable').innerHTML=data.length?`<table><thead><tr><th>Template</th><th>Category</th><th>Severity</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${data.map(x=>`<tr><td><strong>${esc(x.name)}</strong><br><span class="muted">${esc(x.description||'')}</span></td><td>${esc(masterName(products,x.product_id))} / ${esc(masterName(modules,x.module_id))} / ${esc(masterName(problemTypes,x.problem_type_id))}</td><td>${esc(x.default_severity)}</td><td>${badge(x.is_active)}</td><td><button data-edit-ct="${x.id}">แก้ไข</button> <button data-toggle-ct="${x.id}" data-active="${x.is_active}">${x.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มี Case Template</div>';
+  $('#caseTemplateTable').querySelectorAll('[data-edit-ct]').forEach(b=>b.onclick=async()=>{const x=data.find(a=>Number(a.id)===Number(b.dataset.editCt));const name=prompt('ชื่อ Template',x.name);if(name===null)return;const description=prompt('รายละเอียด',x.description||'');if(description===null)return;try{await api('/admin/master-data/case-templates/'+x.id,{method:'PATCH',body:JSON.stringify({name,description:description||null})});await renderCaseTemplates();message('บันทึก Case Template แล้ว')}catch(e){message(errText(e),true)}});
+  $('#caseTemplateTable').querySelectorAll('[data-toggle-ct]').forEach(b=>b.onclick=async()=>{try{if(b.dataset.active==='true')await api('/admin/master-data/case-templates/'+b.dataset.toggleCt,{method:'DELETE'});else await api('/admin/master-data/case-templates/'+b.dataset.toggleCt,{method:'PATCH',body:JSON.stringify({is_active:true})});await renderCaseTemplates();message('บันทึกสถานะ Case Template แล้ว')}catch(e){message(errText(e),true)}});
+}
+async function renderCannedMessages(){
+  const data=await api('/admin/master-data/canned-messages');
+  $('#templateContent').innerHTML=`<div class="helpbox">ข้อความสำเร็จรูปใช้สำหรับตอบลูกค้าในขั้นถัดไป และสามารถปิดใช้งานได้โดยไม่ลบ record</div><form id="messageForm" class="formgrid"><div class="field"><label>ชื่อข้อความ</label><input name="name" required></div><div class="field"><label>รายละเอียด</label><input name="description"></div><div class="field full"><label>ข้อความ</label><textarea name="message" required></textarea></div><div class="field full"><div class="actions"><button class="primary">เพิ่ม Canned Message</button><button type="button" id="cancelMessage">ล้าง</button></div></div></form><div id="messageTable"></div>`;
+  const f=$('#messageForm');f.onsubmit=async e=>{e.preventDefault();try{await api('/admin/master-data/canned-messages',{method:'POST',body:JSON.stringify({name:f.name.value,message:f.message.value,description:f.description.value||null})});f.reset();await renderCannedMessages();message('เพิ่ม Canned Message แล้ว')}catch(e){message(errText(e),true)}};$('#cancelMessage').onclick=()=>f.reset();
+  $('#messageTable').innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Message</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${data.map(x=>`<tr><td><strong>${esc(x.name)}</strong><br><span class="muted">${esc(x.description||'')}</span></td><td>${esc(x.message)}</td><td>${badge(x.is_active)}</td><td><button data-edit-msg="${x.id}">แก้ไข</button> <button data-toggle-msg="${x.id}" data-active="${x.is_active}">${x.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มี Canned Message</div>';
+  $('#messageTable').querySelectorAll('[data-edit-msg]').forEach(b=>b.onclick=async()=>{const x=data.find(a=>Number(a.id)===Number(b.dataset.editMsg));const name=prompt('ชื่อข้อความ',x.name);if(name===null)return;const msg=prompt('ข้อความ',x.message);if(msg===null)return;const description=prompt('รายละเอียด',x.description||'');if(description===null)return;try{await api('/admin/master-data/canned-messages/'+x.id,{method:'PATCH',body:JSON.stringify({name,message:msg,description:description||null})});await renderCannedMessages();message('บันทึก Canned Message แล้ว')}catch(e){message(errText(e),true)}});
+  $('#messageTable').querySelectorAll('[data-toggle-msg]').forEach(b=>b.onclick=async()=>{try{if(b.dataset.active==='true')await api('/admin/master-data/canned-messages/'+b.dataset.toggleMsg,{method:'DELETE'});else await api('/admin/master-data/canned-messages/'+b.dataset.toggleMsg,{method:'PATCH',body:JSON.stringify({is_active:true})});await renderCannedMessages();message('บันทึกสถานะ Canned Message แล้ว')}catch(e){message(errText(e),true)}});
+}
+
+// ---------- automation ----------
+const conditionDefs={product_id:{label:'Product',values:()=>products.map(x=>({id:x.id,label:x.name})),help:'เลือก Product'},module_id:{label:'Module',values:()=>modules.map(x=>({id:x.id,label:x.name})),help:'เลือก Module'},problem_type_id:{label:'Problem Type',values:()=>problemTypes.map(x=>({id:x.id,label:x.name})),help:'เลือก Problem Type'},ticket_type_id:{label:'Ticket Type',values:()=>window['_md_ticket-types']||[],help:'เลือก Ticket Type'},symptom_id:{label:'Symptom',values:()=>window['_md_symptoms']||[],help:'เลือก Symptom'},service_stage_id:{label:'Service Stage',values:()=>window['_md_service-stages']||[],help:'เลือก Service Stage'},severity:{label:'Severity',values:()=>['S1','S2','S3','S4'].map(x=>({id:x,label:x})),help:'S1–S4'},status:{label:'Status',values:()=>['DRAFT','NEW','IN_PROGRESS','PENDING_CUSTOMER','PENDING_EXTERNAL','RESOLVED','CLOSED','REOPENED','DUPLICATE','CANCELLED'].map(x=>({id:x,label:x})),help:'เลือกสถานะเคส'},channel:{label:'Channel',values:()=>['LINE OA','LINE Group','LINE ส่วนตัว','Portal','อีเมล','โทรศัพท์','อื่นๆ'].map(x=>({id:x,label:x})),help:'เลือกช่องทาง'} };
+async function loadAutomationDependencies(){
+  [products,modules,problemTypes]=await Promise.all([api('/admin/master-data/products'),api('/admin/master-data/modules'),api('/admin/master-data/problem-types')]);
+  const x=await Promise.all(['ticket-types','symptoms','service-stages'].map(k=>api('/admin/master-data/'+k)));['ticket-types','symptoms','service-stages'].forEach((k,i)=>window['_md_'+k]=x[i]);
+  teams=await api('/teams/');
+  $('#actionTeam').innerHTML=opts(teams);
+  $('#conditionField').innerHTML=Object.entries(conditionDefs).map(([k,v])=>`<option value="${k}">${esc(v.label)}</option>`).join('');updateConditionValues();
+}
+function updateConditionValues(selected){const field=$('#conditionField').value;const def=conditionDefs[field];const vals=(def?.values()||[]).map(x=>({id:x.id??x,label:x.label??x.name??x}));$('#conditionValue').innerHTML=vals.map(x=>`<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('');$('#conditionHelp').textContent=def?.help||'';if(selected!==undefined)$('#conditionValue').value=selected}
+$('#conditionField').addEventListener('change',()=>updateConditionValues());
+async function loadAutomation(){const data=await api('/admin/automation-rules');$('#automationTable').innerHTML=data.length?`<table><thead><tr><th>Rule</th><th>Condition</th><th>Action</th><th>Priority</th><th>Status</th><th>จัดการ</th></tr></thead><tbody>${data.map(r=>`<tr><td><strong>${esc(r.name)}</strong><br><span class="muted">${esc(r.description||'')}</span></td><td>${esc(conditionDefs[r.condition_field]?.label||r.condition_field)} = ${esc(r.condition_value)}</td><td>Assign Team: ${esc(masterName(teams,r.action_team_id))}</td><td>${esc(r.priority)}</td><td>${badge(r.is_active)}</td><td class="actions-cell"><button data-edit-rule="${r.id}">แก้ไข</button> <button data-toggle-rule="${r.id}" data-active="${r.is_active}">${r.is_active?'ปิดใช้งาน':'เปิดใช้'}</button></td></tr>`).join('')}</tbody></table>`:'<div class="empty">ยังไม่มีกฎ</div>';
+  $('#automationTable').querySelectorAll('[data-edit-rule]').forEach(b=>b.onclick=()=>startRuleEdit(data.find(x=>Number(x.id)===Number(b.dataset.editRule))));
+  $('#automationTable').querySelectorAll('[data-toggle-rule]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.toggleRule;if(b.dataset.active==='true')await api('/admin/automation-rules/'+id,{method:'DELETE'});else await api('/admin/automation-rules/'+id,{method:'PATCH',body:JSON.stringify({is_active:true})});await loadAutomation();message('บันทึกสถานะ Automation Rule แล้ว')}catch(e){message(errText(e),true)}});
+}
+function startRuleEdit(r){editingRule=r.id;const f=$('#ruleForm');f.name.value=r.name;f.description.value=r.description||'';f.priority.value=r.priority;f.condition_field.value=r.condition_field;updateConditionValues(r.condition_value);f.action_team_id.value=r.action_team_id;f.querySelector('button.primary').textContent='บันทึกกฎ';}
+function resetRuleForm(){editingRule=null;const f=$('#ruleForm');f.reset();f.priority.value=100;f.querySelector('button.primary').textContent='เพิ่มกฎ';updateConditionValues()}
+$('#cancelRuleEdit').onclick=resetRuleForm;$('#refreshAutomation').onclick=()=>loadAutomation();
+$('#ruleForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target;try{const body={name:f.name.value,description:f.description.value||null,priority:Number(f.priority.value),condition_field:f.condition_field.value,condition_operator:'eq',condition_value:f.condition_value.value,action_type:'assign_team',action_team_id:Number(f.action_team_id.value)};if(editingRule)await api('/admin/automation-rules/'+editingRule,{method:'PATCH',body:JSON.stringify(body)});else await api('/admin/automation-rules',{method:'POST',body:JSON.stringify(body)});resetRuleForm();await loadAutomation();message('บันทึก Automation Rule แล้ว')}catch(e){message(errText(e),true)}});
+</script>
+</body>
+</html>
