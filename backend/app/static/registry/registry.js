@@ -495,7 +495,22 @@ async function showTicket(id) {
   const card = section('รายละเอียดเคส', '', null, false);
   card.append(element('p', `สถานะ: ${ticket.status} · ช่องทาง: ${ticket.channel || 'ยังไม่ระบุ'}`),
     element('p', ticket.description || 'ยังไม่มีรายละเอียด'),
-    element('p', `แจ้งเมื่อ: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`));
+    element('p', `เวลาที่ลูกค้าแจ้ง: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`),
+    element('p', `เวลาที่ระบบบันทึก: ${new Date(ticket.created_at).toLocaleString('th-TH')}`));
+  if (user.can_create_cases && (user.role === 'Admin' || [ticket.created_by_id, ticket.owner_id, ticket.assignee_id].includes(user.id))) {
+    const form = element('form', null, 'inline-editor'), label = element('label', 'เวลาที่ลูกค้าแจ้ง'), input = element('input');
+    input.type = 'datetime-local'; input.required = true; input.setAttribute('aria-label', 'แก้เวลาที่ลูกค้าแจ้ง');
+    input.value = localDateTime(ticket.reported_at);
+    input.min = localDateTime(new Date(Date.now() - 7 * 86400000)); input.max = localDateTime(new Date()); label.append(input);
+    const submit = element('button', 'บันทึกเวลาที่แจ้ง'); submit.type = 'submit';
+    form.append(label, element('p', 'ย้อนหลังได้ไม่เกิน 7 วัน · เวลาบันทึกจริงคงเดิม · การคำนวณ SLA รอเชื่อม SLA engine', 'muted'), submit);
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); submit.disabled = true;
+      try { await request(`/tickets/${ticket.id}/reported-at`, {method: 'PATCH', body: {reported_at: new Date(input.value).toISOString()}}); if (form.isConnected) { notify('บันทึกเวลาที่แจ้งแล้ว'); await showTicket(ticket.id); } }
+      catch (error) { failure(error); if (form.isConnected) submit.disabled = false; }
+    });
+    card.append(form);
+  }
 }
 
 const draftFields = [['subject', 'หัวข้อ'], ['description', 'รายละเอียด'], ['channel', 'ช่องทาง'],

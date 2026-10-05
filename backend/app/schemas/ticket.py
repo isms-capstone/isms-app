@@ -44,6 +44,18 @@ class DraftFieldUpdate(BaseModel):
     value: str | int | None
 
 
+class ReportedTimeUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    reported_at: datetime
+
+    @field_validator('reported_at')
+    @classmethod
+    def timezone_required(cls, value):
+        if value.utcoffset() is None:
+            raise ValueError('reported_at must include a timezone offset')
+        return value
+
+
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -16,7 +16,7 @@ from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import DraftFieldUpdate, TicketCreate, TicketOut
+from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -178,6 +178,24 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
             field != 'sla_policy_id' or product_changed
         ):
             setattr(ticket, field, value)
+    return commit_edit(db, ticket)
+
+
+@router.patch('/tickets/{ticket_id}/reported-at', response_model=TicketOut)
+def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = Depends(get_db),
+                       user: User = Depends(require_capture)):
+    ticket = editable_ticket(db, ticket_id, user)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None)
+    if reported > now or reported < now - timedelta(days=7):
+        raise HTTPException(422, 'reported_at must be within the last 7 days')
+    ticket.reported_at = reported
+    ticket.is_exam_window = ticket.organization_id is not None and db.scalar(select(ExamWindow.id).where(
+        ExamWindow.organization_id == ticket.organization_id, ExamWindow.is_active.is_(True),
+        ExamWindow.starts_at <= reported, ExamWindow.ends_at > reported,
+        or_(ExamWindow.department_id.is_(None), ExamWindow.department_id == ticket.department_id)
+    ).limit(1)) is not None
+    # The SLA engine is separate; do not invent or overwrite response/resolution clocks.
     return commit_edit(db, ticket)
 
 

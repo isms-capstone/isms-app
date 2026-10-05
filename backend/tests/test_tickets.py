@@ -107,6 +107,34 @@ def test_old_draft_can_be_enriched_without_rewriting_capture_times(capture):
     assert edited.json()['created_at'] == before['created_at']
 
 
+def test_edit_reported_time_preserves_created_time_and_rechecks_exam(capture):
+    client, app, _, data, _ = capture
+    now = datetime.now(timezone.utc)
+    reported = now - timedelta(days=1)
+    org = data['organization_id']
+    response = client.post(f'/api/v1/customers/organizations/{org}/exam-windows', json={
+        'name': 'Yesterday exam', 'starts_at': (reported - timedelta(hours=1)).isoformat(),
+        'ends_at': (reported + timedelta(hours=1)).isoformat()})
+    assert response.status_code == 201, response.text
+    original = client.post('/api/v1/tickets', json=dict(data, subject='Reported late', channel='phone')).json()
+    path = f"/api/v1/tickets/{original['id']}/reported-at"
+    result = client.patch(path, json={'reported_at': reported.astimezone(timezone(timedelta(hours=7))).isoformat()})
+    assert result.status_code == 200, result.text
+    edited = result.json()
+    assert datetime.fromisoformat(edited['reported_at']) == reported
+    assert edited['is_exam_window'] is True
+    for field in ('created_at', 'ticket_no', 'status', 'sla_policy_id'):
+        assert edited[field] == original[field]
+    for value in ((now + timedelta(days=1)).isoformat(), (now - timedelta(days=8)).isoformat(), '2026-01-01T12:00:00'):
+        assert client.patch(path, json={'reported_at': value}).status_code == 422
+    assert client.patch(path, json={'reported_at': reported.isoformat(), 'created_at': now.isoformat()}).status_code == 422
+    assert client.get(f"/api/v1/tickets/{original['id']}").json()['reported_at'] == edited['reported_at']
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=999999999, role=SimpleNamespace(name='Agent'))
+    assert client.patch(path, json={'reported_at': reported.isoformat()}).status_code == 403
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=original['created_by_id'], role=SimpleNamespace(name='Auditor'))
+    assert client.patch(path, json={'reported_at': reported.isoformat()}).status_code == 403
+
+
 def test_draft_and_minimal_new(capture):
     client, _, factory, data, _ = capture
     for body in ({}, {'subject': '   '}, {'subject': 'x', 'channel': 'email'}):
