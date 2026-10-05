@@ -1,10 +1,5 @@
-from pathlib import Path
 import sys
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
+from pathlib import Path
 from types import ModuleType
 
 from fastapi import FastAPI
@@ -12,6 +7,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def require_admin():
@@ -31,13 +30,12 @@ deps_stub.require_admin = require_admin
 deps_stub.require_any_authenticated = require_any_authenticated
 session_stub = ModuleType("app.db.session")
 session_stub.get_db = get_db
-import sys
 sys.modules["app.api.deps"] = deps_stub
 sys.modules["app.db.session"] = session_stub
 
-from app.api.v1.endpoints.master_data import router, selection_router
-from app.db.base_class import Base
-from app.db.models.master_data import Module, ProblemType, Product
+from app.api.v1.endpoints.master_data import router, selection_router  # noqa: E402
+from app.db.base_class import Base  # noqa: E402
+from app.db.models.master_data import Module, ProblemType, Product  # noqa: E402
 
 
 def make_client():
