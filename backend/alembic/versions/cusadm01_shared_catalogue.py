@@ -37,6 +37,16 @@ def upgrade():
         raise RuntimeError("Reconcile duplicate or overlong legacy product names before migration")
     if any(len(row["name"]) > 100 for row in old_modules):
         raise RuntimeError("Reconcile legacy module names longer than 100 characters before migration")
+    for row in old_products:
+        # Honor the database's real collation as well as Python casefolding.
+        count = bind.scalar(sa.select(sa.func.count()).select_from(legacy).where(legacy.c.name == row["name"]))
+        if count != 1:
+            raise RuntimeError("Reconcile legacy product names that collide under the database collation")
+    for row in old_modules:
+        count = bind.scalar(sa.select(sa.func.count()).select_from(legacy_modules).where(
+            legacy_modules.c.product_id == row["product_id"], legacy_modules.c.name == row["name"]))
+        if count != 1:
+            raise RuntimeError("Reconcile duplicate legacy module names before migration")
     with op.batch_alter_table("products") as batch:
         batch.add_column(sa.Column("code", sa.String(50), nullable=True))
         batch.add_column(sa.Column("default_team_id", sa.Integer(), nullable=True))
@@ -46,10 +56,21 @@ def upgrade():
         batch.add_column(sa.Column("code", sa.String(50), nullable=True))
     products = sa.Table("products", sa.MetaData(), autoload_with=bind)
     modules = sa.Table("modules", sa.MetaData(), autoload_with=bind)
+    def fresh_code(stem, used):
+        value, suffix = stem, 0
+        while value in used:
+            suffix += 1
+            value = f"{stem}-{suffix}"
+        used.add(value)
+        return value
+    used = {row['code'] for row in old_products}
     for row in bind.execute(sa.select(products)).mappings().all():
-        bind.execute(products.update().where(products.c.id == row["id"]).values(code=f"adm-p-{row['id']}"))
+        bind.execute(products.update().where(products.c.id == row["id"]).values(
+            code=fresh_code(f"adm-p-{row['id']}", used)))
+    used = {row['code'] for row in old_modules}
     for row in bind.execute(sa.select(modules)).mappings().all():
-        bind.execute(modules.update().where(modules.c.id == row["id"]).values(code=f"adm-m-{row['id']}"))
+        bind.execute(modules.update().where(modules.c.id == row["id"]).values(
+            code=fresh_code(f"adm-m-{row['id']}", used)))
     op.create_table("cusprd_product_id_map",
                     sa.Column("legacy_id", sa.Integer(), primary_key=True),
                     sa.Column("canonical_id", sa.Integer(), nullable=False, unique=True))

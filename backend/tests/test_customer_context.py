@@ -171,7 +171,7 @@ def test_complete_migration_chain_and_database_scope_constraints():
              'cusprd01_customer_registry.py', 'cusprd02_product_registry.py', 'cusprd05_customer_context.py',
              'cusprd03_contract_calendar.py', 'cusprd08_product_team.py',
              '8d2c4a1b7e90_add_adm02_master_data_phase1.py',
-             'c4e7f1a9b2d3_add_adm04_sla_and_business_calendar.py', 'cusadm01_shared_catalogue.py']
+             'c4e7f1a9b2d3_add_adm04_sla_and_business_calendar.py', 'cusadm01_shared_catalogue.py', 'cusprd07_product_sla.py']
     modules = []
     with engine.begin() as connection:
         for filename in files:

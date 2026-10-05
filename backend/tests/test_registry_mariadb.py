@@ -54,5 +54,11 @@ def test_migrated_mariadb_registry_workflow():
         assert client.put(f'/api/v1/products/{product}/default-team', json={'default_team_id': team_id}).status_code == 200
         assert client.get(f'/api/v1/customers/organizations/{org}/selection-context?contact_id={contact}').json()['instances'][0]['id'] == instance
         assert client.get(f'/api/v1/registry/search-context?product_instance_id={instance}').json()['preferred_product_id'] == product
+        symptom = post('/admin/master-data/symptoms', {'name': 'Login issue', 'product_id': product})['id']
+        policy = post('/admin/master-data/sla-policies', {'name': 'QA Product SLA'})['id']
+        assert client.put(f'/api/v1/products/{product}/sla-policy', json={'sla_policy_id': policy}).status_code == 200
+        options = client.get(f'/api/v1/products/{product}/case-options').json()
+        assert options['sla_policy']['id'] == policy
+        assert options['symptoms'][0]['id'] == symptom
         app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(role=SimpleNamespace(name='Auditor'))
         post('/products', {'code': 'denied', 'name': 'Denied'}, 403)

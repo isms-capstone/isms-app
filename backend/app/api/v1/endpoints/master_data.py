@@ -17,6 +17,7 @@ from app.schemas.master_data import (
     ModuleRefBase, ModuleRefUpdate, ModuleRefOut,
     ServiceStageCreate, ServiceStageUpdate, ServiceStageOut,
     CodeCreate, CodeUpdate, CodeOut,
+    ModuleCreate, ModuleUpdate,
 )
 
 router = APIRouter(prefix="/admin/master-data", tags=["Admin - Master Data"])
@@ -95,7 +96,7 @@ def list_modules(product_id: Optional[int] = Query(None), active: Optional[bool]
 
 
 @router.post("/modules", response_model=ProductRefOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
-def create_module(body: ProductRefBase, db: Session = Depends(get_db)):
+def create_module(body: ModuleCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Product, body.product_id, "Product")
     item = Module(**body.model_dump())
     db.add(item)
@@ -105,7 +106,7 @@ def create_module(body: ProductRefBase, db: Session = Depends(get_db)):
 
 
 @router.patch("/modules/{item_id}", response_model=ProductRefOut, dependencies=[Depends(require_admin)])
-def update_module(item_id: int, body: ProductRefUpdate, db: Session = Depends(get_db)):
+def update_module(item_id: int, body: ModuleUpdate, db: Session = Depends(get_db)):
     item = _get_or_404(db, Module, item_id, "Module")
     data = body.model_dump(exclude_unset=True)
     if "product_id" in data and data["product_id"] is not None:

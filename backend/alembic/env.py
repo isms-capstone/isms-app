@@ -30,14 +30,14 @@ def get_url():
     # 1. ถ้ามี SQLALCHEMY_DATABASE_URI ให้ใช้ตัวนี้ก่อน
     if hasattr(settings, "SQLALCHEMY_DATABASE_URI") and settings.SQLALCHEMY_DATABASE_URI:
         return str(settings.SQLALCHEMY_DATABASE_URI)
-    
+
     # 2. ดึงค่าตัวแปรโดยใช้ getattr เพื่อกัน AttributeError
     user = getattr(settings, "MARIADB_USER", getattr(settings, "DB_USER", "root"))
     password = getattr(settings, "MARIADB_PASSWORD", getattr(settings, "DB_PASSWORD", ""))
     host = getattr(settings, "MARIADB_HOST", getattr(settings, "DB_HOST", getattr(settings, "MARIADB_SERVER", "localhost")))
     port = getattr(settings, "MARIADB_PORT", getattr(settings, "DB_PORT", 3306))
     db_name = getattr(settings, "MARIADB_DATABASE", getattr(settings, "DB_NAME", getattr(settings, "MARIADB_DB", "isms_db")))
-    
+
     return f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}"
 
 def run_migrations_offline() -> None:
@@ -55,7 +55,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section) or {}
     configuration["sqlalchemy.url"] = get_url()
-    
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",

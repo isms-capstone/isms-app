@@ -38,6 +38,7 @@ class ProductResponse(ProductCreate):
     id: int
     modules: list[ModuleResponse]
     default_team_id: int | None
+    sla_policy_id: int | None
 
 
 class InstanceCreate(BaseModel):

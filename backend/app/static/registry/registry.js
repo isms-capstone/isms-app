@@ -108,7 +108,8 @@ function edit(title, fields, record, save, reload) {
     if (spec.type === 'select') for (const option of spec.options) { const item = element('option', option.label); item.value = option.value ?? ''; input.append(item); }
     else { input.type = spec.type; if (spec.maxLength) input.maxLength = spec.maxLength; }
     input.required = spec.required !== false;
-    input.value = record?.[spec.name] ?? spec.default ?? '';
+    const fallback = spec.type === 'select' ? input.options[0]?.value ?? '' : '';
+    input.value = record?.[spec.name] ?? spec.default ?? fallback;
     label.append(input); root.append(label);
   }
   saveAction = async () => {
@@ -208,10 +209,75 @@ async function showProduct(product) {
   if (version !== renderVersion || !user) return;
   const team = section('ทีมผู้รับผิดชอบเริ่มต้น', 'เลือกทีม', () => edit('ทีมผู้รับผิดชอบเริ่มต้น', [field('default_team_id', 'ทีม', 'select', {number: true, required: false, options: [{value: '', label: 'ยังไม่กำหนด'}, ...teams.map(t => ({value: t.id, label: t.name}))]})], current, body => save(`/products/${product.id}/default-team`, 'PUT', body), () => showProduct(product)), user.can_edit_products);
   team.append(element('p', teams.find(t => t.id === current.default_team_id)?.name || 'ยังไม่กำหนด', 'muted'));
-  let reload;
+  const reload = () => showProduct(product);
   const card = section('โมดูลของผลิตภัณฑ์', '+ เพิ่มโมดูล', () => edit('เพิ่มโมดูล', codeFields, {}, body => save(`/products/${product.id}/modules`, 'POST', body), reload), user.can_edit_products);
-  reload = collection(card, `/products/${product.id}/modules`, [['ชื่อ', row => row.name], ['รหัส', row => row.code], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขโมดูล', codeFields, row, body => save(`/products/${product.id}/modules/${row.id}`, 'PUT', body), reload))] : []);
+  collection(card, `/products/${product.id}/modules`, [['ชื่อ', row => row.name], ['รหัส', row => row.code], ['สถานะ', row => badge(row.is_active)]], row => user.can_edit_products ? [button('แก้ไข', () => edit('แก้ไขโมดูล', codeFields, row, body => save(`/products/${product.id}/modules/${row.id}`, 'PUT', body), reload))] : []);
+  await showProductConfiguration(product, current, version);
 }
+async function showProductConfiguration(product, current, version) {
+  const [options, policies] = await Promise.all([
+    current.is_active ? request(`/products/${product.id}/case-options`) : Promise.resolve(null),
+    user.can_edit_products ? request('/registry/sla-policies') : Promise.resolve([])
+  ]);
+  if (version !== renderVersion || !user) return;
+  const reload = () => showProduct(product);
+  const policyCard = section('นโยบาย SLA ของผลิตภัณฑ์', 'เลือกนโยบาย SLA', () => edit('เลือกนโยบาย SLA', [
+    field('sla_policy_id', 'นโยบาย SLA', 'select', {number: true, required: false, options: [
+      {value: '', label: 'ยังไม่กำหนด'}, ...policies.map(p => ({value: p.id, label: p.name}))
+    ]})
+  ], current, body => save(`/products/${product.id}/sla-policy`, 'PUT', body), reload), user.can_edit_products);
+  const policy = options?.sla_policy;
+  policyCard.append(element('p', policy?.name || (current.sla_policy_id ? 'นโยบายที่กำหนดถูกปิดใช้งาน' : 'ยังไม่กำหนดนโยบาย SLA'), 'muted'));
+  if (user.can_edit_products) {
+    policyCard.append(button('+ สร้างนโยบาย SLA', () => edit('สร้างนโยบาย SLA', [field('name', 'ชื่อนโยบาย SLA', 'text', {maxLength: 150})], {}, async body => {
+      const created = await save('/admin/master-data/sla-policies', 'POST', body);
+      await save(`/products/${product.id}/sla-policy`, 'PUT', {sla_policy_id: created.id});
+    }, reload)));
+  }
+  if (current.sla_policy_id && user.can_edit_products) {
+    const rules = await request(`/admin/master-data/sla-policies/${current.sla_policy_id}/rules`);
+    if (version !== renderVersion || !user) return;
+    const fields = [
+      field('severity', 'ระดับความรุนแรง', 'select', {options: ['S1', 'S2', 'S3', 'S4'].map(value => ({value, label: value}))}),
+      field('first_response_value', 'เวลาตอบกลับ', 'number', {number: true}),
+      field('first_response_unit', 'หน่วยเวลาตอบกลับ', 'select', {options: ['MINUTES', 'HOURS', 'BUSINESS_DAYS'].map(value => ({value, label: value}))}),
+      field('resolution_min_value', 'เวลาปิดเคสต่ำสุด', 'number', {number: true}),
+      field('resolution_max_value', 'เวลาปิดเคสสูงสุด', 'number', {number: true}),
+      field('resolution_unit', 'หน่วยเวลาปิดเคส', 'select', {options: ['MINUTES', 'HOURS', 'BUSINESS_DAYS'].map(value => ({value, label: value}))}),
+      field('business_hours_only', 'นับเฉพาะเวลาทำการ', 'select', {boolean: true, default: true, options: [{value: true, label: 'ใช่'}, {value: false, label: 'ไม่ใช่'}]})
+    ];
+    const path = `/admin/master-data/sla-policies/${current.sla_policy_id}/rules`;
+    policyCard.append(element('p', 'แก้ไขกฎมีผลกับทุกผลิตภัณฑ์ที่ใช้นโยบายเดียวกัน สร้างนโยบายใหม่หากต้องการแยกเฉพาะผลิตภัณฑ์', 'subtle'));
+    policyCard.append(button('+ เพิ่มกฎ SLA', () => edit('เพิ่มกฎ SLA', fields, {}, body => save(path, 'POST', body), reload)));
+    table(policyCard, [['ระดับ', r => r.severity], ['ตอบกลับ', r => `${r.first_response_value} ${r.first_response_unit}`], ['ปิดเคส', r => `${r.resolution_min_value}–${r.resolution_max_value} ${r.resolution_unit}`], ['สถานะ', r => badge(r.is_active)]], rules,
+      r => [button('แก้ไขกฎ SLA', () => edit('แก้ไขกฎ SLA', [...fields, activeField], r, body => save(`${path}/${r.id}`, 'PATCH', body), reload))]);
+  } else if (policy) {
+    table(policyCard, [['ระดับ', r => r.severity], ['ตอบกลับ', r => `${r.first_response_value} ${r.first_response_unit}`], ['ปิดเคส', r => `${r.resolution_min_value}–${r.resolution_max_value} ${r.resolution_unit}`]], policy.rules);
+  }
+  for (const spec of [
+    {path: 'symptoms', title: 'อาการ', values: options?.symptoms || [], maxLength: 150},
+    {path: 'service-stages', title: 'ช่วงเวลาสอบ', values: options?.service_stages || [], maxLength: 100}
+  ]) {
+    const path = `/admin/master-data/${spec.path}`;
+    const rows = user.can_edit_products ? await request(`${path}?product_id=${product.id}`) : spec.values;
+    if (version !== renderVersion || !user) return;
+    const fields = [field('name', `ชื่อ${spec.title}`, 'text', {maxLength: spec.maxLength}), activeField];
+    if (spec.path === 'service-stages') fields.push(field('sort_order', 'ลำดับ', 'number', {number: true, default: 1}));
+    const card = section(`หมวดหมู่: ${spec.title}`, `+ เพิ่ม${spec.title}`, () => edit(`เพิ่ม${spec.title}`, fields.filter(f => f.name !== 'is_active'), {},
+      body => save(path, 'POST', {...body, product_id: product.id}), reload), user.can_edit_products);
+    table(card, [['ชื่อ', row => row.name], ...(user.can_edit_products ? [['สถานะ', row => badge(row.is_active)]] : [])], rows,
+      user.can_edit_products ? row => [button(`แก้ไข${spec.title}`, () => edit(`แก้ไข${spec.title}`, fields, row, body => save(`${path}/${row.id}`, 'PATCH', body), reload))] : null);
+  }
+  const modules = user.can_edit_products ? await request(`/products/${product.id}/modules?is_active=true`) : options?.modules || [];
+  if (version !== renderVersion || !user) return;
+  const problems = user.can_edit_products ? (await Promise.all(modules.map(module => request(`/admin/master-data/problem-types?module_id=${module.id}`)))).flat() : options?.problem_types || [];
+  if (version !== renderVersion || !user) return;
+  const fields = [field('name', 'ชื่อประเภทปัญหา', 'text', {maxLength: 150}), field('module_id', 'โมดูลของประเภทปัญหา', 'select', {number: true, options: modules.map(module => ({value: module.id, label: module.name}))})];
+  const card = section('ประเภทปัญหาตามโมดูล', '+ เพิ่มประเภทปัญหา', () => edit('เพิ่มประเภทปัญหา', fields, {}, body => save('/admin/master-data/problem-types', 'POST', body), reload), user.can_edit_products && modules.length > 0);
+  table(card, [['ชื่อ', row => row.name], ['โมดูล', row => modules.find(module => module.id === row.module_id)?.name || '—'], ...(user.can_edit_products ? [['สถานะ', row => badge(row.is_active)]] : [])], problems,
+    user.can_edit_products ? row => [button('แก้ไขประเภทปัญหา', () => edit('แก้ไขประเภทปัญหา', [...fields, activeField], row, body => save(`/admin/master-data/problem-types/${row.id}`, 'PATCH', body), reload))] : null);
+}
+
 async function showCapture() {
   startView('เลือกบริบทลูกค้า', 'ค้นหาจากองค์กร ผู้ติดต่อ หรือช่องทาง แล้วเติมข้อมูลจากทะเบียน');
   const card = section('ลูกค้าและผู้แจ้ง', '', null, false), wrap = element('div', null, 'autocomplete');

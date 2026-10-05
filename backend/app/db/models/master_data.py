@@ -15,6 +15,7 @@ class Product(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, default=lambda: "adm-" + uuid4().hex)
     default_team_id: Mapped[Optional[int]] = mapped_column(ForeignKey("teams.id"), nullable=True, index=True)
+    sla_policy_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sla_policies.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)

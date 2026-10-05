@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class MasterDataBase(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=150)
     description: Optional[str] = Field(default=None, max_length=255)
 
@@ -44,6 +45,14 @@ class ProductRefUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class ModuleCreate(ProductRefBase):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class ModuleUpdate(ProductRefUpdate):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+
+
 class ProductRefOut(MasterDataOut):
     product_id: int
 
@@ -64,10 +73,12 @@ class ModuleRefOut(MasterDataOut):
 
 
 class ServiceStageCreate(ProductRefBase):
+    name: str = Field(min_length=1, max_length=100)
     sort_order: int = 1
 
 
 class ServiceStageUpdate(ProductRefUpdate):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     sort_order: Optional[int] = None
 
 

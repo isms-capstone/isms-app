@@ -55,3 +55,5 @@ api_router.include_router(customers_router, prefix="/customers", tags=["Customer
 api_router.include_router(products_router, tags=["Product Registry"])
 api_router.include_router(customer_context_router, prefix="/customers", tags=["Customer Context"])
 api_router.include_router(registry_router, tags=["Registry Integration"])
+from app.api.v1.endpoints.product_configuration import router as product_configuration_router
+api_router.include_router(product_configuration_router, tags=["Product Configuration"])
