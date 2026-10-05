@@ -19,6 +19,8 @@ from app.db.models.customer import Organization, Contact, ChannelIdentity
 from app.db.models.product import Product, ProductModule, ProductInstance
 from app.db.models.customer_context import Department, CourseOrExam, ExamWindow
 
+from app.db.models.ticket import Ticket, TicketNumberSequence
+
 config = context.config
 
 if config.config_file_name is not None:

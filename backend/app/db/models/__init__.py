@@ -31,3 +31,5 @@ __all__ = [
     "BusinessCalendar",
     "BusinessHoliday",
 ]
+
+from app.db.models.ticket import Ticket, TicketNumberSequence
