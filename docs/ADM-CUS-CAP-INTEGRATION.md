@@ -16,7 +16,10 @@ No new CAP task is started. No merge into develop/main or production migration i
 - Four merge conflicts in Alembic model imports, model exports, route registration and
   master-data schema imports were resolved retaining both ADM and CUS/CAP behavior.
 - The new ADM migrations ended at e3f4a5b6c7d8 while CAP ended at cap01.
-  cusadm02 joins both histories without rewriting existing migrations or changing tables.
+  cusadm02 joins both histories without changing upgrade schemas or tables.
+- MariaDB CI exposed ADM-06 rollback dropping a foreign-key-backed index too early.
+  The integrated downgrade drops the automation_rules table directly, removing its
+  indexes/FK together; upgrade behavior is unchanged.
 - ADM-05 tests replaced app modules globally with stubs during collection. This could
   break other tests or bypass real dependencies. The integrated copy imports real
   dependencies and uses application-scoped FastAPI overrides instead.
@@ -47,6 +50,7 @@ winning. This round leaves that contract and the teammate's task scope unchanged
 
 ## Validation
 
+Full local backend: 42 passed, 1 skipped (MariaDB-only test).
 The integrated suite covers existing customer/product/capture functionality plus ADM-05/06.
 New tests verify one Alembic head, all-branch upgrade/downgrade with SQLite foreign keys,
 shared catalogue template selection and real JWT/RBAC for rule CRUD.

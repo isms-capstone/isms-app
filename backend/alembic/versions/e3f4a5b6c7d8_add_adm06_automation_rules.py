@@ -40,9 +40,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_automation_rules_is_active", table_name="automation_rules")
-    op.drop_index("ix_automation_rules_action_team_id", table_name="automation_rules")
-    op.drop_index("ix_automation_rules_priority", table_name="automation_rules")
-    op.drop_index("ix_automation_rules_name", table_name="automation_rules")
-    op.drop_index("ix_automation_rules_id", table_name="automation_rules")
+    # Dropping the table removes its indexes and FK together. MariaDB rejects
+    # dropping the action-team index while its foreign key still needs it.
     op.drop_table("automation_rules")

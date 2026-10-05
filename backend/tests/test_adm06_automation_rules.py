@@ -83,4 +83,3 @@ def test_disabled_rule_does_not_apply():
     assert "team_id" not in result
     assert result["automation_rule_ids"] == []
     db.close()
-
