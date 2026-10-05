@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import require_admin, require_any_authenticated
 from app.db.session import get_db
 from app.db.models.master_data import (
     Product, Module, ProblemType, Symptom, ServiceStage,
-    TicketType, CauseCode, SolutionCode,
+    TicketType, CauseCode, SolutionCode, CaseTemplate, CannedMessage,
 )
 from app.schemas.master_data import (
     ProductCreate, ProductUpdate, ProductOut,
@@ -17,6 +17,8 @@ from app.schemas.master_data import (
     ModuleRefBase, ModuleRefUpdate, ModuleRefOut,
     ServiceStageCreate, ServiceStageUpdate, ServiceStageOut,
     CodeCreate, CodeUpdate, CodeOut,
+    CaseTemplateCreate, CaseTemplateUpdate, CaseTemplateOut,
+    CannedMessageCreate, CannedMessageUpdate, CannedMessageOut,
 )
 
 router = APIRouter(prefix="/admin/master-data", tags=["Admin - Master Data"])
@@ -316,3 +318,142 @@ def _code_routes(path: str, model, label: str):
 
 _code_routes("cause-codes", CauseCode, "Cause Code")
 _code_routes("solution-codes", SolutionCode, "Solution Code")
+
+
+
+def _validate_case_template_category(db: Session, product_id: int, module_id: int, problem_type_id: int):
+    product = _get_or_404(db, Product, product_id, "Product")
+    module = _get_or_404(db, Module, module_id, "Module")
+    problem_type = _get_or_404(db, ProblemType, problem_type_id, "Problem Type")
+
+    if not product.is_active or not module.is_active or not problem_type.is_active:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Case template category values must be active")
+    if module.product_id != product.id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Module does not belong to Product")
+    if problem_type.module_id != module.id:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Problem Type does not belong to Module")
+
+
+@router.get("/case-templates", response_model=list[CaseTemplateOut], dependencies=[Depends(require_admin)])
+def list_case_templates(
+    active: Optional[bool] = Query(None),
+    product_id: Optional[int] = Query(None),
+    module_id: Optional[int] = Query(None),
+    problem_type_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = db.query(CaseTemplate)
+    if active is not None:
+        query = query.filter(CaseTemplate.is_active.is_(active))
+    if product_id is not None:
+        query = query.filter(CaseTemplate.product_id == product_id)
+    if module_id is not None:
+        query = query.filter(CaseTemplate.module_id == module_id)
+    if problem_type_id is not None:
+        query = query.filter(CaseTemplate.problem_type_id == problem_type_id)
+    return query.order_by(CaseTemplate.id).all()
+
+
+@router.post("/case-templates", response_model=CaseTemplateOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
+def create_case_template(body: CaseTemplateCreate, db: Session = Depends(get_db)):
+    _validate_case_template_category(db, body.product_id, body.module_id, body.problem_type_id)
+    item = CaseTemplate(**body.model_dump())
+    db.add(item)
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+@router.patch("/case-templates/{item_id}", response_model=CaseTemplateOut, dependencies=[Depends(require_admin)])
+def update_case_template(item_id: int, body: CaseTemplateUpdate, db: Session = Depends(get_db)):
+    item = _get_or_404(db, CaseTemplate, item_id, "Case Template")
+    data = body.model_dump(exclude_unset=True)
+    category_fields_changed = any(
+        field in data for field in ("product_id", "module_id", "problem_type_id")
+    )
+    if category_fields_changed or data.get("is_active") is True:
+        product_id = data.get("product_id", item.product_id)
+        module_id = data.get("module_id", item.module_id)
+        problem_type_id = data.get("problem_type_id", item.problem_type_id)
+        _validate_case_template_category(db, product_id, module_id, problem_type_id)
+    _patch_common(item, data)
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+@router.delete("/case-templates/{item_id}", response_model=CaseTemplateOut, dependencies=[Depends(require_admin)])
+def disable_case_template(item_id: int, db: Session = Depends(get_db)):
+    item = _get_or_404(db, CaseTemplate, item_id, "Case Template")
+    item.is_active = False
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+@router.get("/canned-messages", response_model=list[CannedMessageOut], dependencies=[Depends(require_admin)])
+def list_canned_messages(active: Optional[bool] = Query(None), db: Session = Depends(get_db)):
+    return _list(db, CannedMessage, active)
+
+
+@router.post("/canned-messages", response_model=CannedMessageOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
+def create_canned_message(body: CannedMessageCreate, db: Session = Depends(get_db)):
+    item = CannedMessage(**body.model_dump())
+    db.add(item)
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+@router.patch("/canned-messages/{item_id}", response_model=CannedMessageOut, dependencies=[Depends(require_admin)])
+def update_canned_message(item_id: int, body: CannedMessageUpdate, db: Session = Depends(get_db)):
+    item = _get_or_404(db, CannedMessage, item_id, "Canned Message")
+    _patch_common(item, body.model_dump(exclude_unset=True))
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+@router.delete("/canned-messages/{item_id}", response_model=CannedMessageOut, dependencies=[Depends(require_admin)])
+def disable_canned_message(item_id: int, db: Session = Depends(get_db)):
+    item = _get_or_404(db, CannedMessage, item_id, "Canned Message")
+    item.is_active = False
+    _commit(db)
+    db.refresh(item)
+    return item
+
+
+selection_router = APIRouter(prefix="/master-data", tags=["Master Data - Selection"])
+
+
+@selection_router.get("/case-templates", response_model=list[CaseTemplateOut], dependencies=[Depends(require_any_authenticated)])
+def list_active_case_templates_for_selection(
+    product_id: Optional[int] = Query(None),
+    module_id: Optional[int] = Query(None),
+    problem_type_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    query = (
+        db.query(CaseTemplate)
+        .join(Product, CaseTemplate.product_id == Product.id)
+        .join(Module, CaseTemplate.module_id == Module.id)
+        .join(ProblemType, CaseTemplate.problem_type_id == ProblemType.id)
+        .filter(
+            CaseTemplate.is_active.is_(True),
+            Product.is_active.is_(True),
+            Module.is_active.is_(True),
+            ProblemType.is_active.is_(True),
+        )
+    )
+    if product_id is not None:
+        query = query.filter(CaseTemplate.product_id == product_id)
+    if module_id is not None:
+        query = query.filter(CaseTemplate.module_id == module_id)
+    if problem_type_id is not None:
+        query = query.filter(CaseTemplate.problem_type_id == problem_type_id)
+    return query.order_by(CaseTemplate.name).all()
+
+
+@selection_router.get("/canned-messages", response_model=list[CannedMessageOut], dependencies=[Depends(require_any_authenticated)])
+def list_active_canned_messages_for_selection(db: Session = Depends(get_db)):
+    return db.query(CannedMessage).filter(CannedMessage.is_active.is_(True)).order_by(CannedMessage.name).all()

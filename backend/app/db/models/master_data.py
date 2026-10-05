@@ -119,6 +119,37 @@ class SolutionCode(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
+class CaseTemplate(Base):
+    __tablename__ = "case_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), nullable=False, index=True)
+    problem_type_id: Mapped[int] = mapped_column(ForeignKey("problem_types.id"), nullable=False, index=True)
+    default_severity: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    product: Mapped["Product"] = relationship("Product")
+    module: Mapped["Module"] = relationship("Module")
+    problem_type: Mapped["ProblemType"] = relationship("ProblemType")
+
+
+class CannedMessage(Base):
+    __tablename__ = "canned_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False, index=True)
+    message: Mapped[str] = mapped_column(String(5000), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class SlaPolicy(Base):
     __tablename__ = "sla_policies"
 
