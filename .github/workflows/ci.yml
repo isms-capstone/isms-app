@@ -143,6 +143,6 @@ jobs:
           docker compose config -q
           docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q
           docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
-          bash -n scripts/deploy.sh
+          bash -n scripts/deploy.sh scripts/inspect-staging.sh
           python -m unittest discover -s scripts/tests -q
 

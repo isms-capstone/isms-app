@@ -44,6 +44,9 @@ their work is included here, but they should only be closed after the final merg
    database version history and existing schema. This is pending confirmed SSH access.
    Never run a real upgrade/downgrade, change accounts, stamp history or restart staging
    during this read-only inspection.
+   After the host is confirmed, `bash scripts/inspect-staging.sh` reports only checkout,
+   container/volume metadata, table names and Alembic revisions. Its database commands
+   are SELECT/SHOW only; it does not print environment values or customer records.
 2. Confirm a database backup and migration review with a teammate, as required by
    P1-CAP-01's acceptance. Existing tables created without Alembic need a reconciliation
    plan; the CI's fresh/migrated DB does not prove the live DB state.
@@ -70,4 +73,7 @@ their assigned owners. See CAP-REMAINING-QA.md and ADM-CUS-CAP-INTEGRATION.md.
 Local backend: 47 passed, 1 skipped (isolated MariaDB-only test).
 Deploy order/failure unit tests: 3 passed using shell stubs, without contacting a server.
 Compose local/staging/prod validation and git diff --check passed.
-CI and review PR links are recorded after the preparation branch is pushed.
+Code commit d4d4e4f passed all four CI jobs, including actual image startup:
+[CI run 37307301534](https://github.com/isms-capstone/isms-app/actions/runs/37307301534).
+Review: [Draft PR #3](https://github.com/isms-capstone/isms-app/pull/3).
+Staging remains uninspected because its confirmed SSH host/user has not been supplied.
