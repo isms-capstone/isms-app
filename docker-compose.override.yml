@@ -3,10 +3,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
+      APP_ENV: local
     volumes:
       - .:/app
 
   db:
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:3306"

@@ -4,9 +4,15 @@ services:
     ports:
       - "80:3000"
     environment:
-      - NODE_ENV=production
+      APP_ENV: production
+      MARIADB_USER: ${MARIADB_USER:?Set MARIADB_USER in the production env file}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in the production env file}
+      MARIADB_DB: ${MARIADB_DB:?Set MARIADB_DB in the production env file}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the production env file}
 
   db:
     container_name: isms-db-prod
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in the production env file}

@@ -2,8 +2,8 @@ from datetime import time
 
 from sqlalchemy.orm import Session
 
-from app.db.base_class import Base
-from app.db.session import engine, SessionLocal
+from app.db.session import SessionLocal
+from app.db.migration_state import require_current_schema
 from app.db.models.user import Role, User, Team
 from app.db.models.master_data import (
     TicketType,
@@ -98,7 +98,7 @@ SYSTEM_ROLES = [
 
 
 def init_db(db: Session) -> None:
-    Base.metadata.create_all(bind=engine)
+    require_current_schema(db.connection())
 
     # Seed by unique role name, never assume that a role has a specific primary key.
     for role_data in SYSTEM_ROLES:

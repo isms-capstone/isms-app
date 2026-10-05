@@ -5,6 +5,10 @@ on:
     branches:
       - develop
 
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
@@ -20,7 +24,9 @@ jobs:
           key: ${{ secrets.ONPREM_SSH_KEY }}
           port: ${{ secrets.ONPREM_SSH_PORT || 22 }}
           script: |
+            set -eu
             cd /opt/isms-app
+            git fetch origin develop
             git checkout develop
-            git pull origin develop
-            docker compose -p isms-staging -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+            git merge --ff-only origin/develop
+            bash scripts/deploy.sh staging '${{ github.sha }}'

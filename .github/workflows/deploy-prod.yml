@@ -7,6 +7,10 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy-production:
     runs-on: ubuntu-latest
@@ -23,12 +27,8 @@ jobs:
           key: ${{ secrets.ONPREM_SSH_KEY }}
           port: ${{ secrets.ONPREM_SSH_PORT || 22 }}
           script: |
+            set -eu
             cd /opt/isms-app
-            git checkout main
-            git pull origin main
-            
-            # Step 1: Run DB Migration ???????? container ???????????? ??? PRD
-            docker compose -p isms-prod -f docker-compose.yml -f docker-compose.prod.yml run --rm app npm run migrate || echo "No migration script executed"
-            
-            # Step 2: Build & Deploy Production Containers
-            docker compose -p isms-prod -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+            git fetch origin main --tags
+            git checkout --detach '${{ github.sha }}'
+            bash scripts/deploy.sh prod '${{ github.sha }}'
