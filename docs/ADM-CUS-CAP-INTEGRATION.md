@@ -54,4 +54,6 @@ Full local backend: 42 passed, 1 skipped (MariaDB-only test).
 The integrated suite covers existing customer/product/capture functionality plus ADM-05/06.
 New tests verify one Alembic head, all-branch upgrade/downgrade with SQLite foreign keys,
 shared catalogue template selection and real JWT/RBAC for rule CRUD.
-MariaDB upgrade/downgrade and browser regressions are verified by GitHub CI after push.
+Code commit 7033729 passed all four GitHub CI jobs, including actual MariaDB migration
+upgrade/downgrade, migrated capture API tests and browser regressions:
+[CI run 37291937171](https://github.com/isms-capstone/isms-app/actions/runs/37291937171).
