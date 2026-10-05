@@ -272,7 +272,7 @@ async function showProductConfiguration(product, current, version) {
   if (version !== renderVersion || !user) return;
   const problems = user.can_edit_products ? (await Promise.all(modules.map(module => request(`/admin/master-data/problem-types?module_id=${module.id}`)))).flat() : options?.problem_types || [];
   if (version !== renderVersion || !user) return;
-  const fields = [field('name', 'ชื่อประเภทปัญหา', 'text', {maxLength: 150}), field('module_id', 'โมดูลของประเภทปัญหา', 'select', {number: true, options: modules.map(module => ({value: module.id, label: module.name}))})];
+  const fields = [field('name', 'ชื่อประเภทปัญหา', 'text', {maxLength: 100}), field('module_id', 'โมดูลของประเภทปัญหา', 'select', {number: true, options: modules.map(module => ({value: module.id, label: module.name}))})];
   const card = section('ประเภทปัญหาตามโมดูล', '+ เพิ่มประเภทปัญหา', () => edit('เพิ่มประเภทปัญหา', fields, {}, body => save('/admin/master-data/problem-types', 'POST', body), reload), user.can_edit_products && modules.length > 0);
   table(card, [['ชื่อ', row => row.name], ['โมดูล', row => modules.find(module => module.id === row.module_id)?.name || '—'], ...(user.can_edit_products ? [['สถานะ', row => badge(row.is_active)]] : [])], problems,
     user.can_edit_products ? row => [button('แก้ไขประเภทปัญหา', () => edit('แก้ไขประเภทปัญหา', [...fields, activeField], row, body => save(`/admin/master-data/problem-types/${row.id}`, 'PATCH', body), reload))] : null);

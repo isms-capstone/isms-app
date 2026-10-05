@@ -18,6 +18,7 @@ from app.schemas.master_data import (
     ServiceStageCreate, ServiceStageUpdate, ServiceStageOut,
     CodeCreate, CodeUpdate, CodeOut,
     ModuleCreate, ModuleUpdate,
+    ProblemTypeCreate, ProblemTypeUpdate,
 )
 
 router = APIRouter(prefix="/admin/master-data", tags=["Admin - Master Data"])
@@ -138,7 +139,7 @@ def list_problem_types(module_id: Optional[int] = Query(None), active: Optional[
 
 
 @router.post("/problem-types", response_model=ModuleRefOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
-def create_problem_type(body: ModuleRefBase, db: Session = Depends(get_db)):
+def create_problem_type(body: ProblemTypeCreate, db: Session = Depends(get_db)):
     _get_or_404(db, Module, body.module_id, "Module")
     item = ProblemType(module_id=body.module_id, name=body.name, description=body.description)
     db.add(item)
@@ -148,7 +149,7 @@ def create_problem_type(body: ModuleRefBase, db: Session = Depends(get_db)):
 
 
 @router.patch("/problem-types/{item_id}", response_model=ModuleRefOut, dependencies=[Depends(require_admin)])
-def update_problem_type(item_id: int, body: ModuleRefUpdate, db: Session = Depends(get_db)):
+def update_problem_type(item_id: int, body: ProblemTypeUpdate, db: Session = Depends(get_db)):
     item = _get_or_404(db, ProblemType, item_id, "Problem Type")
     data = body.model_dump(exclude_unset=True)
     if "module_id" in data and data["module_id"] is not None:

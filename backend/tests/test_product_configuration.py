@@ -57,3 +57,9 @@ def test_product_categories_sla_and_selection_ownership(authenticated_app):
     assert client.put(f'/api/v1/products/{products[0]}/sla-policy', headers=admin, json={'sla_policy_id': None}).status_code == 200
     assert client.get(f'/api/v1/products/{products[0]}/case-options').status_code == 401
     post(master + '/modules', {'name': 'x' * 101, 'product_id': products[0]}, 422)
+    post(master + '/problem-types', {'name': 'x' * 101, 'module_id': modules[0]}, 422)
+    assert client.patch(f'/api/v1{master}/problem-types/{problems[0]}', headers=admin,
+                        json={'name': ' '}).status_code == 422
+    rules = client.get(f'/api/v1{master}/sla-policies/{policies[1]}/rules', headers=admin).json()
+    assert client.patch(f'/api/v1{master}/sla-policies/{policies[1]}/rules/{rules[0]["id"]}',
+                        headers=admin, json={'resolution_min_value': None}).status_code == 422

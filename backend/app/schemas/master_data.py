@@ -1,7 +1,7 @@
 from datetime import date, time
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MasterDataBase(BaseModel):
@@ -11,6 +11,7 @@ class MasterDataBase(BaseModel):
 
 
 class MasterDataUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     name: Optional[str] = Field(default=None, min_length=1, max_length=150)
     description: Optional[str] = Field(default=None, max_length=255)
     is_active: Optional[bool] = None
@@ -39,6 +40,7 @@ class ProductRefBase(MasterDataBase):
 
 
 class ProductRefUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     product_id: Optional[int] = None
     name: Optional[str] = Field(default=None, min_length=1, max_length=150)
     description: Optional[str] = Field(default=None, max_length=255)
@@ -62,6 +64,7 @@ class ModuleRefBase(MasterDataBase):
 
 
 class ModuleRefUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     module_id: Optional[int] = None
     name: Optional[str] = Field(default=None, min_length=1, max_length=150)
     description: Optional[str] = Field(default=None, max_length=255)
@@ -70,6 +73,14 @@ class ModuleRefUpdate(BaseModel):
 
 class ModuleRefOut(MasterDataOut):
     module_id: int
+
+
+class ProblemTypeCreate(ModuleRefBase):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class ProblemTypeUpdate(ModuleRefUpdate):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
 
 
 class ServiceStageCreate(ProductRefBase):
@@ -128,6 +139,13 @@ class SlaPolicyRuleCreate(BaseModel):
 
 
 class SlaPolicyRuleUpdate(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_values(cls, values):
+        if isinstance(values, dict) and any(value is None for value in values.values()):
+            raise ValueError("SLA rule fields cannot be null; omit unchanged fields")
+        return values
+
     severity: Optional[Literal["S1", "S2", "S3", "S4"]] = None
     first_response_value: Optional[int] = Field(default=None, gt=0)
     first_response_unit: Optional[Literal["MINUTES", "HOURS", "BUSINESS_DAYS"]] = None
