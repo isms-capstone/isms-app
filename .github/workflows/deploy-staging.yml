@@ -1,0 +1,31 @@
+name: Deploy Staging Environment
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Deploy to On-Prem Staging Server via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.ONPREM_HOST }}
+          username: ${{ secrets.ONPREM_USER }}
+          key: ${{ secrets.ONPREM_SSH_KEY }}
+          port: ${{ secrets.ONPREM_SSH_PORT || 22 }}
+          script: |
+            set -eu
+            cd /opt/isms-app
+            git fetch origin develop
+            git checkout develop
+            git merge --ff-only origin/develop
+            bash scripts/deploy.sh staging '${{ github.sha }}'

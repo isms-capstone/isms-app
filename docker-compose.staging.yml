@@ -1,0 +1,18 @@
+services:
+  app:
+    container_name: isms-app-staging
+    ports:
+      - "8080:3000"
+    environment:
+      APP_ENV: staging
+      MARIADB_USER: ${MARIADB_USER:?Set MARIADB_USER in the staging env file}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in the staging env file}
+      MARIADB_DB: ${MARIADB_DB:?Set MARIADB_DB in the staging env file}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the staging env file}
+
+  db:
+    container_name: isms-db-staging
+    ports:
+      - "127.0.0.1:5436:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in the staging env file}

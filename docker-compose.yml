@@ -1,0 +1,43 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      MARIADB_SERVER: db
+      MARIADB_PORT: "3306"
+      MARIADB_USER: ${MARIADB_USER:-isms_user}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
+      MARIADB_DB: ${MARIADB_DB:-isms_db}
+      SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  db:
+    image: mariadb:11
+    restart: always
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root_password}
+      MARIADB_DATABASE: ${MARIADB_DB:-isms_db}
+      MARIADB_USER: ${MARIADB_USER:-isms_user}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+volumes:
+  mariadb_data:

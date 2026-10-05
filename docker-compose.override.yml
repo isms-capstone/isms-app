@@ -1,0 +1,12 @@
+services:
+  app:
+    ports:
+      - "3000:3000"
+    environment:
+      APP_ENV: local
+    volumes:
+      - .:/app
+
+  db:
+    ports:
+      - "127.0.0.1:5435:3306"

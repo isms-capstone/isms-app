@@ -1,0 +1,148 @@
+﻿name: ISMS Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop, feature/P1-CUSPRD, feature/P1-CAP, integration/P1-round1 ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  registry-mariadb-tests:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: qa-root-only
+          MARIADB_DATABASE: isms_registry_qa
+          MARIADB_USER: isms_qa
+          MARIADB_PASSWORD: qa-only-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      REGISTRY_MARIADB_QA: "1"
+      MARIADB_SERVER: 127.0.0.1
+      MARIADB_PORT: "3306"
+      MARIADB_USER: isms_qa
+      MARIADB_PASSWORD: qa-only-password
+      MARIADB_DB: isms_registry_qa
+      SECRET_KEY: ci-isolated-registry-test-key-only
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements-dev.txt
+      - name: Verify MariaDB migration round trip and API
+        working-directory: backend
+        run: |
+          python -m alembic upgrade cusprd08
+          python -m alembic upgrade c4e7f1a9b2d3
+          python tests/seed_catalogue_migration.py seed
+          python -m alembic upgrade head
+          python tests/seed_catalogue_migration.py verify
+          python -m alembic downgrade base
+          python -m alembic upgrade head
+          python -m app.db.seed
+          python -m app.db.seed
+          python -m pytest tests/test_registry_mariadb.py tests/test_tickets.py -q
+      - name: Verify actual application image startup on migrated MariaDB
+        run: |
+          docker build -t isms-integration-qa .
+          docker run -d --name isms-integration-qa --network host \
+            -e MARIADB_SERVER -e MARIADB_PORT -e MARIADB_USER \
+            -e MARIADB_PASSWORD -e MARIADB_DB -e SECRET_KEY isms-integration-qa
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/health; then
+              curl --fail --silent http://127.0.0.1:3000/registry/assets/registry.css > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs isms-integration-qa
+          exit 1
+      - name: Remove isolated QA application container
+        if: always()
+        run: docker rm -f isms-integration-qa || true
+
+  registry-ui-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "22"
+      - name: Install test dependencies
+        run: |
+          pip install -r backend/requirements-dev.txt
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Start isolated QA API
+        run: python backend/tests/preview_registry.py > registry-preview.log 2>&1 &
+      - name: Lint registry JavaScript
+        run: npm run lint:registry
+      - name: Test registry browser workflow
+        run: npm run test:registry-ui
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registry-ui-checks
+          path: |
+            backend/tests/ui-output/
+            registry-preview.log
+
+  customer-registry-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend test dependencies
+        run: pip install -r backend/requirements-dev.txt
+      - name: Test customer registry
+        working-directory: backend
+        run: python -m pytest tests -q
+
+  lint-and-test:
+    runs-on: ubuntu-latest
+    env:
+      MARIADB_USER: isms_ci
+      MARIADB_PASSWORD: ci-only-password
+      MARIADB_ROOT_PASSWORD: ci-root-only-password
+      MARIADB_DB: isms_ci
+      SECRET_KEY: ci-isolated-test-key-only
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install dependencies & Run Tests
+        run: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+            npm run lint --if-present
+            npm test --if-present
+          else
+            echo "No package.json in root directory, skipping npm tasks."
+          fi
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+          for script in scripts/*.sh; do bash -n "$script"; done
+          python -m unittest discover -s scripts/tests -q
+
