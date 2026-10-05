@@ -2,7 +2,8 @@
 
 Target: develop. Preparation branch: integration/P1-round1.
 The user authorized preparing this branch, integration fixes, QA and a review PR.
-The user has NOT authorized merging into develop or deploying.
+The user subsequently authorized merging into develop without deployment.
+Staging deployment is manual-only and restricted to develop.
 
 ## Included histories
 
@@ -38,7 +39,7 @@ their work is included here, but they should only be closed after the final merg
 - Staging/production workflows serialize deployments. Production's obsolete npm migration
   command was replaced with the same Alembic pipeline; no production deployment is triggered.
 
-## Required before approving merge
+## Required before deployment (deferred by user)
 
 1. Read-only staging inspection: confirm host/user, checkout, Compose project/DB volume,
    database version history and existing schema. This is pending confirmed SSH access.
@@ -47,8 +48,9 @@ their work is included here, but they should only be closed after the final merg
    After the host is confirmed, `bash scripts/inspect-staging.sh` reports only checkout,
    container/volume metadata, table names and Alembic revisions. Its database commands
    are SELECT/SHOW only; it does not print environment values or customer records.
-2. Confirm a database backup and migration review with a teammate, as required by
-   P1-CAP-01's acceptance. Existing tables created without Alembic need a reconciliation
+2. The user accepts self-review instead of the original teammate-review requirement.
+   Confirm a backup before migrating a database containing valuable data.
+   Existing tables created without Alembic need a reconciliation
    plan; the CI's fresh/migrated DB does not prove the live DB state.
 3. Configure repository ONPREM_HOST, ONPREM_USER, ONPREM_SSH_KEY (and optional
    ONPREM_SSH_PORT) plus server env files. Read-only API audit found no repository
@@ -56,7 +58,8 @@ their work is included here, but they should only be closed after the final merg
    cannot be retrieved from GitHub. No secrets/protection settings were changed.
 4. Confirm the intended production environment approval rule; the workflow names
    `production`, but that GitHub environment is currently absent.
-5. Obtain PR review and the user's explicit final merge approval. Existing PRs #1/#2
+5. GitHub-required PR review may still need a teammate's approval. The user has
+   explicitly approved merging without deployment. Existing PRs #1/#2
    show REVIEW_REQUIRED. The develop protection API did not expose a complete policy;
    no bypass or protection change is proposed.
 

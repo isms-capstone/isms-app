@@ -1,9 +1,7 @@
 name: Deploy Staging Environment
 
 on:
-  push:
-    branches:
-      - develop
+  workflow_dispatch:
 
 concurrency:
   group: deploy-staging
@@ -11,6 +9,7 @@ concurrency:
 
 jobs:
   deploy-staging:
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
