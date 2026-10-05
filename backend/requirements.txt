@@ -5,8 +5,9 @@ sqlalchemy
 pymysql
 alembic
 python-jose[cryptography]
-passlib[bcrypt]
-# Passlib 1.7's bcrypt backend fails its self-test with bcrypt 5.
+passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-multipart
 email-validator
+pytest
+ruff

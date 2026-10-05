@@ -13,12 +13,11 @@ from app.schemas.customer import (
 )
 
 
-REGISTRY_EDITOR_ROLES = frozenset({"Admin", "User", "Agent", "Team Lead"})
+REGISTRY_EDITOR_ROLES = frozenset({"Admin", "Agent", "Team Lead"})
 
 
 def require_registry_editor(user: User = Depends(get_current_user)):
-    # Match business role names, never generated database IDs. User is the
-    # legacy INFRA role; keep compatibility until ADM introduces Agent roles.
+    # Match ADM business role names, never generated database IDs.
     if not user.role or user.role.name not in REGISTRY_EDITOR_ROLES:
         raise HTTPException(403, "Customer registry is read-only for this role")
     return user

@@ -1,82 +1,193 @@
-﻿from sqlalchemy.orm import Session
+from datetime import time
+
+from sqlalchemy.orm import Session
+
 from app.db.base_class import Base
 from app.db.session import engine, SessionLocal
 from app.db.models.user import Role, User, Team
+from app.db.models.master_data import (
+    TicketType,
+    SlaPolicy,
+    SlaPolicyRule,
+    BusinessCalendar,
+)
 from app.core.security import get_password_hash
+
+
+DEFAULT_TICKET_TYPES = [
+    "Issues",
+    "Bugs",
+    "Request",
+    "Question",
+    "Export Data",
+    "Data Transfer",
+    "Data Recovery",
+    "Change Request",
+]
+
+
+
+DEFAULT_SLA_POLICY = {
+    "name": "Default SLA Policy",
+    "description": "บริษัทใช้เป็นค่าเริ่มต้นสำหรับทุกลูกค้า",
+}
+
+DEFAULT_SLA_RULES = [
+    {
+        "severity": "S1",
+        "first_response_value": 15,
+        "first_response_unit": "MINUTES",
+        "resolution_min_value": 5,
+        "resolution_max_value": 5,
+        "resolution_unit": "HOURS",
+        "business_hours_only": False,
+    },
+    {
+        "severity": "S2",
+        "first_response_value": 30,
+        "first_response_unit": "MINUTES",
+        "resolution_min_value": 1,
+        "resolution_max_value": 1,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+    {
+        "severity": "S3",
+        "first_response_value": 4,
+        "first_response_unit": "HOURS",
+        "resolution_min_value": 1,
+        "resolution_max_value": 3,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+    {
+        "severity": "S4",
+        "first_response_value": 1,
+        "first_response_unit": "BUSINESS_DAYS",
+        "resolution_min_value": 5,
+        "resolution_max_value": 10,
+        "resolution_unit": "BUSINESS_DAYS",
+        "business_hours_only": True,
+    },
+]
+
+DEFAULT_BUSINESS_CALENDAR = {
+    "name": "Thailand Business Calendar",
+    "description": "วันทำการมาตรฐานของบริษัท",
+    "timezone": "Asia/Bangkok",
+    "work_start_time": time(8, 0),
+    "work_end_time": time(17, 0),
+    "monday": True,
+    "tuesday": True,
+    "wednesday": True,
+    "thursday": True,
+    "friday": True,
+    "saturday": False,
+    "sunday": False,
+}
+
+
+SYSTEM_ROLES = [
+    {"name": "Admin", "description": "System administrator; manages users, teams, roles and settings."},
+    {"name": "Agent", "description": "Tier 2 support agent; receives cases from all channels."},
+    {"name": "Specialist", "description": "Tier 1 specialist; receives escalated cases from Agent."},
+    {"name": "Developer", "description": "Tier 0 developer; investigates and resolves escalated cases."},
+    {"name": "Team Lead", "description": "Support team lead; manages workload distribution and SLA."},
+    {"name": "Executive", "description": "Executive; views high-level dashboards."},
+]
+
 
 def init_db(db: Session) -> None:
     Base.metadata.create_all(bind=engine)
 
-    # 1. Seed Roles
-    roles_data = [
-        {"id": 4, "name": "Admin", "description": "System Administrator with full access"},
-        {"id": 5, "name": "User", "description": "Standard User"},
-        {"id": 6, "name": "Auditor", "description": "Read-only Auditor for ISMS Compliance"},
-    ]
-    for r_data in roles_data:
-        role = db.get(Role, r_data["id"])
-        if not role:
-            db.add(Role(**r_data))
-    db.commit()
+    # Seed by unique role name, never assume that a role has a specific primary key.
+    for role_data in SYSTEM_ROLES:
+        role = db.query(Role).filter(Role.name == role_data["name"]).first()
+        if role is None:
+            db.add(Role(**role_data))
 
-    # 2. Seed Teams
     teams_data = [
         {"name": "IT & Security", "description": "Core IT Security Team"},
         {"name": "Compliance & Audit", "description": "Internal Audit Team"},
     ]
-    for t_data in teams_data:
-        team = db.query(Team).filter(Team.name == t_data["name"]).first()
-        if not team:
-            db.add(Team(**t_data))
+    for team_data in teams_data:
+        if not db.query(Team).filter(Team.name == team_data["name"]).first():
+            db.add(Team(**team_data))
     db.commit()
 
+    admin_role = db.query(Role).filter(Role.name == "Admin").first()
+    agent_role = db.query(Role).filter(Role.name == "Agent").first()
+    executive_role = db.query(Role).filter(Role.name == "Executive").first()
     it_team = db.query(Team).filter(Team.name == "IT & Security").first()
 
-    # 3. Seed Users (Updated: admin, mimi, mai)
-    users_data = [
+    # Existing demo accounts are created only when absent. Never reset passwords on startup.
+    demo_users = [
         {
             "username": "admin",
             "email": "admin@isms.local",
             "full_name": "System Administrator",
             "password": "Admin@123456",
-            "role_id": 4,
-            "team_id": it_team.id if it_team else None
+            "role_id": admin_role.id,
+            "team_id": it_team.id if it_team else None,
         },
         {
             "username": "mimi",
             "email": "mimi@isms.local",
-            "full_name": "Mimi (Standard User)",
+            "full_name": "Mimi (Legacy Demo Account)",
             "password": "User@123456",
-            "role_id": 5,
-            "team_id": it_team.id if it_team else None
+            "role_id": agent_role.id,
+            "team_id": it_team.id if it_team else None,
         },
         {
             "username": "mai",
             "email": "mai@isms.local",
-            "full_name": "Mai (ISMS Auditor)",
+            "full_name": "Mai (Legacy Demo Account)",
             "password": "Auditor@123456",
-            "role_id": 6,
-            "team_id": None
-        }
+            "role_id": executive_role.id,
+            "team_id": None,
+        },
     ]
+    for data in demo_users:
+        existing = db.query(User).filter(User.username == data["username"]).first()
+        if existing is None:
+            data = data.copy()
+            password = data.pop("password")
+            db.add(User(
+                **data,
+                hashed_password=get_password_hash(password),
+                is_active=True,
+            ))
+    # ADM-04: seed one default SLA policy, its S1-S4 rules, and the standard
+    # Thailand business calendar. All seeds are idempotent so startup never duplicates them.
+    sla_policy = db.query(SlaPolicy).filter(SlaPolicy.name == DEFAULT_SLA_POLICY["name"]).first()
+    if sla_policy is None:
+        sla_policy = SlaPolicy(**DEFAULT_SLA_POLICY)
+        db.add(sla_policy)
+        db.flush()
 
-    for u_data in users_data:
-        user = db.query(User).filter(User.username == u_data["username"]).first()
-        if not user:
-            new_user = User(
-                username=u_data["username"],
-                email=u_data["email"],
-                full_name=u_data["full_name"],
-                hashed_password=get_password_hash(u_data["password"]),
-                role_id=u_data["role_id"],
-                team_id=u_data["team_id"],
-                is_active=True
-            )
-            db.add(new_user)
+    for rule_data in DEFAULT_SLA_RULES:
+        exists = db.query(SlaPolicyRule).filter(
+            SlaPolicyRule.sla_policy_id == sla_policy.id,
+            SlaPolicyRule.severity == rule_data["severity"],
+        ).first()
+        if exists is None:
+            db.add(SlaPolicyRule(sla_policy_id=sla_policy.id, **rule_data))
+
+    calendar = db.query(BusinessCalendar).filter(BusinessCalendar.name == DEFAULT_BUSINESS_CALENDAR["name"]).first()
+    if calendar is None:
+        db.add(BusinessCalendar(**DEFAULT_BUSINESS_CALENDAR))
+
+    # CAT-02: seed the organisation's standard ticket types idempotently.
+    # Admin can add/remove values later through the master-data API.
+    for ticket_type_name in DEFAULT_TICKET_TYPES:
+        if not db.query(TicketType).filter(TicketType.name == ticket_type_name).first():
+            db.add(TicketType(name=ticket_type_name))
     db.commit()
-    print("✅ Database seeding with updated users (mimi, mai) completed!")
+
 
 if __name__ == "__main__":
     db = SessionLocal()
-    init_db(db)
-    db.close()
+    try:
+        init_db(db)
+    finally:
+        db.close()

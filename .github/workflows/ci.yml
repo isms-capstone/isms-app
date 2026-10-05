@@ -39,7 +39,11 @@ jobs:
       - name: Verify MariaDB migration round trip and API
         working-directory: backend
         run: |
+          python -m alembic upgrade cusprd08
+          python -m alembic upgrade c4e7f1a9b2d3
+          python tests/seed_catalogue_migration.py seed
           python -m alembic upgrade head
+          python tests/seed_catalogue_migration.py verify
           python -m alembic downgrade base
           python -m alembic upgrade head
           python -m pytest tests/test_registry_mariadb.py -q

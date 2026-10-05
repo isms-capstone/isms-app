@@ -1,7 +1,15 @@
-FROM node:18-alpine
+FROM python:3.11-slim
+
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --only=production || true
-COPY . .
+
+COPY backend/requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend ./backend
+
+WORKDIR /app/backend
+
 EXPOSE 3000
-CMD ["node", "-e", "console.log('ISMS App is running...')"]
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3000"]

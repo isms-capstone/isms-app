@@ -14,7 +14,7 @@ Environment = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=T
 class ProductCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     code: Code
-    name: Name
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=150)]
     is_active: bool = True
 
     @field_validator("code", mode="before")
@@ -24,7 +24,7 @@ class ProductCreate(BaseModel):
 
 
 class ModuleCreate(ProductCreate):
-    pass
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 
 
 class ModuleResponse(ModuleCreate):

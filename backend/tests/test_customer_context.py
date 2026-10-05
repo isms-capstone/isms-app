@@ -169,16 +169,18 @@ def test_complete_migration_chain_and_database_scope_constraints():
     directory = Path(__file__).resolve().parents[1] / 'alembic/versions'
     files = ['320181f14c87_initial_schema_roles_teams_users.py', 'fef2a1063bc1_initial_isms_schema.py',
              'cusprd01_customer_registry.py', 'cusprd02_product_registry.py', 'cusprd05_customer_context.py',
-             'cusprd03_contract_calendar.py', 'cusprd08_product_team.py']
+             'cusprd03_contract_calendar.py', 'cusprd08_product_team.py',
+             '8d2c4a1b7e90_add_adm02_master_data_phase1.py',
+             'c4e7f1a9b2d3_add_adm04_sla_and_business_calendar.py', 'cusadm01_shared_catalogue.py']
     modules = []
     with engine.begin() as connection:
         for filename in files:
             spec = importlib.util.spec_from_file_location(filename[:-3], directory / filename)
             module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
             module.op = Operations(MigrationContext.configure(connection)); module.upgrade(); modules.append(module)
-        assert 'default_team_id' in {c['name'] for c in inspect(connection).get_columns('product')}
-        registry_tables = {'organization', 'contact', 'channel_identity', 'product',
-                           'product_module', 'product_instance', 'department', 'course_or_exam', 'exam_window'}
+        assert 'default_team_id' in {c['name'] for c in inspect(connection).get_columns('products')}
+        registry_tables = {'organization', 'contact', 'channel_identity', 'products',
+                           'modules', 'product_instance', 'department', 'course_or_exam', 'exam_window'}
         context = MigrationContext.configure(connection, opts={
             'include_object': lambda obj, name, type_, reflected, compare_to:
                 type_ != 'table' or name in registry_tables,

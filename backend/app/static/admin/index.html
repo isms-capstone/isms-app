@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ISMS · Admin</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0}header{background:#172033;color:white;padding:20px 28px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:20px;margin:0}main{max-width:1200px;margin:24px auto;padding:0 18px}.panel{background:white;border:1px solid #e1e6ef;border-radius:12px;padding:18px;margin-bottom:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tabs{display:flex;gap:8px;margin-bottom:14px}
+button,.tab{border:1px solid #ccd4e1;background:#fff;border-radius:8px;padding:9px 13px;cursor:pointer;color:#172033}
+button.primary{background:#2859c5;color:white;border-color:#2859c5}.tab.active{background:#172033;color:white}
+input,select{padding:9px 10px;border:1px solid #ccd4e1;border-radius:8px;min-width:150px;max-width:100%}
+table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}th,td{text-align:left;padding:11px 9px;border-bottom:1px solid #edf0f5}th{color:#5a6578;font-weight:600}
+.muted{color:#687386;font-size:13px}.error{color:#b42318}.success{color:#087443}.hidden{display:none}.status{padding:8px 0;min-height:24px}
+@media(max-width:700px){header{padding:16px}table{display:block;overflow-x:auto}input,select{width:100%}.row>*{flex:1}}
+</style></head>
+<body>
+<header><h1>ISMS / Admin Console</h1><button id="logout" class="hidden">ออกจากระบบ</button></header>
+<main>
+<section id="login" class="panel">
+<h2>เข้าสู่ระบบผู้ดูแล</h2><p class="muted">ใช้บัญชี Admin ของระบบ</p>
+<form id="loginForm" class="row"><input name="username" placeholder="Username" required autocomplete="username"><input name="password" type="password" placeholder="Password" required autocomplete="current-password"><button class="primary">เข้าสู่ระบบ</button></form>
+<div id="loginStatus" class="status"></div>
+</section>
+<section id="app" class="hidden">
+<div class="panel"><div class="tabs"><button class="tab active" data-tab="users">ผู้ใช้</button><button class="tab" data-tab="teams">ทีม</button><button class="tab" data-tab="roles">บทบาท</button></div><div id="status" class="status"></div>
+<div id="users" class="tabbody">
+<h2>จัดการผู้ใช้</h2><form id="userForm" class="row">
+<input name="username" placeholder="Username" required><input name="email" type="email" placeholder="Email" required><input name="full_name" placeholder="ชื่อที่แสดง">
+<input name="password" type="password" placeholder="Password (ตอนสร้าง)">
+<select name="role_id" id="userRole" required></select><select name="team_id" id="userTeam"><option value="">ไม่สังกัดทีม</option></select>
+<button class="primary">เพิ่มผู้ใช้</button><button type="button" id="cancelEdit">ยกเลิกแก้ไข</button>
+</form>
+<div class="row" style="margin-top:12px"><input id="userSearch" placeholder="ค้นหา username / email / ชื่อ"><select id="userStatus"><option value="">ทุกสถานะ</option><option value="true">ใช้งาน</option><option value="false">ระงับ</option></select><button id="refreshUsers">ค้นหา / รีเฟรช</button></div>
+<div id="usersTable"></div></div>
+<div id="teams" class="tabbody hidden"><h2>จัดการทีม</h2><form id="teamForm" class="row"><input name="name" placeholder="ชื่อทีม" required><input name="description" placeholder="รายละเอียด"><button class="primary">เพิ่มทีม</button></form><div id="teamsTable"></div></div>
+<div id="roles" class="tabbody hidden"><h2>จัดการบทบาท</h2><p class="muted">บทบาทระบบตาม SRS: Admin, Agent, Specialist, Developer, Team Lead และ Executive ไม่สามารถเปลี่ยนชื่อหรือลบได้</p><form id="roleForm" class="row"><input name="name" placeholder="ชื่อบทบาท" required><input name="description" placeholder="รายละเอียด"><button class="primary">เพิ่มบทบาท</button></form><div id="rolesTable"></div></div>
+</div></section>
+</main>
+<script>
+let token=localStorage.getItem('isms_admin_token')||'', roles=[], teams=[], editingUser=null;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function message(t,error=false,where='#status'){const el=$(where);if(el){el.textContent=t;el.className='status '+(error?'error':'success')}}
+async function api(path,opts={}){const headers={...(opts.headers||{}),'Authorization':'Bearer '+token};if(opts.body&&!(opts.body instanceof FormData))headers['Content-Type']='application/json';const r=await fetch('/api/v1'+path,{...opts,headers});if(r.status===204)return null;let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.detail||('HTTP '+r.status));return d}
+function signedIn(on){$('#login').classList.toggle('hidden',on);$('#app').classList.toggle('hidden',!on);$('#logout').classList.toggle('hidden',!on)}
+$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);try{const r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({username:f.get('username'),password:f.get('password')})});const d=await r.json();if(!r.ok)throw Error(d.detail||'เข้าสู่ระบบไม่สำเร็จ');token=d.access_token;localStorage.setItem('isms_admin_token',token);signedIn(true);await loadAll()}catch(err){message(err.message,true,'#loginStatus')}});
+$('#logout').onclick=()=>{token='';localStorage.removeItem('isms_admin_token');signedIn(false)};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tabbody').forEach(x=>x.classList.toggle('hidden',x.id!==b.dataset.tab))});
+async function loadAll(){try{[roles,teams]=await Promise.all([api('/roles/'),api('/teams/')]);$('#userRole').innerHTML=roles.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');$('#userTeam').innerHTML='<option value="">ไม่สังกัดทีม</option>'+teams.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('');await Promise.all([loadUsers(),loadTeams(),loadRoles()]);message('โหลดข้อมูลแล้ว')}catch(e){message(e.message,true);if(/401|403/.test(e.message))signedIn(false)}}
+async function loadUsers(){const q=new URLSearchParams();if($('#userSearch').value)q.set('q',$('#userSearch').value);if($('#userStatus').value)q.set('is_active',$('#userStatus').value);const data=await api('/users/?'+q);$('#usersTable').innerHTML='<table><thead><tr><th>ผู้ใช้</th><th>อีเมล</th><th>Role ID</th><th>Team ID</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>'+data.map(u=>`<tr><td>${esc(u.username)}<br><span class="muted">${esc(u.full_name)}</span></td><td>${esc(u.email)}</td><td>${esc(roles.find(r=>r.id===u.role_id)?.name||u.role_id)}</td><td>${esc(teams.find(t=>t.id===u.team_id)?.name||'-')}</td><td>${u.is_active?'ใช้งาน':'ระงับ'}</td><td><button data-edit="${u.id}">แก้ไข</button> <button data-toggle="${u.id}" data-active="${u.is_active}">${u.is_active?'ระงับ':'เปิดใช้'}</button> <button data-delete="${u.id}">ลบ</button></td></tr>`).join('')+'</tbody></table>';
+$('#usersTable').querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editUser(data.find(u=>u.id==b.dataset.edit)));
+$('#usersTable').querySelectorAll('[data-toggle]').forEach(b=>b.onclick=async()=>{try{const id=b.dataset.toggle;if(b.dataset.active==='true')await api('/users/'+id+'/suspend',{method:'POST'});else await api('/users/'+id+'/activate',{method:'POST'});await loadUsers();message('บันทึกสถานะแล้ว')}catch(e){message(e.message,true)}});
+$('#usersTable').querySelectorAll('[data-delete]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบผู้ใช้นี้?'))return;try{await api('/users/'+b.dataset.delete,{method:'DELETE'});await loadUsers();message('ลบผู้ใช้แล้ว')}catch(e){message(e.message,true)}});
+}
+function editUser(u){editingUser=u.id;const f=$('#userForm');f.username.value=u.username;f.username.disabled=true;f.email.value=u.email;f.full_name.value=u.full_name||'';f.password.value='';f.password.required=false;f.role_id.value=u.role_id;f.team_id.value=u.team_id||'';f.querySelector('button.primary').textContent='บันทึกการแก้ไข'}
+$('#cancelEdit').onclick=()=>{editingUser=null;const f=$('#userForm');f.reset();f.username.disabled=false;f.password.required=true;f.querySelector('button.primary').textContent='เพิ่มผู้ใช้'}
+$('#userForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.target;const body={email:f.email.value,full_name:f.full_name.value||null,role_id:Number(f.role_id.value),team_id:f.team_id.value?Number(f.team_id.value):null};try{if(editingUser){if(f.password.value)body.password=f.password.value;await api('/users/'+editingUser,{method:'PATCH',body:JSON.stringify(body)})}else{body.username=f.username.value;body.password=f.password.value;await api('/users/',{method:'POST',body:JSON.stringify(body)})}$('#cancelEdit').click();await loadUsers();message('บันทึกผู้ใช้แล้ว')}catch(err){message(err.message,true)}});
+$('#refreshUsers').onclick=()=>loadUsers();$('#userSearch').addEventListener('keydown',e=>{if(e.key==='Enter')loadUsers()});
+async function loadTeams(){const data=teams;$('#teamsTable').innerHTML='<table><thead><tr><th>ทีม</th><th>รายละเอียด</th><th>จัดการ</th></tr></thead><tbody>'+data.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.description||'')}</td><td><button data-team-edit="${t.id}">แก้ไข</button> <button data-team-del="${t.id}">ลบ</button></td></tr>`).join('')+'</tbody></table>';
+$('#teamsTable').querySelectorAll('[data-team-edit]').forEach(b=>b.onclick=async()=>{const t=data.find(x=>x.id==b.dataset.teamEdit);const name=prompt('ชื่อทีม',t.name);if(name===null)return;const description=prompt('รายละเอียด',t.description||'');try{await api('/teams/'+t.id,{method:'PATCH',body:JSON.stringify({name,description})});await loadAll()}catch(e){message(e.message,true)}});
+$('#teamsTable').querySelectorAll('[data-team-del]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบทีม?'))return;try{await api('/teams/'+b.dataset.teamDel,{method:'DELETE'});await loadAll()}catch(e){message(e.message,true)}});
+}
+$('#teamForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('/teams/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();message('เพิ่มทีมแล้ว')}catch(err){message(err.message,true)}};
+async function loadRoles(){const data=roles;$('#rolesTable').innerHTML='<table><thead><tr><th>บทบาท</th><th>รายละเอียด</th><th>จัดการ</th></tr></thead><tbody>'+data.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.description||'')}</td><td>${['Admin','Agent','Specialist','Developer','Team Lead','Executive'].includes(r.name)?'<span class="muted">บทบาทระบบ</span>':`<button data-role-edit="${r.id}">แก้ไข</button> <button data-role-del="${r.id}">ลบ</button>`}</td></tr>`).join('')+'</tbody></table>';
+$('#rolesTable').querySelectorAll('[data-role-edit]').forEach(b=>b.onclick=async()=>{const r=data.find(x=>x.id==b.dataset.roleEdit);const name=prompt('ชื่อบทบาท',r.name);if(name===null)return;const description=prompt('รายละเอียด',r.description||'');try{await api('/roles/'+r.id,{method:'PATCH',body:JSON.stringify({name,description})});await loadAll()}catch(e){message(e.message,true)}});
+$('#rolesTable').querySelectorAll('[data-role-del]').forEach(b=>b.onclick=async()=>{if(!confirm('ยืนยันลบบทบาท?'))return;try{await api('/roles/'+b.dataset.roleDel,{method:'DELETE'});await loadAll()}catch(e){message(e.message,true)}});
+}
+$('#roleForm').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('/roles/',{method:'POST',body:JSON.stringify({name:f.name.value,description:f.description.value||null})});f.reset();await loadAll();message('เพิ่มบทบาทแล้ว')}catch(err){message(err.message,true)}};
+if(token){signedIn(true);loadAll()}else signedIn(false);
+</script></body></html>

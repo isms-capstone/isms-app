@@ -4,9 +4,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-    volumes:
-      - .:/app
 
   db:
     ports:
-      - "5435:5432"
+      - "5435:3306"
