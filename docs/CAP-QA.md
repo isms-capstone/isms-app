@@ -86,10 +86,15 @@ awaits login explicitly and the complete workflow passes.
 
 ## Next tasks
 
+Updated after this section was first written: CAP-06 inline editing is now implemented
+and QA passed. CAP-08 reported-time editing is implemented and QA passed; actual SLA
+calculation still belongs to the SLA engine. See [CAP remaining-work QA](CAP-REMAINING-QA.md).
+CAP-04 still requires real-user timing evidence. No CAP-03 autosave was added.
+
 1. P1-CAP-03: PATCH draft API, five-second/on-blur autosave, recovery after reopening/offline retry.
-2. P1-CAP-06: “งานของฉัน”, own draft list oldest first, inline edit and draft count (uses PATCH).
+2. P1-CAP-06: completed in this branch (own oldest-first drafts, count and manual inline edit).
 3. Finish P1-CAP-04 real-user timing acceptance.
-4. P1-CAP-08: editing reported_at plus integration with SLA clock; create-time validation is ready.
+4. P1-CAP-08: create/edit reported_at is complete; actual SLA clock integration remains downstream.
 5. P1-CAP-07: lifecycle RESOLVED transition with required-field errors (lifecycle module).
 6. P1-CAP-05: evidence upload/storage, paste/drop/mobile camera (attachment module).
 7. P1-CAP-10: follow-up case action plus actual REL follow-up-of relationship.
@@ -101,5 +106,5 @@ state machine, SLA engine, attachments, REL links, assignment audit or real-user
 ## Wireframe UI update
 
 See [UI alignment QA](UI-WIREFRAME-QA.md) for the later shared shell, desktop/mobile
-capture, explicit draft action and operational queue changes. CAP-03 autosave, CAP-06
-inline editing and CAP-04 user timing remain open.
+capture, explicit draft action and operational queue changes. CAP-06 inline editing
+was completed subsequently; CAP-03 autosave and CAP-04 user timing remain open.

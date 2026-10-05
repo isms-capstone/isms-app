@@ -44,7 +44,8 @@ They are QA fixtures, not production customer data.
 
 - SLA clock/risk/time-remaining order: unavailable until the actual SLA engine is integrated.
   UI shows unavailable state and explicitly labels current creation-time ordering.
-- CAP-03 autosave/recovery and CAP-06 inline draft edit remain unfinished; drafts can be viewed.
+- CAP-03 autosave/recovery remains unfinished. CAP-06 manual inline draft editing was
+  completed subsequently; see [remaining-work QA](CAP-REMAINING-QA.md).
 - CAP-04 still needs trained real-user timing <=30 seconds; browser layout is not that user study.
 - SIM suggestions, evidence/OCR, lifecycle/worklog timeline, advanced search/filter drawer,
   complete product operations pages and full redesign of the existing ADM app remain separate work.
