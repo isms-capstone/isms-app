@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {chromium} = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
 const output = 'backend/tests/ui-output';
+const baseUrl = process.env.REGISTRY_QA_BASE_URL || 'http://127.0.0.1:8765';
 fs.mkdirSync(output, {recursive: true});
 
 (async () => {
@@ -10,7 +11,7 @@ fs.mkdirSync(output, {recursive: true});
   let ready = false;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch('http://127.0.0.1:8765/registry');
+      const response = await fetch(`${baseUrl}/registry`);
       if (response.ok) { ready = true; break; }
     } catch (_) { /* The isolated preview may still be starting. */ }
     await new Promise(resolve => setTimeout(resolve, 250));
@@ -21,7 +22,7 @@ fs.mkdirSync(output, {recursive: true});
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto('http://127.0.0.1:8765/registry');
+    await page.goto(`${baseUrl}/registry`);
     await page.getByLabel('ชื่อผู้ใช้', {exact: true}).fill('qa-admin');
     await page.getByLabel('รหัสผ่าน', {exact: true}).fill('test-only-password');
     await page.getByRole('button', {name: 'เข้าสู่ระบบ', exact: true}).click();
@@ -71,10 +72,10 @@ fs.mkdirSync(output, {recursive: true});
     await page.locator('dialog').getByRole('button', {name: 'บันทึก', exact: true}).click();
     await page.getByRole('cell', {name: '15 MINUTES', exact: true}).waitFor();
     // Current product settings are read from ADM on every request, without restart.
-    const login = await fetch('http://127.0.0.1:8765/api/v1/auth/login', {method: 'POST', body: new URLSearchParams({username: 'qa-admin', password: 'test-only-password'})});
+    const login = await fetch(`${baseUrl}/api/v1/auth/login`, {method: 'POST', body: new URLSearchParams({username: 'qa-admin', password: 'test-only-password'})});
     const headers = {Authorization: `Bearer ${(await login.json()).access_token}`, 'Content-Type': 'application/json'};
     const api = async (path, init = {}) => {
-      const response = await fetch(`http://127.0.0.1:8765/api/v1${path}`, {...init, headers});
+      const response = await fetch(`${baseUrl}/api/v1${path}`, {...init, headers});
       assert.equal(response.ok, true, await response.clone().text());
       return response.json();
     };
@@ -220,6 +221,27 @@ fs.mkdirSync(output, {recursive: true});
     await page.getByRole('button', {name: 'My Work', exact: true}).click();
     await page.getByRole('heading', {name: 'เคสร่างของคุณ (1)', exact: true}).waitFor();
     await page.getByRole('cell', {name: 'Draft QA', exact: true}).waitFor();
+    const draftRow = page.getByRole('row').filter({has: page.getByRole('cell', {name: 'Draft QA', exact: true})});
+    await draftRow.getByRole('button', {name: 'เติมข้อมูลทีละช่อง', exact: true}).click();
+    await draftRow.locator('.inline-editor input').fill('Inline draft QA');
+    const draftPatch = page.waitForResponse(response => response.url().endsWith('/draft-field') && response.request().method() === 'PATCH');
+    await draftRow.getByRole('button', {name: 'บันทึกช่องนี้', exact: true}).click();
+    const editedDraft = await (await draftPatch).json();
+    assert.equal(editedDraft.status, 'DRAFT'); assert.equal(editedDraft.ticket_no, null);
+    await page.getByRole('cell', {name: 'Inline draft QA', exact: true}).waitFor();
+    await page.setViewportSize({width: 375, height: 812});
+    const editedRow = page.getByRole('row').filter({has: page.getByRole('cell', {name: 'Inline draft QA', exact: true})});
+    await editedRow.getByRole('button', {name: 'เติมข้อมูลทีละช่อง', exact: true}).click();
+    await editedRow.locator('.inline-editor > label select').first().selectOption('description');
+    await editedRow.locator('.inline-editor textarea').fill('Mobile inline details');
+    await editedRow.locator('.inline-editor').scrollIntoViewIfNeeded();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await page.screenshot({path: path.join(output, 'draft-inline-mobile.png')});
+    const mobilePatch = page.waitForResponse(response => response.url().endsWith('/draft-field') && response.request().method() === 'PATCH');
+    await editedRow.getByRole('button', {name: 'บันทึกช่องนี้', exact: true}).click();
+    assert.equal((await (await mobilePatch).json()).description, 'Mobile inline details');
+    await page.getByRole('cell', {name: 'Inline draft QA', exact: true}).waitFor();
+    await page.setViewportSize({width: 1440, height: 1000});
     assert.equal(await page.locator('.action-count').count(), 4);
     await page.getByRole('heading', {name: 'คิวเคสที่เปิดอยู่', exact: true}).waitFor();
     assert.match(await page.locator('.queue-note').textContent(), /ยังไม่มีข้อมูลเวลา SLA/);

@@ -64,6 +64,49 @@ def capture():
         engine.dispose()
 
 
+def test_manual_inline_draft_fields_and_permissions(capture):
+    client, app, factory, data, other = capture
+    original = client.post('/api/v1/tickets', json=dict(data, subject='Draft', channel='phone', save_as_draft=True)).json()
+    path = f"/api/v1/tickets/{original['id']}/draft-field"
+    result = client.patch(path, json={'field': 'subject', 'value': ' Edited '})
+    assert result.status_code == 200, result.text
+    edited = result.json()
+    assert edited['subject'] == 'Edited' and edited['status'] == 'DRAFT' and edited['ticket_no'] is None
+    assert edited['created_at'] == original['created_at'] and edited['reported_at'] == original['reported_at']
+    for body in ({'field': 'status', 'value': 'NEW'}, {'field': 'subject', 'value': 123},
+                 {'field': 'channel', 'value': 'invalid'}, {'field': 'contact_id', 'value': 999999999},
+                 {'field': 'subject', 'value': 'x', 'created_at': original['created_at']}):
+        assert client.patch(path, json=body).status_code in (404, 422)
+    assert client.get(f"/api/v1/tickets/{original['id']}").json()['subject'] == 'Edited'
+    result = client.patch(path, json={'field': 'organization_id', 'value': other})
+    assert result.status_code == 200, result.text
+    assert result.json()['organization_id'] == other
+    assert all(result.json()[field] is None for field in ('contact_id', 'product_instance_id', 'module_id', 'category_id'))
+    assert client.patch(path, json={'field': 'contact_id', 'value': data['contact_id']}).status_code == 422
+    new = client.post('/api/v1/tickets', json={'organization_id': other, 'subject': 'New', 'channel': 'phone'}).json()
+    assert client.patch(f"/api/v1/tickets/{new['id']}/draft-field", json={'field': 'subject', 'value': 'Denied'}).status_code == 409
+    user_id = original['created_by_id']
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user_id + 1000000, role=SimpleNamespace(name='Agent'))
+    assert client.patch(path, json={'field': 'subject', 'value': 'Other user'}).status_code == 403
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user_id, role=SimpleNamespace(name='Auditor'))
+    assert client.patch(path, json={'field': 'subject', 'value': 'Read only'}).status_code == 403
+
+
+def test_old_draft_can_be_enriched_without_rewriting_capture_times(capture):
+    client, _, factory, data, _ = capture
+    draft = client.post('/api/v1/tickets', json={'subject': 'Old draft'}).json()
+    with factory() as db:
+        record = db.get(Ticket, draft['id'])
+        record.reported_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=20)
+        db.commit()
+    before = client.get(f"/api/v1/tickets/{draft['id']}").json()
+    edited = client.patch(f"/api/v1/tickets/{draft['id']}/draft-field",
+                          json={'field': 'description', 'value': 'More details'})
+    assert edited.status_code == 200, edited.text
+    assert edited.json()['reported_at'] == before['reported_at']
+    assert edited.json()['created_at'] == before['created_at']
+
+
 def test_draft_and_minimal_new(capture):
     client, _, factory, data, _ = capture
     for body in ({}, {'subject': '   '}, {'subject': 'x', 'channel': 'email'}):

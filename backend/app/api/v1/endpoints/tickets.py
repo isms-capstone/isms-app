@@ -16,7 +16,7 @@ from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import TicketCreate, TicketOut
+from app.schemas.ticket import DraftFieldUpdate, TicketCreate, TicketOut
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -51,13 +51,12 @@ def active_record(db, model, record_id):
     return record
 
 
-@router.post('/tickets', response_model=TicketOut, status_code=201)
-def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
+def capture_values(body: TicketCreate, db: Session, validate_reported=True):
     values = body.model_dump()
     values.pop('save_as_draft')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
-    if reported > now or reported < now - timedelta(days=7):
+    if validate_reported and (reported > now or reported < now - timedelta(days=7)):
         raise HTTPException(422, 'reported_at must be within the last 7 days')
     organization_id = body.organization_id
     if body.contact_id is not None:
@@ -99,8 +98,15 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
     complete = (not body.save_as_draft and organization_id is not None
                 and body.subject is not None and body.channel is not None)
     values.update(organization_id=organization_id, reported_at=reported, created_at=now,
-                  created_by_id=user.id, owner_id=user.id, status='NEW' if complete else 'DRAFT',
+                  status='NEW' if complete else 'DRAFT',
                   sla_policy_id=policy_id, is_exam_window=exam)
+    return values, complete, now
+
+
+@router.post('/tickets', response_model=TicketOut, status_code=201)
+def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    values, complete, now = capture_values(body, db)
+    values.update(created_by_id=user.id, owner_id=user.id)
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
@@ -114,6 +120,65 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         raise HTTPException(409, 'Case data changed; reload and try again') from None
     db.refresh(ticket)
     return ticket
+
+
+def editable_ticket(db, ticket_id, user, draft_only=False):
+    ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
+    if ticket is None:
+        raise HTTPException(404, 'Ticket not found')
+    if draft_only:
+        if ticket.created_by_id != user.id:
+            raise HTTPException(403, 'Only the creator can edit this draft')
+        if ticket.status != 'DRAFT':
+            raise HTTPException(409, 'Only DRAFT tickets support inline edits')
+    else:
+        role = user.role.name if user.role else None
+        if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
+            raise HTTPException(403, 'Only the case creator, owner or assignee can edit its reported time')
+    return ticket
+
+
+def commit_edit(db, ticket):
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Case data changed; reload and try again') from None
+    db.refresh(ticket)
+    return ticket
+
+
+@router.patch('/tickets/{ticket_id}/draft-field', response_model=TicketOut)
+def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depends(get_db),
+                     user: User = Depends(require_capture)):
+    ticket = editable_ticket(db, ticket_id, user, draft_only=True)
+    data = {field: getattr(ticket, field) for field in TicketCreate.model_fields if field != 'save_as_draft'}
+    data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
+    data['save_as_draft'] = True
+    data[body.field] = body.value
+    # A parent selection changes the meaning of dependent IDs; never retain stale context.
+    if body.field == 'organization_id' and body.value != ticket.organization_id:
+        for field in ('contact_id', 'department_id', 'course_or_exam_id', 'product_instance_id',
+                      'module_id', 'category_id', 'symptom_id', 'service_stage_id'):
+            data[field] = None
+    elif body.field == 'product_instance_id' and body.value != ticket.product_instance_id:
+        for field in ('module_id', 'category_id', 'symptom_id', 'service_stage_id'):
+            data[field] = None
+    elif body.field == 'module_id' and body.value != ticket.module_id:
+        data['category_id'] = None
+    from pydantic import ValidationError
+    try:
+        selection = TicketCreate.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(422, [{'loc': error['loc'], 'msg': error['msg']} for error in exc.errors()]) from None
+    values, _, _ = capture_values(selection, db, validate_reported=False)
+    product_changed = data['product_instance_id'] != ticket.product_instance_id
+    for field, value in values.items():
+        if field not in ('created_at', 'reported_at', 'status') and (
+            field != 'sla_policy_id' or product_changed
+        ):
+            setattr(ticket, field, value)
+    return commit_edit(db, ticket)
 
 
 @router.get('/tickets/queue-summary')

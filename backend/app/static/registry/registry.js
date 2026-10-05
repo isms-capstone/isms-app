@@ -498,6 +498,70 @@ async function showTicket(id) {
     element('p', `แจ้งเมื่อ: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`));
 }
 
+const draftFields = [['subject', 'หัวข้อ'], ['description', 'รายละเอียด'], ['channel', 'ช่องทาง'],
+  ['organization_id', 'ลูกค้า'], ['contact_id', 'ผู้แจ้ง'], ['department_id', 'หน่วยงาน'],
+  ['course_or_exam_id', 'รายวิชา / การสอบ'], ['product_instance_id', 'ระบบที่ลูกค้าใช้งาน'],
+  ['module_id', 'โมดูล'], ['category_id', 'ประเภทปัญหา'], ['symptom_id', 'อาการ'],
+  ['service_stage_id', 'ช่วงบริการ'], ['ticket_type_id', 'ประเภทเคส']];
+
+async function draftChoices(name, ticket) {
+  if (name === 'channel') return ['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'face_to_face', 'other'].map(value => ({value, label: value}));
+  if (name === 'organization_id') return (await all('/customers/organizations?is_active=true')).map(row => ({value: row.id, label: row.name}));
+  if (name === 'ticket_type_id') return (await request('/master-data/ticket-types')).map(row => ({value: row.id, label: row.name}));
+  if (name === 'contact_id') return ticket.organization_id ? (await all(`${orgPath(ticket.organization_id)}/contacts?is_active=true`)).map(row => ({value: row.id, label: row.name})) : [];
+  if (['department_id', 'course_or_exam_id', 'product_instance_id'].includes(name)) {
+    if (!ticket.organization_id) return [];
+    const context = await request(`${orgPath(ticket.organization_id)}/selection-context`);
+    return context[{department_id: 'departments', course_or_exam_id: 'courses', product_instance_id: 'instances'}[name]].map(row => ({value: row.id, label: row.name}));
+  }
+  if (!ticket.product_instance_id) return [];
+  const instance = await request(`/product-instances/${ticket.product_instance_id}`);
+  const options = await request(`/products/${instance.product_id}/case-options`);
+  const rows = options[{module_id: 'modules', category_id: 'problem_types', symptom_id: 'symptoms', service_stage_id: 'service_stages'}[name]];
+  return rows.filter(row => name !== 'category_id' || row.module_id === ticket.module_id).map(row => ({value: row.id, label: row.name}));
+}
+
+function draftEditButton(ticket, reload) {
+  const control = button('เติมข้อมูลทีละช่อง', async () => {
+    const host = control.parentElement; if (host.querySelector('form')) return;
+    const form = element('form', null, 'inline-editor'), fieldLabel = element('label', 'ฟิลด์ที่ต้องการแก้'), chooser = element('select');
+    chooser.setAttribute('aria-label', `ฟิลด์ร่าง ${ticket.id}`);
+    for (const [name, text] of draftFields) { const option = element('option', text); option.value = name; chooser.append(option); }
+    fieldLabel.append(chooser);
+    const valueLabel = element('label'), status = element('span'); status.setAttribute('role', 'status');
+    const submit = element('button', 'บันทึกช่องนี้'); submit.type = 'submit';
+    const cancel = button('ยกเลิกแก้ร่าง', () => form.remove()); form.append(fieldLabel, valueLabel, submit, cancel, status); host.append(form);
+    let input, generation = 0, saving = false;
+    const draw = async () => {
+      const current = ++generation, name = chooser.value; input = null; submit.disabled = true; valueLabel.replaceChildren();
+      status.textContent = ['organization_id', 'product_instance_id', 'module_id'].includes(name) ? 'เปลี่ยนตัวเลือกนี้แล้วข้อมูลที่ขึ้นกับตัวเลือกเดิมจะถูกล้าง' : '';
+      try {
+        const choices = ['subject', 'description'].includes(name) ? null : await draftChoices(name, ticket);
+        if (current !== generation || !form.isConnected) return;
+        input = element(choices ? 'select' : name === 'description' ? 'textarea' : 'input');
+        input.setAttribute('aria-label', `ค่าร่าง ${ticket.id}`);
+        if (choices) {
+          const empty = element('option', 'ยังไม่ระบุ'); empty.value = ''; input.append(empty);
+          for (const choice of choices) { const option = element('option', choice.label); option.value = choice.value; input.append(option); }
+        } else input.maxLength = name === 'subject' ? 255 : 20000;
+        input.value = ticket[name] ?? ''; valueLabel.append(document.createTextNode(draftFields.find(row => row[0] === name)[1]), input);
+        submit.disabled = saving;
+      } catch (error) { status.textContent = error.message; }
+    };
+    chooser.addEventListener('change', draw);
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); if (saving || !input) return; saving = true; submit.disabled = true; chooser.disabled = true; cancel.disabled = true; input.disabled = true;
+      const name = chooser.value, value = name.endsWith('_id') ? (input.value ? Number(input.value) : null) : input.value || null;
+      try {
+        await request(`/tickets/${ticket.id}/draft-field`, {method: 'PATCH', body: {field: name, value}});
+        if (form.isConnected) { notify('บันทึกช่องนี้แล้ว เคสยังเป็นร่าง'); await reload(); }
+      } catch (error) { if (form.isConnected) { status.textContent = error.message; saving = false; submit.disabled = false; chooser.disabled = false; cancel.disabled = false; input.disabled = false; } }
+    });
+    await draw();
+  });
+  return control;
+}
+
 async function refreshProductNavigation() {
   const products = await all('/products?is_active=true');
   const root = document.querySelector('#product-navigation'); root.replaceChildren();
@@ -543,7 +607,7 @@ async function showQueue(view) {
     results.replaceChildren(); for (let i = 0; i < 4; i++) results.append(element('div', null, 'skeleton'));
     try {
       const params = new URLSearchParams({offset, limit: 26, ...filters});
-      if (view !== 'cases') params.set('open_only', 'true');
+      if (view !== 'cases' && !filters.today_only) params.set('open_only', 'true');
       if (search.value.trim()) params.set('q', search.value.trim());
       const rows = await request(`/tickets?${params}`);
       const orgIds = [...new Set(rows.map(row => row.organization_id).filter(Boolean))];
@@ -568,7 +632,9 @@ async function showQueue(view) {
   await draw();
   if (view === 'work' && version === renderVersion && user) {
     const drafts = section(`เคสร่างของคุณ (${summary.drafts})`, '', null, false);
-    collection(drafts, '/tickets?drafts_only=true', [['หัวข้อ', row => row.subject || 'ยังไม่มีหัวข้อ'], ['สร้างเมื่อ', row => new Date(row.created_at).toLocaleString('th-TH')]], row => [button('ดูร่าง', () => showTicket(row.id))]);
+    drafts.classList.add('queue-table');
+    let reload;
+    reload = collection(drafts, '/tickets?drafts_only=true', [['หัวข้อ', row => row.subject || 'ยังไม่มีหัวข้อ'], ['สร้างเมื่อ', row => new Date(row.created_at).toLocaleString('th-TH')]], row => [button('ดูร่าง', () => showTicket(row.id)), ...(user.can_create_cases ? [draftEditButton(row, () => reload())] : [])]);
   }
 }
 

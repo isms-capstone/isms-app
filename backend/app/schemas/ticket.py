@@ -35,6 +35,15 @@ class TicketCreate(BaseModel):
         return value
 
 
+class DraftFieldUpdate(BaseModel):
+    """Explicit one-field edit for CAP-06; no autosave or status changes."""
+    model_config = ConfigDict(extra='forbid')
+    field: Literal['subject', 'description', 'channel', 'organization_id', 'contact_id',
+                   'department_id', 'course_or_exam_id', 'product_instance_id', 'module_id',
+                   'category_id', 'symptom_id', 'service_stage_id', 'ticket_type_id']
+    value: str | int | None
+
+
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

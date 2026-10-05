@@ -12,3 +12,11 @@ button,input,select{min-height:44px}
 @media(max-width:650px){.brand{width:auto}.nav-label{display:block}.nav{width:100%;font-size:13px}.sidebar-user{display:flex}.topbar .breadcrumbs span{font-size:12px}.topbar-actions #new-case{display:none}.capture-footer{flex-direction:column;align-items:stretch;gap:6px}.capture-footer .actions button{flex:1;min-height:44px}.capture-footer p{font-size:11px}.capture-layout{padding-bottom:110px}.capture-context{grid-template-columns:1fr}.heading h1{font-size:22px}.card{padding:16px}.action-counts{gap:8px}.action-count{padding:12px}.action-count strong{font-size:21px}.queue-search{flex-wrap:wrap}.queue-table thead{display:none}.queue-table table,.queue-table tbody,.queue-table tr,.queue-table td{display:block}.queue-table tr{padding:12px 0;border-bottom:1px solid #76949f33}.queue-table td{border:0;padding:3px 12px}.queue-table td::before{content:attr(data-label);display:inline-block;min-width:82px;color:#76949f;font-size:11px}.queue-table td:first-child::before{display:none}.queue-table .table-wrap{overflow:visible}.capture-optional[open] .context-fields{grid-template-columns:1fr}}
 
 .existing-cases{padding:14px;background:#fbf5f3;border:1px solid #76949f33;border-radius:6px;margin:16px 0}.existing-cases h3{font-size:13px}.existing-cases p{font-size:12px;margin-bottom:0}.existing-cases .pager{margin-top:8px}.existing-cases td,.existing-cases th{padding:8px}.channel-options button{min-height:44px}
+.inline-editor { display: grid; gap: 8px; padding: 12px; border: 1px solid #76949f; border-radius: 6px; max-width: 100%; min-width: 0; white-space: normal; }
+.inline-editor label { display: grid; gap: 6px; }
+.inline-editor input, .inline-editor select, .inline-editor textarea { min-height: 44px; width: 100%; min-width: 0; box-sizing: border-box; }
+.inline-editor button { min-height: 44px; }
+.queue-table .inline-editor { margin-top: 8px; width: 100%; }
+.queue-table td.actions { white-space: normal; }
+.queue-table td.actions::before { display: none; }
+.queue-table td:first-child { overflow-wrap: anywhere; }
