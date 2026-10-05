@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class TicketCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    save_as_draft: bool = False
     subject: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=20000)
     channel: Literal['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'face_to_face', 'other'] | None = None
@@ -59,6 +60,8 @@ class TicketOut(BaseModel):
     created_at: datetime
     sla_policy_id: int | None
     is_exam_window: bool
+    severity: str | None
+    current_tier: int | None
 
     @field_validator('reported_at', 'created_at')
     @classmethod

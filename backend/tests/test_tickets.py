@@ -215,3 +215,26 @@ def test_product_policy_snapshot_and_isolation(capture):
     assert client.patch(f'/api/v1/admin/master-data/sla-policies/{policy}', json={'is_active': False}).status_code == 200
     assert client.post('/api/v1/tickets', json=body).json()['sla_policy_id'] is None
     assert client.get(f"/api/v1/tickets/{record['id']}").json()['sla_policy_id'] == policy
+
+
+def test_explicit_draft_and_queue_filters(capture):
+    client, _, factory, data, _ = capture
+    before = client.get('/api/v1/tickets/queue-summary').json()
+    marker = uuid4().hex
+    body = dict(data, subject=marker, channel='phone')
+    draft = client.post('/api/v1/tickets', json=body | {'save_as_draft': True}).json()
+    assert draft['status'] == 'DRAFT' and draft['ticket_no'] is None
+    new = client.post('/api/v1/tickets', json=body).json()
+    summary = client.get('/api/v1/tickets/queue-summary').json()
+    assert summary['drafts'] == before['drafts'] + 1
+    assert summary['mine'] == before['mine'] + 1
+    assert summary['today'] == before['today'] + 1
+    assert summary['unassigned'] == before['unassigned'] + 1
+    assert summary['sla_at_risk'] is None
+    mine = client.get('/api/v1/tickets', params={'mine': True, 'open_only': True, 'q': marker}).json()
+    assert [row['id'] for row in mine] == [new['id']]
+    drafts = client.get('/api/v1/tickets?drafts_only=true').json()
+    assert [row['id'] for row in drafts] == [draft['id']]
+    assert client.get('/api/v1/tickets', params={'q': marker, 'ticket_status': 'NEW'}).json()[0]['id'] == new['id']
+    assert client.get('/api/v1/tickets?ticket_status=invalid').status_code == 422
+    assert client.get('/api/v1/tickets', params={'q': '%'}).json() == []

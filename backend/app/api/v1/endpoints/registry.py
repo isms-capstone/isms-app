@@ -46,7 +46,7 @@ class CustomerSelection(BaseModel):
 @router.get("/registry/session")
 def session(user: User = Depends(get_current_user)):
     name = user.role.name if user.role else None
-    return {"username": user.username, "role": name,
+    return {"id": getattr(user, 'id', None), "username": user.username, "role": name,
             "can_edit_customers": name in REGISTRY_EDITOR_ROLES,
             "can_edit_products": name == "Admin",
             "can_create_cases": name in {"Admin", "Agent", "Specialist", "Developer", "Team Lead"}}
