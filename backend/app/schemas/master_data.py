@@ -116,6 +116,50 @@ class CodeOut(CodeCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CaseTemplateCreate(MasterDataBase):
+    product_id: int
+    module_id: int
+    problem_type_id: int
+    default_severity: Literal["S1", "S2", "S3", "S4"]
+
+
+class CaseTemplateUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    description: Optional[str] = Field(default=None, max_length=255)
+    product_id: Optional[int] = None
+    module_id: Optional[int] = None
+    problem_type_id: Optional[int] = None
+    default_severity: Optional[Literal["S1", "S2", "S3", "S4"]] = None
+    is_active: Optional[bool] = None
+
+
+class CaseTemplateOut(CaseTemplateCreate):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CannedMessageCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    message: str = Field(min_length=1, max_length=5000)
+    description: Optional[str] = Field(default=None, max_length=255)
+
+
+class CannedMessageUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    message: Optional[str] = Field(default=None, min_length=1, max_length=5000)
+    description: Optional[str] = Field(default=None, max_length=255)
+    is_active: Optional[bool] = None
+
+
+class CannedMessageOut(CannedMessageCreate):
+    id: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SlaPolicyCreate(MasterDataBase):
     pass
 

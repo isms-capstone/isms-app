@@ -21,6 +21,7 @@ from app.db.models.customer_context import Department, CourseOrExam, ExamWindow
 
 from app.db.models.ticket import Ticket, TicketNumberSequence
 
+from app.db.models.automation_rule import AutomationRule
 config = context.config
 
 if config.config_file_name is not None:
