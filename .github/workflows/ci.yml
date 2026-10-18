@@ -7,6 +7,53 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  next-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install frontend and isolated API test dependencies
+        run: |
+          npm ci
+          pip install -r ../backend/requirements-dev.txt
+          npx playwright install --with-deps chromium
+      - name: Check and build Next.js frontend
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm audit --omit=dev
+      - name: Start disposable API and frontend QA services
+        run: |
+          python -m uvicorn preview_registry:app --app-dir ../backend/tests --host 127.0.0.1 --port 8767 > ../frontend-api-qa.log 2>&1 &
+          BACKEND_URL=http://127.0.0.1:8767 PORT=3101 HOSTNAME=127.0.0.1 npm start > ../frontend-next-qa.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3101/login > /dev/null && curl --fail --silent http://127.0.0.1:8767/registry > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Verify frontend browser flows
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: next-frontend-qa
+          path: |
+            frontend/test-results/
+            frontend/playwright-report/
+            frontend-api-qa.log
+            frontend-next-qa.log
+
   registry-mariadb-tests:
     runs-on: ubuntu-latest
     services:
