@@ -5,11 +5,9 @@ import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api";
 import type { CaseRow } from "@/lib/types";
 import { Button, Input } from "@/components/ui/primitives";
-function relativeTime(value: string) {
-  const hours = Math.max(
-    0,
-    Math.floor((Date.now() - Date.parse(value)) / 3600000),
-  );
+import { previewNow } from "@/lib/preview";
+function relativeTime(value: string, now: number) {
+  const hours = Math.max(0, Math.floor((now - Date.parse(value)) / 3600000));
   return hours >= 24
     ? `${Math.floor(hours / 24)} วันที่แล้ว`
     : hours
@@ -24,6 +22,7 @@ export function DraftList({
   onRefresh: () => void;
 }) {
   const { preview, session, href } = useSession();
+  const [mountedAt] = useState(() => Date.now());
   const [editing, setEditing] = useState<number | null>(null),
     [subject, setSubject] = useState(""),
     [saving, setSaving] = useState(false),
@@ -72,7 +71,13 @@ export function DraftList({
                     : `ร่าง #${row.id}`}
                 </span>
                 <strong>{row.subject || "ยังไม่มีหัวข้อ"}</strong>
-                <small>สร้างเมื่อ {relativeTime(row.created_at)}</small>
+                <small>
+                  สร้างเมื่อ{" "}
+                  {relativeTime(
+                    row.created_at,
+                    preview ? previewNow : mountedAt,
+                  )}
+                </small>
               </div>
               {session?.can_create_cases && !preview ? (
                 <Button

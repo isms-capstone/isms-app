@@ -146,6 +146,7 @@ export function CaseTable({
                         {new Date(row.created_at).toLocaleDateString("th-TH", {
                           day: "numeric",
                           month: "short",
+                          timeZone: "Asia/Bangkok",
                         })}
                       </small>
                     </TableCell>

@@ -1,5 +1,6 @@
 import type { CaseRow, QueueData, Session } from "./types";
 // Design fixtures are only available in explicit /preview routes. Never sent to the API.
+export const previewNow = Date.parse("2026-09-08T14:08:00+07:00");
 export const previewSession: Session = {
   id: 2,
   username: "CHS",
@@ -136,8 +137,8 @@ export const previewRows: CaseRow[] = cases.map((c, i) => ({
   created_by_id: 2,
   assignee_id: c[10] === "–" ? null : c[10] === "CHS" ? 2 : i + 10,
   owner_id: 2,
-  created_at: new Date(Date.now() - i * 3600000).toISOString(),
-  reported_at: new Date().toISOString(),
+  created_at: new Date(previewNow - i * 3600000).toISOString(),
+  reported_at: new Date(previewNow).toISOString(),
   description: null,
   sla_policy_id: null,
   is_exam_window: false,
@@ -156,7 +157,7 @@ export const previewData: QueueData = {
     status: "DRAFT",
     subject,
     created_at: new Date(
-      Date.now() - [172800000, 28800000, 3600000, 1800000][i],
+      previewNow - [172800000, 28800000, 3600000, 1800000][i],
     ).toISOString(),
     slaSeconds: null,
   })),

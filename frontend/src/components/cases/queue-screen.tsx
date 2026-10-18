@@ -1,15 +1,12 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { StatCard, Segment } from "@DeverhoodHT/get-design";
 import {
   Plus,
+  Clock3,
   Search,
   SlidersHorizontal,
-  ChevronRight,
-  Inbox,
-  UserRound,
-  Clock3,
-  AlertCircle,
   RefreshCw,
   Download,
   Bookmark,
@@ -28,7 +25,7 @@ import {
   cx,
 } from "@/components/ui/primitives";
 import { queueData } from "@/lib/api";
-import { previewData } from "@/lib/preview";
+import { previewData, previewNow } from "@/lib/preview";
 import { channelNames, openStatuses, type QueueData } from "@/lib/types";
 import { CaseTable } from "./case-table";
 import { DraftList } from "./draft-list";
@@ -62,7 +59,9 @@ export function QueueScreen({
     [selected, setSelected] = useState<Set<number>>(new Set()),
     [sort, setSort] = useState("sla");
   const requestRef = useRef<AbortController | null>(null);
-  const [mountedAt] = useState(() => new Date());
+  const [mountedAt] = useState(
+    () => new Date(preview ? previewNow : Date.now()),
+  );
   const now = updated || mountedAt;
   const load = useCallback(async () => {
     if (preview || !session) return;
@@ -229,24 +228,16 @@ export function QueueScreen({
     0,
   );
   const tabs = (
-    <div className="segmented-tabs" aria-label="มุมมองคิว">
-      {(
-        [
-          ["all", "ทั้งหมด"],
-          ["mine", "งานของฉัน"],
-          ["unassigned", "ยังไม่มีผู้รับ"],
-        ] as const
-      ).map(([value, label]) => (
-        <button
-          key={value}
-          aria-pressed={scope === value}
-          className={cx(scope === value && "active")}
-          onClick={() => setScopeAndReset(value)}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <Segment
+      aria-label="มุมมองคิว"
+      value={scope}
+      onChange={(value) => setScopeAndReset(value as Scope)}
+      options={[
+        { value: "all", label: "ทั้งหมด" },
+        { value: "mine", label: "งานของฉัน" },
+        { value: "unassigned", label: "ยังไม่มีผู้รับ" },
+      ]}
+    />
   );
   const quickFilters = (
     <>
@@ -493,38 +484,36 @@ export function QueueScreen({
               {
                 count: data?.summary.unassigned,
                 label: "ยังไม่มีผู้รับผิดชอบ",
-                icon: AlertCircle,
+                icon: "users",
                 scope: "unassigned" as Scope,
                 style: "unassigned",
               },
               {
                 count: data?.summary.sla_at_risk,
                 label: "เหลือเวลา SLA ไม่ถึง 25%",
-                icon: Clock3,
+                icon: "clock",
                 scope: "risk" as Scope,
                 style: "risk",
               },
               {
                 count: data?.summary.mine,
                 label: "งานของฉันที่เปิดอยู่",
-                icon: UserRound,
+                icon: "user",
                 scope: "mine" as Scope,
                 style: "mine",
               },
               {
                 count: data?.summary.today,
                 label: "เคสเข้าใหม่วันนี้",
-                icon: Inbox,
+                icon: "folder",
                 scope: "today" as Scope,
                 style: "incoming",
               },
             ].map((item) => (
               <button
                 key={item.scope}
-                className={cx(
-                  "action-count",
-                  scope === item.scope && "is-selected",
-                )}
+                className={`native-stat-action stat-${item.style}`}
+                aria-pressed={scope === item.scope}
                 onClick={() => setScopeAndReset(item.scope)}
                 disabled={item.scope === "risk" && !slaAvailable}
                 title={
@@ -533,12 +522,21 @@ export function QueueScreen({
                     : undefined
                 }
               >
-                <span className={`action-icon action-${item.style}`}>
-                  <item.icon size={21} />
-                </span>
-                <strong>{item.count ?? "—"}</strong>
-                <span>{item.label}</span>
-                <ChevronRight size={17} />
+                <StatCard
+                  size="small"
+                  label={item.label}
+                  value={item.count ?? "—"}
+                  icon
+                  iconName={item.icon}
+                  iconColor="brand"
+                  classNames={{
+                    root: "work-stat",
+                    icon: "work-stat-icon",
+                    label: "work-stat-label",
+                    value: "work-stat-value",
+                    content: "work-stat-content",
+                  }}
+                />
               </button>
             ))}
           </div>

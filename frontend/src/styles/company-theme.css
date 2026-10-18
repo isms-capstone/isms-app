@@ -1,5 +1,7 @@
 /* GET Design 1.0.7 semantic aliases. The product palette stays ISMS, not GetA. */
 html[data-color-set="getx"][data-theme="light"] {
+  --font-family-en: "Sarabun", "Segoe UI", sans-serif;
+  --font-family-th: "Sarabun", "Segoe UI", sans-serif;
   --label-primary: #060b0f;
   --label-secondary: #33454e;
   --label-tertiary: #76949f;
@@ -50,12 +52,4 @@ html[data-color-set="getx"][data-theme="light"] {
   --interaction-surface-hover-brand-default: #76949f10;
   --interaction-surface-press-default: #76949f20;
   --interaction-surface-disable-subtle: #76949f10;
-  --font-family-en: "Sarabun", "Segoe UI", sans-serif;
-  --font-family-th: "Sarabun", "Segoe UI", sans-serif;
-  --radius-4: 4px;
-  --radius-8: 8px;
-  --radius-10: 6px;
-  --radius-12: 8px;
-  --letter-spacing-default: normal;
-  --letter-spacing-tight: normal;
 }

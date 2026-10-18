@@ -12,6 +12,33 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   await expect(page.locator(".gd-Table__cell").first()).toBeVisible();
   await expect(page.locator(".gd-Tag__tag").first()).toBeVisible();
   await expect(page.locator(".gd-Button__button").first()).toBeVisible();
+  const controlSizes = await page
+    .locator(
+      ".quick-filters select, .quick-filters button, .queue-heading-actions .button, .queue-heading-actions select",
+    )
+    .evaluateAll((elements) =>
+      elements.map((element) => ({
+        height: Math.round(element.getBoundingClientRect().height),
+        fontSize: getComputedStyle(element).fontSize,
+      })),
+    );
+  expect(controlSizes.length).toBeGreaterThan(5);
+  expect(
+    controlSizes.every(
+      ({ height, fontSize }) => height === 36 && fontSize === "13px",
+    ),
+  ).toBe(true);
+  const cards = page.locator(".action-counts .work-stat");
+  await expect(cards).toHaveCount(4);
+  await expect(page.locator(".action-counts .work-stat-icon svg")).toHaveCount(
+    4,
+  );
+  const cardHeights = await cards.evaluateAll((elements) =>
+    elements.map((element) =>
+      Math.round(element.getBoundingClientRect().height),
+    ),
+  );
+  expect(new Set(cardHeights).size).toBe(1);
   const palette = await page.evaluate(() => {
     const css = getComputedStyle(document.documentElement);
     return [

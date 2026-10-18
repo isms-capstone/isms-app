@@ -229,65 +229,27 @@ textarea:focus {
   color: var(--brand);
 }
 /* Application shell */
-/* GET Design primitives, sized for the compact ISMS operational wireframes. */
-.button.gd-Button__button {
-  height: auto;
-  font-family: var(--font-sans);
-  font-weight: 500;
-  border-width: 1px;
-  overflow: visible;
+/* GET Design owns component geometry, typography and interaction styles.
+   Only layout integration and accessible native input hit targets live here. */
+.company-input {
+  min-width: 0;
+  width: 100%;
 }
-.button .gd-Button__label {
+.company-native-button .gd-Button__label {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: inherit;
-  min-width: 0;
-  flex-shrink: 1;
-}
-.company-input.input {
-  border: 0;
-  padding: 0;
-  min-height: 0;
-  background: transparent;
-  border-radius: 0;
-}
-.company-input .gd-InputText__inputWrapper {
-  height: 38px;
-  min-height: 38px;
-  padding: 0 12px;
-  border-radius: 5px;
-}
-.company-input .gd-InputText__input {
-  min-height: 0;
-  padding: 0;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  letter-spacing: normal;
-}
-.company-input .gd-InputText__input:focus-visible {
-  outline: none;
-}
-.company-input .gd-InputText__charCount {
-  display: none;
+  gap: 8px;
 }
 .search-field .company-input {
   flex: 1;
-  min-width: 0;
 }
-.search-field .gd-InputText__inputWrapper {
-  height: auto;
-  min-height: 0;
+.search-field:has(.company-input) {
   border: 0;
   padding: 0;
-  border-radius: 0;
   background: transparent;
-  overflow: visible;
 }
 .company-checkbox {
   position: relative;
-  min-height: 22px;
-  gap: 6px;
 }
 .company-checkbox .gd-Checkbox__input {
   inset: 0;
@@ -296,28 +258,29 @@ textarea:focus {
   margin: 0;
   opacity: 0;
   clip: auto;
-  overflow: visible;
   z-index: 1;
   cursor: inherit;
 }
-.company-checkbox .gd-Checkbox__control {
-  width: 22px;
-  height: 22px;
+.native-stat-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
 }
-.company-checkbox .gd-Checkbox__box {
-  inset: 3px;
+.native-stat-action > div {
+  height: 100%;
+  width: 100%;
+  min-width: 0;
 }
-.company-checkbox .gd-Checkbox__label {
-  font-size: 11px;
-  line-height: 1.5;
+.native-stat-action:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
 }
-.case-table .gd-Table__cell {
-  color: var(--ink);
-}
-.priority-pill .gd-Tag__label,
-.badge .gd-Tag__label {
-  font: inherit;
-  line-height: inherit;
+.native-stat-action:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 .app-shell {
   min-height: 100dvh;

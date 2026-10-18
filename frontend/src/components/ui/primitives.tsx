@@ -37,11 +37,11 @@ export const Button = forwardRef<
             ? "plain"
             : "outline"
       }
-      size="sm"
+      size="md"
       className={cx(
-        "button",
-        `button-${variant}`,
-        size && `button-${size}`,
+        "company-native-button",
+        "ui-button",
+        size && `ui-button-${size}`,
         className,
       )}
     >
@@ -60,7 +60,7 @@ export const Input = forwardRef<
       placeholder={placeholder}
       variant={maxLength !== undefined ? "character-count" : "default"}
       maxLength={maxLength}
-      className={cx("input company-input", className)}
+      className={cx("company-input", className)}
     />
   );
 });
@@ -84,7 +84,7 @@ export function Badge({
     <Tag
       label={typeof children === "string" ? children : undefined}
       variant="outline"
-      className={`badge badge-${tone}`}
+      data-tone={tone}
     >
       {typeof children === "string" ? undefined : children}
     </Tag>

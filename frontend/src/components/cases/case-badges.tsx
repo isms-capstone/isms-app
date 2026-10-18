@@ -31,18 +31,19 @@ export function PriorityBadge({
   };
   return (
     <Tag
+      className="case-priority"
+      data-priority={value || "unknown"}
       variant="outline"
-      rounded
       label={
         value
           ? `${value}${compact ? "" : ` ${label[value] || ""}`}`
           : "ยังไม่ระบุ"
       }
-      className={cx(
-        "priority-pill",
-        `priority-${value || "unknown"}`,
-        compact && "compact",
-      )}
+      style={
+        value === "S1"
+          ? { color: "#9e2a2b", borderColor: "#9e2a2b" }
+          : undefined
+      }
     />
   );
 }
