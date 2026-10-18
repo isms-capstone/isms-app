@@ -1,7 +1,12 @@
 """Minimal case capture; lifecycle transitions belong to the lifecycle tasks."""
 from datetime import datetime, timedelta, timezone
+import os
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
+
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +19,7 @@ from app.db.models.customer_context import CourseOrExam, Department, ExamWindow
 from app.db.models.master_data import Product, TicketType
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
+from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut
@@ -251,3 +257,83 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
     return get_record(db, Ticket, ticket_id)
+
+
+# CAP-05: private, persistent attachment storage. Never expose this directory as StaticFiles.
+ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", "/app/uploads/ticket-attachments"))
+MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+ALLOWED_ATTACHMENT_TYPES = {
+    "image/jpeg": ".jpg", "image/png": ".png", 
+    "image/webp": ".webp", "application/pdf": ".pdf"
+    # "text/plain": ".txt", "image/gif": ".gif",
+}
+
+def _can_access_ticket(ticket, user):
+    role = user.role.name if user.role else None
+    return role == "Admin" or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id)
+
+def _attachment_json(row):
+    return {"id": row.id, "ticket_id": row.ticket_id, "filename": row.original_name,
+            "content_type": row.content_type, "size_bytes": row.size_bytes,
+            "uploaded_by_id": row.uploaded_by_id, "created_at": row.created_at.isoformat(),
+            "download_url": f"/api/v1/tickets/{row.ticket_id}/attachments/{row.id}/download"}
+
+@router.get("/tickets/{ticket_id}/attachments")
+def list_ticket_attachments(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    ticket = get_record(db, Ticket, ticket_id)
+    if not _can_access_ticket(ticket, user):
+        raise HTTPException(403, "You cannot access attachments for this case")
+    rows = db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id).order_by(TicketAttachment.created_at, TicketAttachment.id)).all()
+    return [_attachment_json(row) for row in rows]
+
+@router.post("/tickets/{ticket_id}/attachments", status_code=201)
+async def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    ticket = get_record(db, Ticket, ticket_id)
+    if not _can_access_ticket(ticket, user):
+        raise HTTPException(403, "Only the case creator, owner, assignee or Admin can attach files")
+    content_type = (file.content_type or "application/octet-stream").lower().split(";")[0].strip()
+    if content_type not in ALLOWED_ATTACHMENT_TYPES:
+        raise HTTPException(415, "รองรับเฉพาะรูปภาพ JPG/PNG/GIF/WEBP, PDF และไฟล์ข้อความ TXT")
+    original_name = Path(file.filename or "attachment").name.replace("\\", "_")[:255] or "attachment"
+    suffix = ALLOWED_ATTACHMENT_TYPES[content_type]
+    stored_name = f"{uuid4().hex}{suffix}"
+    ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
+    target = ATTACHMENT_DIR / stored_name
+    size = 0
+    try:
+        with target.open("wb") as output:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_ATTACHMENT_BYTES:
+                    raise HTTPException(413, "ไฟล์ต้องมีขนาดไม่เกิน 10 MB")
+                output.write(chunk)
+        if size == 0:
+            raise HTTPException(422, "ไฟล์ว่างเปล่า")
+        row = TicketAttachment(ticket_id=ticket_id, original_name=original_name, stored_name=stored_name,
+                               content_type=content_type, size_bytes=size, uploaded_by_id=user.id)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return _attachment_json(row)
+    except Exception:
+        target.unlink(missing_ok=True)
+        db.rollback()
+        raise
+    finally:
+        await file.close()
+
+@router.get("/tickets/{ticket_id}/attachments/{attachment_id}/download")
+def download_ticket_attachment(ticket_id: int, attachment_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    ticket = get_record(db, Ticket, ticket_id)
+    if not _can_access_ticket(ticket, user):
+        raise HTTPException(403, "You cannot access attachments for this case")
+    row = db.scalar(select(TicketAttachment).where(TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
+    if row is None:
+        raise HTTPException(404, "Attachment not found")
+    target = ATTACHMENT_DIR / row.stored_name
+    if not target.is_file():
+        raise HTTPException(404, "Attachment file is missing from storage")
+    return FileResponse(target, media_type=row.content_type, filename=row.original_name, content_disposition_type="inline" if row.content_type.startswith("image/") else "attachment")

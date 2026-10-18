@@ -24,7 +24,7 @@ async function request(path, options = {}) {
   const headers = {...options.headers};
   if (token) headers.Authorization = `Bearer ${token}`;
   let body = options.body;
-  if (body && !(body instanceof URLSearchParams)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
+  if (body && !(body instanceof URLSearchParams) && !(body instanceof FormData)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
   const response = await fetch(`/api/v1${path}`, {...options, headers, body});
   const result = response.status === 204 ? null : await response.json();
   if (!response.ok) {
@@ -34,6 +34,37 @@ async function request(path, options = {}) {
   }
   return result;
 }
+
+
+async function loadAttachmentBlob(downloadUrl) {
+  const response = await fetch(downloadUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (response.status === 401) {
+    signOut();
+    throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+  }
+
+  if (!response.ok) {
+    throw new Error(`ดาวน์โหลดไฟล์ไม่สำเร็จ (${response.status})`);
+  }
+
+  return URL.createObjectURL(await response.blob());
+}
+
+async function openAttachment(downloadUrl, filename) {
+  const objectUrl = await loadAttachmentBlob(downloadUrl);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+}
+
 async function all(path) {
   const records = [];
   for (let offset = 0; ; offset += 100) {
@@ -330,6 +361,17 @@ async function showCapture() {
   }
   channelLabel.append(channel);
   const descriptionLabel = element('label', 'รายละเอียดเคส'), description = element('textarea'); description.maxLength = 20000; description.setAttribute('aria-label', 'รายละเอียดเคส'); descriptionLabel.append(description);
+  const attachmentLabel = element('label', 'ภาพหน้าจอ / ไฟล์แนบ'), attachmentInput = element('input');
+  attachmentInput.type = 'file'; attachmentInput.multiple = true; attachmentInput.accept = 'image/*,.pdf,.txt'; attachmentLabel.append(attachmentInput);
+  const dropZone = element('div', 'วางไฟล์ที่นี่ หรือกด Ctrl+V เพื่อวางภาพจากคลิปบอร์ด', 'attachment-drop-zone'); dropZone.tabIndex = 0; dropZone.setAttribute('role', 'button');
+  const attachmentList = element('ul', null, 'attachment-pending-list'); let pendingAttachments = [];
+  const addPendingFiles = files => { for (const file of files || []) { if (!file.type.startsWith('image/') && !['application/pdf','text/plain'].includes(file.type)) { notify(`ไม่รองรับไฟล์ ${file.name}`, true); continue; } if (file.size > 10 * 1024 * 1024) { notify(`${file.name}: ไฟล์ต้องไม่เกิน 10 MB`, true); continue; } if (!pendingAttachments.some(item => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) pendingAttachments.push(file); } drawPendingAttachments(); };
+  const drawPendingAttachments = () => { attachmentList.replaceChildren(); pendingAttachments.forEach((file, index) => { const item = element('li', `${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB)`); item.append(button('เอาออก', () => { pendingAttachments.splice(index, 1); drawPendingAttachments(); })); attachmentList.append(item); }); };
+  attachmentInput.addEventListener('change', () => { addPendingFiles(attachmentInput.files); attachmentInput.value = ''; });
+  dropZone.addEventListener('click', () => attachmentInput.click()); dropZone.addEventListener('dragover', event => { event.preventDefault(); dropZone.classList.add('dragging'); }); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging')); dropZone.addEventListener('drop', event => { event.preventDefault(); dropZone.classList.remove('dragging'); addPendingFiles(event.dataTransfer.files); });
+  dropZone.addEventListener('paste', event => { const files = [...(event.clipboardData?.items || [])].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean); if (files.length) { event.preventDefault(); addPendingFiles(files); } });
+  document.addEventListener('paste', event => { if (!form.isConnected || !event.clipboardData) return; const target = event.target; if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return; const files = [...event.clipboardData.items].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean); if (files.length) { event.preventDefault(); addPendingFiles(files); } }, {signal: new AbortController().signal});
+
   const submit = element('button', 'สร้างเคส', 'primary'); submit.type = 'submit'; submit.disabled = !user.can_create_cases;
   const result = element('div'); result.setAttribute('role', 'status');
   const channels = element('div', null, 'channel-options');
@@ -342,7 +384,7 @@ async function showCapture() {
   channelLabel.append(channels);
   const more = element('details', null, 'capture-optional'), moreTitle = element('summary', 'รายละเอียดเพิ่มเติม · เติมภายหลังได้');
   more.append(moreTitle, descriptionLabel, optional);
-  form.append(subjectLabel, channelLabel, existing, more, result); card.append(form); formCard.remove();
+  form.append(subjectLabel, channelLabel, existing, attachmentLabel, dropZone, attachmentList, more, result); card.append(form); formCard.remove();
   const footer = element('footer', null, 'capture-footer'), completion = element('p'), actions = element('div', null, 'actions');
   let saveDraft = false, saving = false;
   const draftButton = button('บันทึกเป็นร่าง', () => { saveDraft = true; form.requestSubmit(); }); draftButton.disabled = !user.can_create_cases;
@@ -407,7 +449,13 @@ async function showCapture() {
       const ticket = await request('/tickets', {method: 'POST', body: {...selected, ...caseSelection,
         subject: subject.value, channel: channel.value || null, description: description.value, save_as_draft: draftRequested}});
       if (!form.isConnected) return;
-      result.replaceChildren(element('p', `บันทึก ${ticket.status}: ${ticket.ticket_no || `ร่าง #${ticket.id}`}`), button('ดูเคสที่บันทึก', () => showTicket(ticket.id)));
+      const uploadErrors = [], failedAttachments = [], requestedAttachmentCount = pendingAttachments.length;
+      for (const file of pendingAttachments) {
+        try { const data = new FormData(); data.append('file', file, file.name); await request(`/tickets/${ticket.id}/attachments`, {method: 'POST', body: data}); }
+        catch (error) { uploadErrors.push(`${file.name}: ${error.message}`); failedAttachments.push(file); }
+      }
+      if (uploadErrors.length) { pendingAttachments = failedAttachments; drawPendingAttachments(); result.replaceChildren(element('p', `บันทึกเคสแล้ว แต่แนบไฟล์ไม่ครบ: ${uploadErrors.join(' · ')}`, 'error-inline'), button('ลองแนบไฟล์ที่เหลืออีกครั้ง', async () => { const failed = []; for (const file of pendingAttachments) { try { const data = new FormData(); data.append('file', file, file.name); await request(`/tickets/${ticket.id}/attachments`, {method: 'POST', body: data}); } catch (error) { failed.push(file); } } pendingAttachments = failed; drawPendingAttachments(); if (failed.length) notify(`ยังแนบไม่สำเร็จ ${failed.length} ไฟล์`, true); else { notify('แนบไฟล์ครบแล้ว'); await showTicket(ticket.id); } })); }
+      else { result.replaceChildren(element('p', `บันทึก ${ticket.status}: ${ticket.ticket_no || `ร่าง #${ticket.id}`}${requestedAttachmentCount ? ` · แนบ ${requestedAttachmentCount} ไฟล์` : ''}`), button('ดูเคสที่บันทึก', () => showTicket(ticket.id))); pendingAttachments = []; drawPendingAttachments(); }
       subject.value = ''; description.value = '';
     } catch (error) { failure(error); }
     finally { saving = false; saveDraft = false; if (user && form.isConnected) updatePreview(); }
@@ -497,6 +545,60 @@ async function showTicket(id) {
     element('p', ticket.description || 'ยังไม่มีรายละเอียด'),
     element('p', `เวลาที่ลูกค้าแจ้ง: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`),
     element('p', `เวลาที่ระบบบันทึก: ${new Date(ticket.created_at).toLocaleString('th-TH')}`));
+  const attachmentSection = section('ไฟล์แนบ', '', null, false), attachmentRows = element('div', 'กำลังโหลดไฟล์แนบ…', 'ticket-attachments'); card.append(attachmentSection); attachmentSection.append(attachmentRows);
+  
+try {
+  const attachments = await request(`/tickets/${ticket.id}/attachments`);
+  attachmentRows.replaceChildren();
+
+  if (!attachments.length) {
+    attachmentRows.append(element('p', 'ยังไม่มีไฟล์แนบ', 'muted'));
+  }
+
+  for (const file of attachments) {
+    const row = element('div', null, 'ticket-attachment-row');
+    const link = element(
+      'button',
+      `${file.filename} · ${Math.max(1, Math.round(file.size_bytes / 1024))} KB`
+    );
+    link.type = 'button';
+    link.addEventListener('click', () => {
+      openAttachment(file.download_url, file.filename).catch(failure);
+    });
+    row.append(link);
+
+    if (file.content_type.startsWith('image/')) {
+      const image = element('img');
+      image.alt = file.filename;
+      image.loading = 'lazy';
+      image.style.cursor = 'pointer';
+
+      loadAttachmentBlob(file.download_url)
+        .then(url => {
+          if (image.isConnected) {
+            image.src = url;
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        })
+        .catch(() => {});
+
+      image.addEventListener('click', () => {
+        openAttachment(file.download_url, file.filename).catch(failure);
+      });
+
+      row.append(image);
+    }
+
+    attachmentRows.append(row);
+  }
+} catch (error) {
+  attachmentRows.replaceChildren(
+    element('p', error.message, 'error-inline')
+  );
+}
+
+
   if (user.can_create_cases && (user.role === 'Admin' || [ticket.created_by_id, ticket.owner_id, ticket.assignee_id].includes(user.id))) {
     const form = element('form', null, 'inline-editor'), label = element('label', 'เวลาที่ลูกค้าแจ้ง'), input = element('input');
     input.type = 'datetime-local'; input.required = true; input.setAttribute('aria-label', 'แก้เวลาที่ลูกค้าแจ้ง');
