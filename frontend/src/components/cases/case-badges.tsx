@@ -1,3 +1,5 @@
+"use client";
+import { Tag } from "@DeverhoodHT/get-design";
 import {
   AlarmClock,
   Clock3,
@@ -28,17 +30,20 @@ export function PriorityBadge({
     S4: "Low",
   };
   return (
-    <span
+    <Tag
+      variant="outline"
+      rounded
+      label={
+        value
+          ? `${value}${compact ? "" : ` ${label[value] || ""}`}`
+          : "ยังไม่ระบุ"
+      }
       className={cx(
         "priority-pill",
         `priority-${value || "unknown"}`,
         compact && "compact",
       )}
-    >
-      {value
-        ? `${value}${compact ? "" : ` ${label[value] || ""}`}`
-        : "ยังไม่ระบุ"}
-    </span>
+    />
   );
 }
 export function ProductLabel({ name }: { name: string }) {

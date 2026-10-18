@@ -103,9 +103,10 @@ export function DraftList({
                   <label>
                     หัวข้อเคส
                     <Input
+                      aria-label="หัวข้อเคส"
                       value={subject}
                       maxLength={255}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={setSubject}
                     />
                   </label>
                   <div>

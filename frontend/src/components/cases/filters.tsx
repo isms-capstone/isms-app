@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import { Button } from "@/components/ui/primitives";
+import { Button, Checkbox } from "@/components/ui/primitives";
 import { channelNames, statusNames, type Product } from "@/lib/types";
 export type Filters = {
   statuses: string[];
@@ -69,14 +69,14 @@ export function FilterDrawer({
     <fieldset disabled={disabled}>
       <legend>{title}</legend>
       {options.map(([id, label]) => (
-        <label key={id} className="check-label">
-          <input
-            type="checkbox"
-            checked={value[key].includes(id)}
-            onChange={() => toggle(key, id)}
-          />
-          <span>{label}</span>
-        </label>
+        <Checkbox
+          key={id}
+          className="check-label"
+          label={label}
+          disabled={disabled}
+          checked={value[key].includes(id)}
+          onChange={() => toggle(key, id)}
+        />
       ))}
       {disabled && <p className="field-hint">รอข้อมูลจากระบบ SLA</p>}
     </fieldset>

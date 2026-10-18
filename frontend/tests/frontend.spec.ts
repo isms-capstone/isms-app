@@ -9,6 +9,42 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
     page.getByRole("heading", { name: "คิวเคสที่เปิดอยู่", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".case-table tbody tr")).toHaveCount(6);
+  await expect(page.locator(".gd-Table__cell").first()).toBeVisible();
+  await expect(page.locator(".gd-Tag__tag").first()).toBeVisible();
+  await expect(page.locator(".gd-Button__button").first()).toBeVisible();
+  const palette = await page.evaluate(() => {
+    const css = getComputedStyle(document.documentElement);
+    return [
+      "--label-primary",
+      "--fill-element-brand",
+      "--label-muted",
+      "--fill-element-success",
+      "--fill-element-danger",
+      "--background-primary",
+    ].map((name) => css.getPropertyValue(name).trim());
+  });
+  expect(palette).toEqual([
+    "#060b0f",
+    "#33454e",
+    "#76949f",
+    "#73e8af",
+    "#9e2a2b",
+    "#fbf5f3",
+  ]);
+  const firstCheckbox = page.getByRole("checkbox", {
+    name: "เลือกเคส DVHT-202609-00418",
+    exact: true,
+  });
+  await firstCheckbox.check();
+  await expect(firstCheckbox).toBeChecked();
+  await expect(page).toHaveURL(/\/preview\/my-work$/);
+  await page
+    .getByRole("checkbox", { name: "เลือกเคสในหน้านี้ทั้งหมด", exact: true })
+    .check();
+  await expect(page.locator(".case-table tbody input:checked")).toHaveCount(6);
+  await page
+    .getByRole("checkbox", { name: "เลือกเคสในหน้านี้ทั้งหมด", exact: true })
+    .uncheck();
   await expect(page.locator(".case-table tbody tr").first()).toContainText(
     "00418",
   );

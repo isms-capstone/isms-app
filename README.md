@@ -15,7 +15,7 @@ Run it at **http://localhost:3100** while the existing API stays on port 3000.
 The optional `docker-compose.frontend.yml` starts it in Docker; see the frontend README.
 Design previews are explicitly separated at `/preview/my-work`, `/preview/cases`
 and `/preview/cases/new`. Live pages require existing ISMS login and use real data.
-Company `get-design` library integration is pending authenticated GitLab access.
+The frontend uses the company's `@DeverhoodHT/get-design` components with an ISMS CI theme.
 
 ## Environments Setup
 - Refer to .env.example for environment variables configuration.

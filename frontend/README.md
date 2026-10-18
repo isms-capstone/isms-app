@@ -46,16 +46,36 @@ Shared shell lives in `src/components/layout`; feature components in `cases`, `c
 and `customers`; primitives in `ui`. CI palette is centralized in Tailwind `@theme`
 and semantic CSS tokens in `src/app/globals.css`. Component code is formatted with Prettier.
 
-## Company component library — integration pending access
+## Company component library
 
 Requested source: https://gitlab.dev.deverhood.com/deverhoodht/design/get-design.git
 
-The repository requires GitLab authentication. Both web access and noninteractive
-Git access were attempted; no source/package metadata could be read. No company
-components are claimed to be installed or used. The current `components/ui` foundation
-is local and explicitly temporary until authenticated access or a local checkout is
-provided. Inspect the library's framework support, package/export names, theme and
-styles before replacing these primitives; do not guess an npm package name or API.
+Uses **`@DeverhoodHT/get-design` 1.0.7**, verified against the authenticated company
+repository README and the published package's TypeScript declarations/source. The
+committed `.npmrc` scopes only this company's packages to its documented GitLab npm
+registry. The package registry permits installation without a token; no credentials
+or browser sessions are stored in the project, lockfile, Docker image or CI config.
+
+Actual company components used: `Button`, `InputText`, `Checkbox`, `TableHeaderCell`,
+`TableCell`, `Tag`, `Skeleton` and `LanguageProvider`. `components/ui/primitives.tsx`
+adapts their typed APIs to compact operational controls. Public table cell helpers
+preserve the bespoke desktop/mobile layouts and native table semantics; they are
+the library's documented option for composing a custom table.
+
+The official package stylesheet loads before product CSS. `<html>` sets the required
+`data-color-set="getx"` and `data-theme="light"`, with Thai language context.
+`src/styles/company-theme.css` maps the company's semantic colour/font tokens to
+ISMS's six CI colours; original GetA brand colours do not override ISMS's palette.
+The small, explicitly scoped component selectors in `globals.css` only adjust density,
+layout, hit areas and font sizing. The InputText adapter enforces actual native
+`maxLength` via the package's character-count variant while hiding its optional counter.
+Upstream library styles stay in node_modules and are never modified.
+
+Next/Turbopack compatibility: the published 1.0.7 CSS has six invalid quoted `var()`
+values in unused `*-ref` debug metadata. `scripts/postcss-company-compat.cjs` removes
+only those declarations, only from the company's stylesheet, before Tailwind/Next
+parse it. Actual design tokens and component rules stay intact. This is not a
+patch to installed package files or a global relaxation of CSS validation.
 
 ## Real data versus design preview
 

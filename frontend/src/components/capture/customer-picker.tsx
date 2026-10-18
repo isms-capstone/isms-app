@@ -87,11 +87,11 @@ export function CustomerPicker({
               }
               placeholder="ค้นหาลูกค้าหรือผู้แจ้ง..."
               onBlur={() => setTimeout(() => setOpen(false), 150)}
-              onChange={(event) => {
+              onChange={(value) => {
                 selectionRef.current?.abort();
-                setQuery(event.target.value);
-                setOpen(!!event.target.value);
-                if (!event.target.value) setChoices([]);
+                setQuery(value);
+                setOpen(!!value);
+                if (!value) setChoices([]);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setOpen(false);

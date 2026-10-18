@@ -196,11 +196,7 @@ export function CaseDetail({ id }: { id: number }) {
                       onChange={(e) => setValue(e.target.value)}
                     />
                   ) : (
-                    <Input
-                      maxLength={255}
-                      value={value}
-                      onChange={(e) => setValue(e.target.value)}
-                    />
+                    <Input maxLength={255} value={value} onChange={setValue} />
                   )}
                 </label>
                 <div>
@@ -240,7 +236,7 @@ export function CaseDetail({ id }: { id: number }) {
                     type="datetime-local"
                     value={reported}
                     required
-                    onChange={(e) => setReported(e.target.value)}
+                    onChange={setReported}
                   />
                 </label>
                 <div>

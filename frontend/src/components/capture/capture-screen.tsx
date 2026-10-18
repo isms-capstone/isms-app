@@ -260,13 +260,15 @@ export function CaptureScreen() {
                   onError={onError}
                 />
               )}
-              <label className="subject-field">
+              <label className="subject-field" htmlFor="case-subject">
                 หัวข้อ <span className="required">*</span>
                 <Input
+                  id="case-subject"
+                  aria-label="หัวข้อ *"
                   value={subject}
                   maxLength={255}
                   placeholder="ระบุเรื่องที่ต้องการแจ้งให้เข้าใจง่าย"
-                  onChange={(e) => setSubject(e.target.value)}
+                  onChange={setSubject}
                 />
               </label>
               {preview ? (

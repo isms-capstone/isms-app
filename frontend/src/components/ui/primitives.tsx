@@ -1,9 +1,17 @@
+"use client";
 import {
-  forwardRef,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from "react";
+  Button as GetButton,
+  InputText,
+  Skeleton,
+  TableCell,
+  TableHeaderCell as GetTableHeaderCell,
+  Checkbox as GetCheckbox,
+  Tag,
+  type InputTextProps,
+  type TableHeaderCellProps,
+  type CheckboxProps,
+} from "@DeverhoodHT/get-design";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 export function cx(...values: (string | false | null | undefined)[]) {
   return values.filter(Boolean).join(" ");
 }
@@ -18,10 +26,18 @@ export const Button = forwardRef<
   ref,
 ) {
   return (
-    <button
+    <GetButton
       ref={ref}
       type="button"
       {...props}
+      variant={
+        variant === "primary"
+          ? "filled"
+          : variant === "ghost"
+            ? "plain"
+            : "outline"
+      }
+      size="sm"
       className={cx(
         "button",
         `button-${variant}`,
@@ -30,15 +46,33 @@ export const Button = forwardRef<
       )}
     >
       {children}
-    </button>
+    </GetButton>
   );
 });
 export const Input = forwardRef<
   HTMLInputElement,
-  InputHTMLAttributes<HTMLInputElement>
->(function Input({ className, ...props }, ref) {
-  return <input ref={ref} {...props} className={cx("input", className)} />;
+  Omit<InputTextProps, "variant">
+>(function Input({ className, maxLength, placeholder = "", ...props }, ref) {
+  return (
+    <InputText
+      ref={ref}
+      {...props}
+      placeholder={placeholder}
+      variant={maxLength !== undefined ? "character-count" : "default"}
+      maxLength={maxLength}
+      className={cx("input company-input", className)}
+    />
+  );
 });
+export { TableCell };
+export function Checkbox({ className, ...props }: CheckboxProps) {
+  return (
+    <GetCheckbox className={cx("company-checkbox", className)} {...props} />
+  );
+}
+export function TableHeaderCell(props: TableHeaderCellProps) {
+  return <GetTableHeaderCell showDividers={false} {...props} />;
+}
 export function Badge({
   children,
   tone = "neutral",
@@ -46,7 +80,15 @@ export function Badge({
   children: ReactNode;
   tone?: string;
 }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
+  return (
+    <Tag
+      label={typeof children === "string" ? children : undefined}
+      variant="outline"
+      className={`badge badge-${tone}`}
+    >
+      {typeof children === "string" ? undefined : children}
+    </Tag>
+  );
 }
 export function EmptyState({
   title = "ไม่มีเคสที่ต้องดำเนินการ",
@@ -85,10 +127,10 @@ export function TableSkeleton() {
     <div aria-label="กำลังโหลดคิวเคส" role="status" className="table-skeleton">
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i}>
-          <span />
-          <span />
-          <span />
-          <span />
+          <Skeleton height={12} />
+          <Skeleton height={12} />
+          <Skeleton height={12} />
+          <Skeleton height={12} />
         </div>
       ))}
     </div>
