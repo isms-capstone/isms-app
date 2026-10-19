@@ -12,10 +12,125 @@ import {
   Mail,
   MessageCircle,
   Users,
+  AlertTriangle,
+  XCircle,
+  Check,
+  PlayCircle,
+  FileEdit,
 } from "lucide-react";
 import type { CaseRow } from "@/lib/types";
-import { channelNames } from "@/lib/types";
+import { channelNames, statusNames } from "@/lib/types";
 import { cx } from "@/components/ui/primitives";
+
+export function StatusBadge({
+  status,
+  compact = false,
+}: {
+  status: string | null;
+  compact?: boolean;
+}) {
+  if (!status) return null;
+
+  const currentStatus = status.toUpperCase();
+
+  // กำหนดสไตล์ สี และไอคอนตาม Requirement BR-01..13
+  const statusConfig: Record<
+    string,
+    { label: string; color: string; bg: string; border: string; icon: any }
+  > = {
+    DRAFT: {
+      label: statusNames.DRAFT || "ร่าง",
+      color: "#6b7280",
+      bg: "#f3f4f6",
+      border: "#d1d5db",
+      icon: FileEdit,
+    },
+    NEW: {
+      label: statusNames.NEW || "ใหม่",
+      color: "#0284c7",
+      bg: "#e0f2fe",
+      border: "#bae6fd",
+      icon: Clock3,
+    },
+    OPEN: {
+      label: statusNames.OPEN || "เปิด",
+      color: "#0284c7",
+      bg: "#e0f2fe",
+      border: "#bae6fd",
+      icon: Clock3,
+    },
+    IN_PROGRESS: {
+      label: statusNames.IN_PROGRESS || "กำลังดำเนินการ",
+      color: "#d97706",
+      bg: "#fef3c7",
+      border: "#fde68a",
+      icon: PlayCircle,
+    },
+    PENDING: {
+      label: statusNames.PENDING || "รอดำเนินการ",
+      color: "#d97706",
+      bg: "#fef3c7",
+      border: "#fde68a",
+      icon: Clock3,
+    },
+    ESCALATED: {
+      label: statusNames.ESCALATED || "ส่งต่อผู้เชี่ยวชาญ",
+      color: "#7c3aed",
+      bg: "#f3e8ff",
+      border: "#ddd6fe",
+      icon: AlertTriangle,
+    },
+    RESOLVED: {
+      label: statusNames.RESOLVED || "แก้ไขแล้ว",
+      color: "#16a34a",
+      bg: "#dcfce7",
+      border: "#bbf7d0",
+      icon: CheckCircle2,
+    },
+    CLOSED: {
+      label: statusNames.CLOSED || "ปิดเคส",
+      color: "#4b5563",
+      bg: "#f3f4f6",
+      border: "#e5e7eb",
+      icon: Check,
+    },
+    CANCELLED: {
+      label: statusNames.CANCELLED || "ยกเลิก",
+      color: "#dc2626",
+      bg: "#fee2e2",
+      border: "#fecaca",
+      icon: XCircle,
+    },
+  };
+
+  const config = statusConfig[currentStatus] || {
+    label: statusNames[status] || status,
+    color: "#4b5563",
+    bg: "#f3f4f6",
+    border: "#e5e7eb",
+    icon: Clock3,
+  };
+
+  const Icon = config.icon;
+
+  return (
+    <span
+      className={cx(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors",
+        compact && "px-2 py-0.5 text-[11px]"
+      )}
+      style={{
+        color: config.color,
+        backgroundColor: config.bg,
+        borderColor: config.border,
+      }}
+    >
+      <Icon size={compact ? 12 : 14} />
+      <span>{config.label}</span>
+    </span>
+  );
+}
+
 export function PriorityBadge({
   value,
   compact = false,
@@ -47,6 +162,7 @@ export function PriorityBadge({
     />
   );
 }
+
 export function ProductLabel({ name }: { name: string }) {
   const Icon =
     name === "Logbook" ? BookOpen : name === "GetA" ? ShieldCheck : MonitorCog;
@@ -57,6 +173,7 @@ export function ProductLabel({ name }: { name: string }) {
     </span>
   );
 }
+
 export function ChannelLabel({ channel }: { channel: string | null }) {
   const line = channel?.startsWith("line");
   const Icon = line
@@ -77,6 +194,7 @@ export function ChannelLabel({ channel }: { channel: string | null }) {
     </span>
   );
 }
+
 export function SlaIndicator({ row }: { row: CaseRow }) {
   if (row.slaSeconds === null)
     return (
@@ -124,6 +242,7 @@ export function SlaIndicator({ row }: { row: CaseRow }) {
     </span>
   );
 }
+
 export function Assignee({ row }: { row: CaseRow }) {
   return (
     <span className={cx("assignee", !row.assignee_id && "unassigned")}>
