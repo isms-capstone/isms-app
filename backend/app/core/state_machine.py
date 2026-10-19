@@ -1,6 +1,9 @@
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from app.db.models.ticket import TicketStatus
+
+REOPEN_WINDOW_DAYS = 14
 
 TRANSITION_RULES: List[Dict[str, Any]] = [
     {
@@ -150,10 +153,29 @@ def validate_status_transition(
                 detail=f"Missing required resolution fields: {', '.join(missing)}"
             )
 
-    if "reopen_reason_required" in conditions and not ticket_data.get("reopen_reason"):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Reopen reason is required when reopening a ticket"
-        )
+    if "reopen_reason_required" in conditions:
+        if not ticket_data.get("reopen_reason"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Reopen reason is required when reopening a ticket"
+            )
+        
+        # ตรวจสอบกรอบเวลา 14 วันนับจาก closed_at หรือ resolved_at
+        resolved_or_closed_at = ticket_data.get("closed_at") or ticket_data.get("resolved_at")
+        if resolved_or_closed_at:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            if isinstance(resolved_or_closed_at, datetime):
+                ref_time = resolved_or_closed_at.replace(tzinfo=None)
+            else:
+                ref_time = resolved_or_closed_at
+                time_diff = now - ref_time
+                days_elapsed = time_diff.total_seconds() / 86400
+
+            days_elapsed = (now - ref_time).days
+            if days_elapsed > REOPEN_WINDOW_DAYS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Ticket cannot be reopened after {REOPEN_WINDOW_DAYS} days. Please create a new follow-up ticket instead."
+                )
 
     return True

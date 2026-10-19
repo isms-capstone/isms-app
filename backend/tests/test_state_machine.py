@@ -89,3 +89,4 @@ def test_unauthorized_role():
     with pytest.raises(HTTPException) as exc:
         validate_status_transition(TicketStatus.NEW, TicketStatus.IN_PROGRESS, "Customer")
     assert exc.value.status_code == 403
+

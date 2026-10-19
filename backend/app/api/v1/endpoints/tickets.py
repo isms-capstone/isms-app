@@ -349,3 +349,37 @@ def auto_close_resolved_tickets(
         "closed_tickets_count": closed_count,
         "business_days_threshold": business_days
     }
+
+@router.post('/tickets/{ticket_id}/follow-up', response_model=TicketOut, status_code=201)
+def create_follow_up_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """สร้าง Ticket ใหม่ที่ลิงก์อ้างอิงเป็น Follow-up ของ Ticket เดิม"""
+    original_ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id))
+    if not original_ticket:
+        raise HTTPException(404, 'Original ticket not found')
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    new_ticket_no = next_ticket_number(db, now)
+
+    # คัดลอก context จากเคสเดิมและตั้งค่าเชื่อมโยง
+    follow_up_ticket = Ticket(
+        ticket_no=new_ticket_no,
+        subject=f"[Follow-up] {original_ticket.subject}",
+        contact_id=original_ticket.contact_id,
+        organization_id=original_ticket.organization_id,
+        department_id=original_ticket.department_id,
+        channel=original_ticket.channel,
+        master_ticket_id=original_ticket.id,  # ลิงก์ไปยังเคสเดิม
+        status=TicketStatus.NEW,
+        created_by_id=user.id,
+        owner_id=user.id,
+        created_at=now,
+        reported_at=now
+    )
+    db.add(follow_up_ticket)
+    db.commit()
+    db.refresh(follow_up_ticket)
+    return follow_up_ticket
