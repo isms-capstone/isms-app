@@ -8,6 +8,15 @@ Implementation, local setup, task status and integration contracts:
 [docs/CUSPRD.md](docs/CUSPRD.md).
 The registry UI is served by FastAPI at `/registry`.
 
+## Next.js Frontend
+
+The new frontend uses Next.js, TypeScript and Tailwind in [`frontend/`](frontend/README.md).
+Run it at **http://localhost:3100** while the existing API stays on port 3000.
+The optional `docker-compose.frontend.yml` starts it in Docker; see the frontend README.
+Design previews are explicitly separated at `/preview/my-work`, `/preview/cases`
+and `/preview/cases/new`. Live pages require existing ISMS login and use real data.
+The frontend uses the company's `@DeverhoodHT/get-design` components with an ISMS CI theme.
+
 ## Environments Setup
 - Refer to .env.example for environment variables configuration.
 - Do NOT commit .env files with sensitive secrets to this repository.
