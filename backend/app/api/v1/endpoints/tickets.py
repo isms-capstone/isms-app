@@ -19,6 +19,8 @@ from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketN
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut
+from app.db.models.ticket import TicketStatus
+from app.services.auto_close import run_auto_close_resolved_tickets
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
