@@ -1,14 +1,34 @@
 """Case storage matching SRS 10.2 (P1-CAP-01). Times are UTC."""
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
 
-TICKET_STATUSES = ('DRAFT', 'NEW', 'IN_PROGRESS', 'PENDING_CUSTOMER', 'PENDING_EXTERNAL',
-                   'RESOLVED', 'CLOSED', 'REOPENED', 'DUPLICATE', 'CANCELLED')
-OPEN_STATUSES = ('NEW', 'IN_PROGRESS', 'PENDING_CUSTOMER', 'PENDING_EXTERNAL', 'REOPENED')
+
+class TicketStatus(str, Enum):
+    DRAFT = "DRAFT"
+    NEW = "NEW"
+    IN_PROGRESS = "IN_PROGRESS"
+    PENDING_CUSTOMER = "PENDING_CUSTOMER"
+    PENDING_EXTERNAL = "PENDING_EXTERNAL"
+    RESOLVED = "RESOLVED"
+    CLOSED = "CLOSED"
+    REOPENED = "REOPENED"
+    DUPLICATE = "DUPLICATE"
+    CANCELLED = "CANCELLED"
+
+
+TICKET_STATUSES = tuple(status.value for status in TicketStatus)
+OPEN_STATUSES = (
+    TicketStatus.NEW.value,
+    TicketStatus.IN_PROGRESS.value,
+    TicketStatus.PENDING_CUSTOMER.value,
+    TicketStatus.PENDING_EXTERNAL.value,
+    TicketStatus.REOPENED.value,
+)
 
 
 class TicketNumberSequence(Base):
@@ -29,7 +49,7 @@ class Ticket(Base):
     ticket_no: Mapped[str | None] = mapped_column(String(32), unique=True, index=True)
     subject: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(24), index=True, default='DRAFT')
+    status: Mapped[str] = mapped_column(String(24), index=True, default=TicketStatus.DRAFT.value)
     ticket_type_id: Mapped[int | None] = mapped_column(ForeignKey('ticket_types.id'))
     channel: Mapped[str | None] = mapped_column(String(50))
     organization_id: Mapped[int | None] = mapped_column(ForeignKey('organization.id'), index=True)
