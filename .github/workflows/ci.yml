@@ -2,7 +2,7 @@
 
 on:
   push:
-    branches: [ main, develop, feature/P1-CUSPRD, feature/P1-CAP, integration/P1-round1 ]
+    branches: [ main, develop, feature/P1-CUSPRD, feature/P1-CAP, integration/P1-round1, feature/P1-CAP3,5,7,10,11 ]
   pull_request:
     branches: [ main, develop ]
 
