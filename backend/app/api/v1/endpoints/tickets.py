@@ -16,13 +16,18 @@ from app.api.v1.endpoints.customers import get_record
 from app.api.v1.endpoints.product_configuration import CaseOptionsSelection, validate_selection
 from app.db.models.customer import Contact, Organization
 from app.db.models.customer_context import CourseOrExam, Department, ExamWindow
-from app.db.models.master_data import Product, TicketType
+from app.db.models.master_data import (
+    CauseCode,
+    Product,
+    SolutionCode,
+    TicketType,
+)
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
 from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut
+from app.schemas.ticket import  (DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut, TicketResolve, )
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -202,6 +207,63 @@ def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = D
         or_(ExamWindow.department_id.is_(None), ExamWindow.department_id == ticket.department_id)
     ).limit(1)) is not None
     # The SLA engine is separate; do not invent or overwrite response/resolution clocks.
+    return commit_edit(db, ticket)
+
+@router.post('/tickets/{ticket_id}/resolve', response_model=TicketOut)
+def resolve_ticket(
+    ticket_id: int,
+    body: TicketResolve,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    ticket = db.scalar(
+        select(Ticket)
+        .where(Ticket.id == ticket_id)
+        .with_for_update()
+    )
+
+    if ticket is None:
+        raise HTTPException(404, 'Ticket not found')
+
+    # Only the Admin, creator, owner, or assignee may resolve the ticket.
+    role = user.role.name if user.role else None
+    if role != 'Admin' and user.id not in (
+        ticket.created_by_id,
+        ticket.owner_id,
+        ticket.assignee_id,
+    ):
+        raise HTTPException(403, 'Only the case creator, owner or assignee can resolve this ticket')
+
+    allowed_statuses = {
+        'IN_PROGRESS',
+        'PENDING_CUSTOMER',
+        'PENDING_EXTERNAL',
+        'REOPENED',
+    }
+    if ticket.status not in allowed_statuses:
+        raise HTTPException(
+            409,
+            f'Ticket cannot be resolved from status {ticket.status}',
+        )
+
+    cause = db.get(CauseCode, body.root_cause_code_id)
+    if cause is None:
+        raise HTTPException(422, 'Cause Code not found')
+    if not cause.is_active:
+        raise HTTPException(422, 'Cause Code is inactive')
+
+    solution = db.get(SolutionCode, body.resolution_code_id)
+    if solution is None:
+        raise HTTPException(422, 'Solution Code not found')
+    if not solution.is_active:
+        raise HTTPException(422, 'Solution Code is inactive')
+
+    ticket.root_cause_code_id = body.root_cause_code_id
+    ticket.resolution_code_id = body.resolution_code_id
+    ticket.resolution_detail = body.resolution_detail
+    ticket.status = 'RESOLVED'
+    ticket.resolved_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
     return commit_edit(db, ticket)
 
 

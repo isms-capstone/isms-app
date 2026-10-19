@@ -14,5 +14,6 @@ def mount_registry_ui(app: FastAPI):
     def registry_page():
         return FileResponse(directory / "index.html", headers={
             "Cache-Control": "no-store",
-            "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+            
+"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
         })

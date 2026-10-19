@@ -55,6 +55,21 @@ class ReportedTimeUpdate(BaseModel):
             raise ValueError('reported_at must include a timezone offset')
         return value
 
+class TicketResolve(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    root_cause_code_id: int = Field(ge=1)
+    resolution_code_id: int = Field(ge=1)
+    resolution_detail: str = Field(min_length=1, max_length=20000)
+
+    @field_validator('resolution_detail')
+    @classmethod
+    def trim_resolution_detail(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError('resolution_detail must not be blank')
+        return value
+
 
 class TicketOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -83,6 +98,10 @@ class TicketOut(BaseModel):
     is_exam_window: bool
     severity: str | None
     current_tier: int | None
+    root_cause_code_id: int | None
+    resolution_code_id: int | None
+    resolution_detail: str | None
+    resolved_at: datetime | None
 
     @field_validator('reported_at', 'created_at')
     @classmethod

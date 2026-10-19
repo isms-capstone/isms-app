@@ -581,7 +581,10 @@ try {
             URL.revokeObjectURL(url);
           }
         })
-        .catch(() => {});
+        .catch(error => {
+  console.error('โหลดภาพแนบไม่สำเร็จ:', file.filename, error);
+  image.alt = `ไม่สามารถแสดงภาพ: ${file.filename}`;
+});
 
       image.addEventListener('click', () => {
         openAttachment(file.download_url, file.filename).catch(failure);
