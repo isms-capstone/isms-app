@@ -335,3 +335,17 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
     return get_record(db, Ticket, ticket_id)
+
+@router.post('/tickets/auto-close-resolved', status_code=200)
+def auto_close_resolved_tickets(
+    business_days: int = Query(3, ge=1, le=30),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture)
+):
+    """Trigger สำหรับรัน Auto-close Job (รองรับการกำหนดจำนวนวันทำการ)"""
+    closed_count = run_auto_close_resolved_tickets(db, allowed_business_days=business_days)
+    return {
+        "message": f"Auto-close process completed successfully.",
+        "closed_tickets_count": closed_count,
+        "business_days_threshold": business_days
+    }
