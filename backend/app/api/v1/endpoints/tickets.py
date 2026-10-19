@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import RoleChecker, get_current_user
 from app.api.v1.endpoints.customers import get_record
 from app.api.v1.endpoints.product_configuration import CaseOptionsSelection, validate_selection
+from app.core.state_machine import validate_status_transition
 from app.db.models.customer import Contact, Organization
 from app.db.models.customer_context import CourseOrExam, Department, ExamWindow
 from app.db.models.master_data import Product, TicketType
@@ -20,6 +22,23 @@ from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreat
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
+
+
+class TicketStatusUpdatePayload(BaseModel):
+    status: str
+    assignee_id: int | None = None
+    contact_id: int | None = None
+    subject: str | None = None
+    channel: str | None = None
+    pending_external_reason: str | None = None
+    category_id: int | None = None
+    root_cause_code_id: int | None = None
+    resolution_code_id: int | None = None
+    resolution_detail: str | None = None
+    product_instance_id: int | None = None
+    reopen_reason: str | None = None
+    master_ticket_id: int | None = None
+    cancel_reason: str | None = None
 
 
 def next_ticket_number(db: Session, now: datetime):
@@ -196,6 +215,71 @@ def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = D
         or_(ExamWindow.department_id.is_(None), ExamWindow.department_id == ticket.department_id)
     ).limit(1)) is not None
     # The SLA engine is separate; do not invent or overwrite response/resolution clocks.
+    return commit_edit(db, ticket)
+
+
+@router.patch('/tickets/{ticket_id}/status', response_model=TicketOut)
+def update_ticket_status(
+    ticket_id: int,
+    payload: TicketStatusUpdatePayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
+    if ticket is None:
+        raise HTTPException(404, 'Ticket not found')
+
+    user_role = user.role.name if user.role else 'User'
+
+    # รวบรวมข้อมูล Ticket เดิม ผสมเข้ากับ Payload ใหม่ เพื่อส่งไปให้ Validation Engine ตรวจสอบ
+    ticket_data = {
+        'contact_id': payload.contact_id if payload.contact_id is not None else ticket.contact_id,
+        'subject': payload.subject if payload.subject is not None else ticket.subject,
+        'channel': payload.channel if payload.channel is not None else ticket.channel,
+        'assignee_id': payload.assignee_id if payload.assignee_id is not None else ticket.assignee_id,
+        'pending_external_reason': payload.pending_external_reason,
+        'category_id': payload.category_id if payload.category_id is not None else ticket.category_id,
+        'root_cause_code_id': payload.root_cause_code_id if payload.root_cause_code_id is not None else ticket.root_cause_code_id,
+        'resolution_code_id': payload.resolution_code_id if payload.resolution_code_id is not None else ticket.resolution_code_id,
+        'resolution_detail': payload.resolution_detail if payload.resolution_detail is not None else ticket.resolution_detail,
+        'product_instance_id': payload.product_instance_id if payload.product_instance_id is not None else ticket.product_instance_id,
+        'reopen_reason': payload.reopen_reason,
+        'master_ticket_id': payload.master_ticket_id if payload.master_ticket_id is not None else ticket.master_ticket_id,
+        'cancel_reason': payload.cancel_reason,
+    }
+
+    # ตรวจสอบกฎทางธุรกิจกับ State Machine
+    validate_status_transition(
+        current_status=ticket.status,
+        target_status=payload.status,
+        user_role=user_role,
+        ticket_data=ticket_data
+    )
+
+    # เมื่อผ่าน Validation -> บันทึกค่าลงในคอลัมน์ของ Ticket
+    ticket.status = payload.status
+    if payload.assignee_id is not None:
+        ticket.assignee_id = payload.assignee_id
+    if payload.category_id is not None:
+        ticket.category_id = payload.category_id
+    if payload.root_cause_code_id is not None:
+        ticket.root_cause_code_id = payload.root_cause_code_id
+    if payload.resolution_code_id is not None:
+        ticket.resolution_code_id = payload.resolution_code_id
+    if payload.resolution_detail is not None:
+        ticket.resolution_detail = payload.resolution_detail
+    if payload.master_ticket_id is not None:
+        ticket.master_ticket_id = payload.master_ticket_id
+
+    # อัปเดต Timestamps ตามสถานะ
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if payload.status == 'RESOLVED' and ticket.resolved_at is None:
+        ticket.resolved_at = now
+    elif payload.status == 'CLOSED' and ticket.closed_at is None:
+        ticket.closed_at = now
+    elif payload.status == 'REOPENED':
+        ticket.reopen_count = (ticket.reopen_count or 0) + 1
+
     return commit_edit(db, ticket)
 
 
