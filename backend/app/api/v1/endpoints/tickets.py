@@ -27,7 +27,7 @@ from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketN
 from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import  (DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut, TicketResolve, )
+from app.schemas.ticket import (DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut, TicketResolve, TicketFollowUp)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -65,6 +65,7 @@ def active_record(db, model, record_id):
 def capture_values(body: TicketCreate, db: Session, validate_reported=True):
     values = body.model_dump()
     values.pop('save_as_draft')
+    values.pop('created_for_user_id', None)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
@@ -117,7 +118,17 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True):
 @router.post('/tickets', response_model=TicketOut, status_code=201)
 def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
     values, complete, now = capture_values(body, db)
-    values.update(created_by_id=user.id, owner_id=user.id)
+    owner_id = user.id
+    if body.created_for_user_id is not None:
+        target = db.get(User, body.created_for_user_id)
+        if target is None or not target.is_active:
+            raise HTTPException(422, 'Target team member is missing or inactive')
+        role = user.role.name if user.role else None
+        if role != 'Admin' and (user.team_id is None or target.team_id != user.team_id):
+            raise HTTPException(403, 'You may create a case only for a member of your own team')
+        owner_id = target.id
+    values.pop('created_for_user_id', None)
+    values.update(created_by_id=user.id, owner_id=owner_id)
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
@@ -129,6 +140,44 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, 'Case data changed; reload and try again') from None
+    db.refresh(ticket)
+    return ticket
+
+
+@router.post('/tickets/{ticket_id}/follow-up', response_model=TicketOut, status_code=201)
+def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends(get_db),
+                     user: User = Depends(require_capture)):
+    """CAP-09: create a linked follow-up while preserving the source case unchanged."""
+    source = db.get(Ticket, ticket_id)
+    if source is None:
+        raise HTTPException(404, 'Source case not found')
+    if source.status in ('DRAFT', 'DUPLICATE', 'CANCELLED'):
+        raise HTTPException(409, 'A follow-up requires a published, non-cancelled case')
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    values = {
+        field: getattr(source, field) for field in (
+            'ticket_type_id', 'organization_id', 'contact_id', 'department_id',
+            'course_or_exam_id', 'product_instance_id', 'module_id', 'environment',
+            'browser_device', 'source_url', 'exam_or_course_context', 'category_id',
+            'symptom_id', 'service_stage_id', 'severity', 'impact_scope',
+            'severity_overridden_reason', 'current_tier', 'sla_policy_id', 'is_exam_window'
+        )
+    }
+    values.update(subject=body.subject or source.subject,
+                  description=body.description if body.description is not None else source.description,
+                  channel=body.channel or source.channel, status='NEW',
+                  reported_at=now, created_at=now, created_by_id=user.id, owner_id=user.id,
+                  assignee_id=None, master_ticket_id=source.id, ticket_no=next_ticket_number(db, now))
+    try:
+        ticket = Ticket(**values)
+        db.add(ticket)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, 'Unable to create follow-up; reload and try again') from None
     db.refresh(ticket)
     return ticket
 
@@ -163,7 +212,11 @@ def commit_edit(db, ticket):
 def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depends(get_db),
                      user: User = Depends(require_capture)):
     ticket = editable_ticket(db, ticket_id, user, draft_only=True)
-    data = {field: getattr(ticket, field) for field in TicketCreate.model_fields if field != 'save_as_draft'}
+    data = {
+    field: getattr(ticket, field)
+    for field in TicketCreate.model_fields
+    if field not in ('save_as_draft', 'created_for_user_id')
+}
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
     data[body.field] = body.value

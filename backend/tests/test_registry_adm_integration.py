@@ -18,13 +18,17 @@ def test_merged_adm_cap_migration_graph_roundtrip():
     config = Config()
     config.set_main_option('script_location', str(directory))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ['cusadm02']
+    assert script.get_heads() == ['b61291d64547']
+
     engine = create_engine('sqlite://')
+
     @event.listens_for(engine, 'connect')
     def foreign_keys(connection, _):
         connection.execute('PRAGMA foreign_keys=ON')
+
     modules = []
     with engine.begin() as connection:
+        # คงโค้ด migration เดิมทั้งหมดไว้ตรงนี้
         for revision in reversed(list(script.walk_revisions())):
             spec = importlib.util.spec_from_file_location(revision.revision, revision.path)
             module = importlib.util.module_from_spec(spec)

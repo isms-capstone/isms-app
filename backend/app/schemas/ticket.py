@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class TicketCreate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     save_as_draft: bool = False
+    created_for_user_id: int | None = Field(default=None, ge=1)
     subject: str | None = Field(default=None, max_length=255)
     description: str | None = Field(default=None, max_length=20000)
     channel: Literal['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'face_to_face', 'other'] | None = None
@@ -55,6 +56,18 @@ class ReportedTimeUpdate(BaseModel):
             raise ValueError('reported_at must include a timezone offset')
         return value
 
+class TicketFollowUp(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    subject: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=20000)
+    channel: Literal['line_oa', 'line_group', 'line_personal', 'portal', 'email', 'phone', 'face_to_face', 'other'] | None = None
+
+    @field_validator('subject', 'description')
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() or None if value is not None else None
+
+
 class TicketResolve(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -92,6 +105,7 @@ class TicketOut(BaseModel):
     owner_id: int | None
     assignee_id: int | None
     created_by_id: int
+    master_ticket_id: int | None = None
     reported_at: datetime
     created_at: datetime
     sla_policy_id: int | None
