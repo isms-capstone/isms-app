@@ -361,6 +361,14 @@ async function showCapture() {
   }
   channelLabel.append(channel);
   const descriptionLabel = element('label', 'รายละเอียดเคส'), description = element('textarea'); description.maxLength = 20000; description.setAttribute('aria-label', 'รายละเอียดเคส'); descriptionLabel.append(description);
+  const ownerLabel = element('label', 'ผู้รับผิดชอบเคส'), owner = element('select'); owner.setAttribute('aria-label', 'ผู้รับผิดชอบเคส');
+  owner.append(element('option', 'ฉันเอง (ค่าเริ่มต้น)')); owner.options[0].value = '';
+  ownerLabel.append(owner);
+  request('/registry/case-owners').then(owners => {
+
+    owner.replaceChildren(); const self = element('option', 'ฉันเอง (ค่าเริ่มต้น)'); self.value = ''; owner.append(self);
+    owners.forEach(item => { const option = element('option', item.label); option.value = item.id; owner.append(option); });
+  }).catch(failure);
   const attachmentLabel = element('label', 'ภาพหน้าจอ / ไฟล์แนบ'), attachmentInput = element('input');
   attachmentInput.type = 'file'; attachmentInput.multiple = true; attachmentInput.accept = 'image/*,.pdf,.txt'; attachmentLabel.append(attachmentInput);
   const dropZone = element('div', 'วางไฟล์ที่นี่ หรือกด Ctrl+V เพื่อวางภาพจากคลิปบอร์ด', 'attachment-drop-zone'); dropZone.tabIndex = 0; dropZone.setAttribute('role', 'button');
@@ -384,7 +392,7 @@ async function showCapture() {
   channelLabel.append(channels);
   const more = element('details', null, 'capture-optional'), moreTitle = element('summary', 'รายละเอียดเพิ่มเติม · เติมภายหลังได้');
   more.append(moreTitle, descriptionLabel, optional);
-  form.append(subjectLabel, channelLabel, existing, attachmentLabel, dropZone, attachmentList, more, result); card.append(form); formCard.remove();
+  form.append(subjectLabel, channelLabel, ownerLabel, existing, attachmentLabel, dropZone, attachmentList, more, result); card.append(form); formCard.remove();
   const footer = element('footer', null, 'capture-footer'), completion = element('p'), actions = element('div', null, 'actions');
   let saveDraft = false, saving = false;
   const draftButton = button('บันทึกเป็นร่าง', () => { saveDraft = true; form.requestSubmit(); }); draftButton.disabled = !user.can_create_cases;
@@ -447,7 +455,7 @@ async function showCapture() {
     submit.disabled = true; draftButton.disabled = true;
     try {
       const ticket = await request('/tickets', {method: 'POST', body: {...selected, ...caseSelection,
-        subject: subject.value, channel: channel.value || null, description: description.value, save_as_draft: draftRequested}});
+        subject: subject.value, channel: channel.value || null, description: description.value, created_for_user_id: owner.value ? Number(owner.value) : null, save_as_draft: draftRequested}});
       if (!form.isConnected) return;
       const uploadErrors = [], failedAttachments = [], requestedAttachmentCount = pendingAttachments.length;
       for (const file of pendingAttachments) {
@@ -541,6 +549,25 @@ async function showTicket(id) {
   startView(ticket.ticket_no || `ร่าง #${ticket.id}`, ticket.subject || 'ยังไม่มีหัวข้อ');
   if (ticket.organization_id) workspace.prepend(button('← กลับลูกค้า', async () => showOrganization(await request(orgPath(ticket.organization_id)))));
   const card = section('รายละเอียดเคส', '', null, false);
+  if (user.can_create_cases && !['DRAFT', 'DUPLICATE', 'CANCELLED'].includes(ticket.status)) {
+    card.append(button('สร้างเคสต่อเนื่อง', async () => {
+      const subject = window.prompt('หัวข้อเคสต่อเนื่อง', ticket.subject || '');
+      if (subject === null) return;
+      const description = window.prompt('รายละเอียดเคสต่อเนื่อง', ticket.description || '');
+      if (description === null) return;
+      try {
+        const created = await request(`/tickets/${ticket.id}/follow-up`, {method: 'POST', body: {
+          subject: subject.trim() || null, description: description.trim() || null, channel: ticket.channel || null
+        }});
+        notify(`สร้างเคสต่อเนื่องแล้ว: ${created.ticket_no || created.id}`);
+        await showTicket(created.id);
+      } catch (error) { failure(error); }
+    }));
+  }
+  if (ticket.master_ticket_id) {
+    card.append(element('p', `เคสต่อเนื่องจากเคส #${ticket.master_ticket_id}`, 'muted'),
+      button('เปิดเคสต้นทาง', () => showTicket(ticket.master_ticket_id)));
+  }
   card.append(element('p', `สถานะ: ${ticket.status} · ช่องทาง: ${ticket.channel || 'ยังไม่ระบุ'}`),
     element('p', ticket.description || 'ยังไม่มีรายละเอียด'),
     element('p', `เวลาที่ลูกค้าแจ้ง: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`),

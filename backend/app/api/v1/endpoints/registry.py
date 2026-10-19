@@ -52,6 +52,19 @@ def session(user: User = Depends(get_current_user)):
             "can_create_cases": name in {"Admin", "Agent", "Specialist", "Developer", "Team Lead"}}
 
 
+@router.get("/registry/case-owners")
+def case_owners(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """CAP-13: expose only eligible active owners for the current user's team."""
+    role = user.role.name if user.role else None
+    query = select(User).where(User.is_active.is_(True)).order_by(User.full_name, User.username, User.id)
+    if role != "Admin":
+        if user.team_id is None:
+            return [{"id": user.id, "label": user.full_name or user.username}]
+        query = query.where(User.team_id == user.team_id)
+    return [{"id": row.id, "label": row.full_name or row.username}
+            for row in db.scalars(query).all()]
+
+
 @router.get("/registry/teams")
 def teams(db: Session = Depends(get_db)):
     # Use existing INFRA teams; do not create a competing ADM team registry.

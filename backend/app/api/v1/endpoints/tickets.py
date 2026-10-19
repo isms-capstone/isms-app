@@ -212,6 +212,7 @@ def commit_edit(db, ticket):
 def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depends(get_db),
                      user: User = Depends(require_capture)):
     ticket = editable_ticket(db, ticket_id, user, draft_only=True)
+    
     data = {
     field: getattr(ticket, field)
     for field in TicketCreate.model_fields
@@ -220,6 +221,7 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
     data[body.field] = body.value
+    
     # A parent selection changes the meaning of dependent IDs; never retain stale context.
     if body.field == 'organization_id' and body.value != ticket.organization_id:
         for field in ('contact_id', 'department_id', 'course_or_exam_id', 'product_instance_id',
