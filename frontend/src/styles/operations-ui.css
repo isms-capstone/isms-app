@@ -610,3 +610,34 @@
     display: none;
   }
 }
+
+.lifecycle-panel {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.lifecycle-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.lifecycle-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  max-width: 680px;
+}
+.lifecycle-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.lifecycle-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 8px;
+}

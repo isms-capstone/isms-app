@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 from logging.config import fileConfig
 from pathlib import Path
 
@@ -20,6 +20,8 @@ from app.db.models.product import Product, ProductModule, ProductInstance
 from app.db.models.customer_context import Department, CourseOrExam, ExamWindow
 
 from app.db.models.ticket import Ticket, TicketNumberSequence
+from app.db.models.ticket_attachment import TicketAttachment
+from app.db.models.ticket_history import TicketStatusHistory
 
 from app.db.models.automation_rule import AutomationRule
 config = context.config

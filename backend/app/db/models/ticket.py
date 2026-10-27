@@ -88,4 +88,6 @@ class Ticket(Base):
     workload_points: Mapped[float | None] = mapped_column(Numeric(10, 2))
     reopen_count: Mapped[int] = mapped_column(Integer, default=0)
     is_exam_window: Mapped[bool] = mapped_column(Boolean, default=False)
+    pending_external_reason: Mapped[str | None] = mapped_column(Text)
+    cancel_reason: Mapped[str | None] = mapped_column(Text)
     legacy_case_no: Mapped[str | None] = mapped_column(String(100))

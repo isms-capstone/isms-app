@@ -46,7 +46,7 @@ def test_in_progress_to_resolved_success():
         "category_id": 1,
         "root_cause_code_id": 2,
         "resolution_code_id": 3,
-        "product_instance_id": 4
+        "product_instance_id": 4, "resolution_detail": "Fixed and verified"
     }
     assert validate_status_transition(TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED, "Agent", data) is True
 

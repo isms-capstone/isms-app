@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
 from app.db.models.ticket import TicketStatus
@@ -81,6 +81,10 @@ def validate_status_transition(
     user_role: str,
     ticket_data: Optional[Dict[str, Any]] = None
 ) -> bool:
+    if current_status not in TicketStatus._value2member_map_ or target_status not in TicketStatus._value2member_map_:
+        raise HTTPException(422, 'Unknown ticket status')
+    if target_status in (TicketStatus.DUPLICATE, TicketStatus.CANCELLED) and user_role not in {'Admin', 'Agent', 'User', 'Customer'}:
+        raise HTTPException(403, 'Role cannot cancel or mark duplicate')
     if current_status == target_status:
         return True
 
@@ -116,7 +120,7 @@ def validate_status_transition(
             detail=f"Invalid status transition from '{current_status}' to '{target_status}'"
         )
 
-    if user_role not in matched_rule["roles"] and "Admin" not in user_role:
+    if user_role not in matched_rule["roles"] and user_role != "Admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Role '{user_role}' is not authorized to transition ticket from '{current_status}' to '{target_status}'"
@@ -125,7 +129,7 @@ def validate_status_transition(
     conditions = matched_rule["conditions"]
 
     if "draft_required_fields" in conditions:
-        missing = [f for f in ["contact_id", "subject", "channel"] if not ticket_data.get(f)]
+        missing = [f for f in ["contact_id", "subject", "channel"] if not str(ticket_data.get(f) or "").strip()]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -145,8 +149,8 @@ def validate_status_transition(
         )
 
     if "resolution_fields_required" in conditions:
-        required_fields = ["category_id", "root_cause_code_id", "resolution_code_id", "product_instance_id"]
-        missing = [f for f in required_fields if not ticket_data.get(f)]
+        required_fields = ["category_id", "root_cause_code_id", "resolution_code_id", "product_instance_id", "resolution_detail"]
+        missing = [f for f in required_fields if not str(ticket_data.get(f) or "").strip()]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -172,7 +176,7 @@ def validate_status_transition(
                 days_elapsed = time_diff.total_seconds() / 86400
 
             days_elapsed = (now - ref_time).days
-            if days_elapsed > REOPEN_WINDOW_DAYS:
+            if now - ref_time > timedelta(days=REOPEN_WINDOW_DAYS):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Ticket cannot be reopened after {REOPEN_WINDOW_DAYS} days. Please create a new follow-up ticket instead."

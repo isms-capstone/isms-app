@@ -1,6 +1,7 @@
 "use client";
 import { Tag } from "@DeverhoodHT/get-design";
 import {
+  type LucideIcon,
   AlarmClock,
   Clock3,
   CheckCircle2,
@@ -36,78 +37,84 @@ export function StatusBadge({
   // กำหนดสไตล์ สี และไอคอนตาม Requirement BR-01..13
   const statusConfig: Record<
     string,
-    { label: string; color: string; bg: string; border: string; icon: any }
+    {
+      label: string;
+      color: string;
+      bg: string;
+      border: string;
+      icon: LucideIcon;
+    }
   > = {
     DRAFT: {
       label: statusNames.DRAFT || "ร่าง",
-      color: "#6b7280",
-      bg: "#f3f4f6",
-      border: "#d1d5db",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: FileEdit,
     },
     NEW: {
       label: statusNames.NEW || "ใหม่",
-      color: "#0284c7",
-      bg: "#e0f2fe",
-      border: "#bae6fd",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: Clock3,
     },
     OPEN: {
       label: statusNames.OPEN || "เปิด",
-      color: "#0284c7",
-      bg: "#e0f2fe",
-      border: "#bae6fd",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: Clock3,
     },
     IN_PROGRESS: {
       label: statusNames.IN_PROGRESS || "กำลังดำเนินการ",
-      color: "#d97706",
-      bg: "#fef3c7",
-      border: "#fde68a",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: PlayCircle,
     },
     PENDING: {
       label: statusNames.PENDING || "รอดำเนินการ",
-      color: "#d97706",
-      bg: "#fef3c7",
-      border: "#fde68a",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: Clock3,
     },
     ESCALATED: {
       label: statusNames.ESCALATED || "ส่งต่อผู้เชี่ยวชาญ",
-      color: "#7c3aed",
-      bg: "#f3e8ff",
-      border: "#ddd6fe",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: AlertTriangle,
     },
     RESOLVED: {
       label: statusNames.RESOLVED || "แก้ไขแล้ว",
-      color: "#16a34a",
-      bg: "#dcfce7",
-      border: "#bbf7d0",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: CheckCircle2,
     },
     CLOSED: {
       label: statusNames.CLOSED || "ปิดเคส",
-      color: "#4b5563",
-      bg: "#f3f4f6",
-      border: "#e5e7eb",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: Check,
     },
     CANCELLED: {
       label: statusNames.CANCELLED || "ยกเลิก",
-      color: "#dc2626",
-      bg: "#fee2e2",
-      border: "#fecaca",
+      color: "#33454e",
+      bg: "#76949f12",
+      border: "#76949f40",
       icon: XCircle,
     },
   };
 
   const config = statusConfig[currentStatus] || {
     label: statusNames[status] || status,
-    color: "#4b5563",
-    bg: "#f3f4f6",
-    border: "#e5e7eb",
+    color: "#33454e",
+    bg: "#76949f12",
+    border: "#76949f40",
     icon: Clock3,
   };
 
@@ -117,7 +124,7 @@ export function StatusBadge({
     <span
       className={cx(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors",
-        compact && "px-2 py-0.5 text-[11px]"
+        compact && "px-2 py-0.5 text-[11px]",
       )}
       style={{
         color: config.color,
@@ -156,7 +163,7 @@ export function PriorityBadge({
       }
       style={
         value === "S1"
-          ? { color: "#9e2a2b", borderColor: "#9e2a2b" }
+          ? { color: "#33454e", borderColor: "#9e2a2b" }
           : undefined
       }
     />
