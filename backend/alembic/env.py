@@ -24,6 +24,7 @@ from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.ticket_history import TicketStatusHistory
 
 from app.db.models.automation_rule import AutomationRule
+from app.db.models.routing import TeamRouting, ProductTierRoute, RoutingPolicy, RoutingEvent, TierInterval, RoutingNotification, RoutingJobLease
 config = context.config
 
 if config.config_file_name is not None:

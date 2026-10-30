@@ -20,6 +20,9 @@ def run_auto_close_resolved_tickets(db: Session, allowed_business_days: int = 3)
         if ticket.resolved_at and is_auto_close_eligible(ticket.resolved_at, now, allowed_business_days):
             db.add(TicketStatusHistory(ticket_id=ticket.id, from_status='RESOLVED', to_status='CLOSED',
                                       created_at=now, details={'reason': 'automatic business-day closure'}))
+            from app.services.routing import close_interval
+            close_interval(db, ticket, now)
+            ticket.routing_version += 1
             ticket.status = TicketStatus.CLOSED
             ticket.closed_at = now
             closed_count += 1

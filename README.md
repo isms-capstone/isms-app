@@ -48,3 +48,7 @@ Staging/production require separate untracked `.env.staging` / `.env.prod` files
 Changing these variables does not change credentials inside an existing MariaDB volume.
 An existing database without Alembic history must be reviewed before migration;
 the preflight intentionally stops and does not stamp or reset it.
+
+## Round 3 Escalation & Routing
+
+See [ESC behavior, task coverage, migration and worker startup](docs/ESC-ROUND3.md).
