@@ -52,7 +52,15 @@ Without Docker, run `python -m app.jobs.routing_worker` from `backend` in a sepa
 
 ## Verification
 
-Local validation: backend regression tests (including the new ESC suite), frontend lint/typecheck/production build, and six real browser flows. Screenshots are saved under ignored `frontend/test-results/`. CI provides the additional migrated MariaDB and concurrent row-lock check.
+Validated on commit `9521b99`:
+
+- GitHub backend suite: **86 passed, 2 skipped** (the skips include the MariaDB-specific race in the SQLite suite).
+- GitHub MariaDB suite: **26 passed**, including real concurrent self-assignment; migration upgrade/downgrade and application image startup passed.
+- Registry UI checks and Compose/script validation passed on GitHub.
+- Local Next.js lint, TypeScript, production build and **6 browser tests passed**, including ESC desktop/mobile flows. Screenshots are saved under ignored `frontend/test-results/`.
+- Hosted `next-frontend` could not install the company package: **ETIMEDOUT** downloading `get-design-1.0.7.tgz` from company GitLab. This is not a passing hosted frontend check; keep the PR draft until runner connectivity is resolved and that check passes.
+
+Evidence: https://github.com/isms-capstone/isms-app/actions/runs/40998965693 . Review PR: https://github.com/isms-capstone/isms-app/pull/7 .
 
 - `backend/tests/test_routing.py`: required handoff context, owner preservation, same-case return, interval/history linkage, eligibility and RBAC, stale versions, all-or-nothing bulk handover, settings, availability, job timeout/idempotency, business hours/holidays, missing destinations, response acknowledgement and timestamp precision. A real concurrent self-assignment test runs on migrated MariaDB in CI.
 - Existing backend regression and migration upgrade/downgrade suite is retained.
@@ -60,4 +68,4 @@ Local validation: backend regression tests (including the new ESC suite), fronte
 - Existing four frontend browser flows remain intact; lint, TypeScript and production build are required.
 - CI MariaDB job runs migrations and ESC tests against disposable MariaDB. Compose worker overlay validation is included.
 
-No local existing project database has been migrated during implementation. Local Docker engine startup is currently unavailable; migration/row-lock validation is also configured on the CI MariaDB service. Remote checks and their exact outcome should be reviewed on the ESC PR before merging.
+No local existing project database has been migrated during implementation. Local Docker engine startup was unavailable; migration, real row-lock behavior and image startup were successfully verified using disposable MariaDB in CI. The hosted frontend dependency-download failure above still needs resolution before merging.
