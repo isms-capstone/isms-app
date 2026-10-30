@@ -90,4 +90,5 @@ class Ticket(Base):
     is_exam_window: Mapped[bool] = mapped_column(Boolean, default=False)
     pending_external_reason: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(Text)
+    routing_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     legacy_case_no: Mapped[str | None] = mapped_column(String(100))

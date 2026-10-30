@@ -153,10 +153,16 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
+    if values.get("current_tier") is None:
+        owner = db.get(User, owner_id)
+        values["current_tier"] = owner.default_tier if owner else 2
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        from app.services.routing import initialize_interval
+        initialize_interval(db, ticket, now)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -195,6 +201,9 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
     try:
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        from app.services.routing import initialize_interval
+        initialize_interval(db, ticket, now)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -306,7 +315,10 @@ def update_ticket_status(ticket_id: int, payload: TicketStatusUpdatePayload,
                          db: Session = Depends(get_db), user: User = Depends(require_capture)):
     ticket = editable_ticket(db, ticket_id, user)
     from app.services.lifecycle import transition
+    was_draft = ticket.status == "DRAFT"
     transition(db, ticket, payload.model_dump(exclude_unset=True), user)
+    if was_draft and ticket.status == "NEW":
+        ticket.ticket_no = next_ticket_number(db, datetime.now(timezone.utc).replace(tzinfo=None))
     return commit_edit(db, ticket)
 
 

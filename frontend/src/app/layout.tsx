@@ -7,6 +7,7 @@ import "@fontsource/sarabun/600.css";
 import "@fontsource/sarabun/700.css";
 import "./globals.css";
 import "@/styles/operations-ui.css";
+import "@/styles/routing.css";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { CompanyProvider } from "@/components/providers/company-provider";
 export const metadata: Metadata = {

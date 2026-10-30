@@ -41,6 +41,12 @@ def transition(db, ticket, changes, user):
                 raise HTTPException(422, f'{field} is missing or inactive')
             if field == 'product_instance_id' and row.organization_id != ticket.organization_id:
                 raise HTTPException(422, 'Product instance belongs to another customer')
+    if 'assignee_id' in changes and changes['assignee_id'] != ticket.assignee_id:
+        from app.services.routing import target_user, lead_for, route_team
+        self_pick = ticket.status == 'NEW' and ticket.assignee_id is None and changes['assignee_id'] == user.id
+        if not self_pick and not lead_for(db, user, route_team(db, ticket)):
+            raise HTTPException(403, 'Manual assignment requires the responsible team lead')
+        target_user(db, ticket, changes['assignee_id'], ticket.current_tier if ticket.current_tier is not None else 2)
     if target == 'DUPLICATE':
         master = db.get(Ticket, data['master_ticket_id'])
         if not master or master.id == ticket.id or master.status in {'DRAFT', 'DUPLICATE', 'CANCELLED'}:
@@ -53,7 +59,15 @@ def transition(db, ticket, changes, user):
     for key, value in changes.items():
         if value is not None and key not in {'status', 'reopen_reason'}:
             setattr(ticket, key, value)
+    from app.services.routing import close_interval, initialize_interval
+    if target in {'RESOLVED', 'CLOSED', 'DUPLICATE', 'CANCELLED'}:
+        close_interval(db, ticket, now)
     ticket.status = target
+    ticket.routing_version += 1
+    if target in {'NEW', 'REOPENED', 'IN_PROGRESS'}:
+        if ticket.current_tier is None: ticket.current_tier = getattr(user, 'default_tier', 2)
+        db.flush()
+        initialize_interval(db, ticket, now, history.id)
     if target == 'RESOLVED': ticket.resolved_at = now
     if target == 'CLOSED': ticket.closed_at = now
     if target == 'REOPENED': ticket.reopen_count += 1
