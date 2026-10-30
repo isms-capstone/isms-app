@@ -10,6 +10,39 @@ function element(tag, text, className) {
   if (className) node.className = className;
   return node;
 }
+function icon(name) {
+  const paths = {
+    inbox: 'M4 4h16v16H4z M4 13h5l2 3h2l2-3h5',
+    cases: 'M4 4h16v5H4z M4 15h16v5H4z M8 6v1 M8 17v1',
+    unassigned: 'M8 5H5v16h14V5h-3 M9 3h6v4H9z M12 11v4 M12 18v.1',
+    product: 'M5 3h14v18H5z M9 7h6 M9 11h6 M9 15h3',
+    book: 'M12 5v16 M12 5C8 2 3 3 3 3v16s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2',
+    users: 'M16 21v-3a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v3 M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M17 3a4 4 0 0 1 0 7 M22 21v-3a4 4 0 0 0-3-4',
+    clock: 'M12 8v5l3 2 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+    chart: 'M5 20V10 M12 20V4 M19 20v-7',
+    settings: 'M4 7h16 M4 17h16 M8 4v6 M16 14v6',
+    search: 'M21 21l-5-5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
+    plus: 'M12 5v14 M5 12h14',
+    chevron: 'M9 5l7 7-7 7',
+    check: 'M5 12l4 4L19 6',
+    menu: 'M4 6h12 M4 12h9 M4 18h12 M20 8l-4 4 4 4',
+    phone: 'M5 3h4l2 5-3 2c2 4 3 5 6 6l2-3 5 2v4c-10 3-20-7-16-16',
+    mail: 'M3 5h18v14H3z M3 5l9 8 9-8',
+    message: 'M3 3h18v14H8l-5 4z M7 7h10 M7 12h6',
+  };
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.classList.add('ui-icon');
+  const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', paths[name] || paths.product); svg.append(path); return svg;
+}
+function decorateNavigation() {
+  const names = ['inbox', 'cases', 'unassigned', 'plus', 'product', 'book', 'users', 'chart', 'users', 'product', 'clock', 'settings', 'clock'];
+  document.querySelectorAll('.sidebar nav > .nav').forEach((node, index) => {
+    [...node.childNodes].filter(child => child.nodeType === Node.TEXT_NODE).forEach(child => child.remove());
+    node.prepend(icon(names[index]));
+  });
+  document.querySelector('#toggle-sidebar').replaceChildren(icon('menu'));
+}
+decorateNavigation();
 function notify(message, error = false) {
   const node = document.querySelector('#notice');
   node.textContent = message; node.className = error ? 'error' : ''; node.hidden = false;
@@ -24,7 +57,7 @@ async function request(path, options = {}) {
   const headers = {...options.headers};
   if (token) headers.Authorization = `Bearer ${token}`;
   let body = options.body;
-  if (body && !(body instanceof URLSearchParams)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
+  if (body && !(body instanceof URLSearchParams) && !(body instanceof FormData)) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
   const response = await fetch(`/api/v1${path}`, {...options, headers, body});
   const result = response.status === 204 ? null : await response.json();
   if (!response.ok) {
@@ -34,6 +67,37 @@ async function request(path, options = {}) {
   }
   return result;
 }
+
+
+async function loadAttachmentBlob(downloadUrl) {
+  const response = await fetch(downloadUrl, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (response.status === 401) {
+    signOut();
+    throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+  }
+
+  if (!response.ok) {
+    throw new Error(`ดาวน์โหลดไฟล์ไม่สำเร็จ (${response.status})`);
+  }
+
+  return URL.createObjectURL(await response.blob());
+}
+
+async function openAttachment(downloadUrl, filename) {
+  const objectUrl = await loadAttachmentBlob(downloadUrl);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.rel = 'noopener';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+}
+
 async function all(path) {
   const records = [];
   for (let offset = 0; ; offset += 100) {
@@ -47,6 +111,8 @@ function startView(title, description) {
   ++renderVersion;
   disposePicker?.(); disposePicker = null;
   workspace.replaceChildren();
+  workspace.dataset.page = currentView;
+  document.querySelector('#notice').hidden = true;
   document.body.classList.remove('mobile-menu-open');
   const heading = element('div', null, 'heading'), copy = element('div');
   copy.append(element('h1', title), element('p', description)); heading.append(copy); workspace.append(heading);
@@ -300,6 +366,8 @@ async function showCapture() {
   const heading = startView('สร้างเคส', 'บันทึกเรื่องก่อน แล้วค่อยเติมรายละเอียดภายหลัง · ข้อมูลขั้นต่ำ 3 ช่อง');
   heading.append(button('ยกเลิก', () => navigate('customers')));
   const card = section('ข้อมูลเริ่มต้น', '', null, false), wrap = element('div', null, 'autocomplete');
+  card.classList.add('capture-fields');
+  card.querySelector('.section-title').append(element('span', 'ต้องกรอก 3 ช่อง', 'required-chip'));
   const label = element('label', 'ลูกค้า / ผู้แจ้ง'), input = element('input'); input.setAttribute('aria-label', 'ค้นหาลูกค้า'); input.placeholder = 'ชื่อองค์กร / ผู้ติดต่อ / LINE / อีเมล / โทรศัพท์';
   label.append(input); const suggestions = element('div', null, 'suggestions'); suggestions.id = 'customer-choices'; suggestions.hidden = true;
   wrap.append(label, suggestions); card.append(wrap);
@@ -323,13 +391,32 @@ async function showCapture() {
     } catch (error) { if (generation === existingGeneration) failure(error); }
   });
   const formCard = section('บันทึกเคส', '', null, false), form = element('form'), optional = element('div', null, 'context-fields');
-  const subjectLabel = element('label', 'หัวข้อเคส'), subject = element('input'); subject.maxLength = 255; subject.setAttribute('aria-label', 'หัวข้อเคส'); subjectLabel.append(subject);
+  const subjectLabel = element('label', 'หัวข้อเคส'), subject = element('input'); subject.maxLength = 255; subject.placeholder = 'สรุปเรื่องที่ต้องการแจ้งให้เข้าใจง่าย'; subject.setAttribute('aria-label', 'หัวข้อเคส'); subjectLabel.append(subject);
   const channelLabel = element('label', 'ช่องทางแจ้ง'), channel = element('select'); channel.setAttribute('aria-label', 'ช่องทางแจ้ง');
   for (const [value, text] of [['', 'ยังไม่ระบุ'], ['line_oa', 'LINE OA'], ['line_group', 'LINE Group'], ['line_personal', 'LINE ส่วนตัว'], ['portal', 'Portal'], ['email', 'อีเมล'], ['phone', 'โทรศัพท์'], ['face_to_face', 'พบหน้า'], ['other', 'อื่น ๆ']]) {
     const option = element('option', text); option.value = value; channel.append(option);
   }
   channelLabel.append(channel);
   const descriptionLabel = element('label', 'รายละเอียดเคส'), description = element('textarea'); description.maxLength = 20000; description.setAttribute('aria-label', 'รายละเอียดเคส'); descriptionLabel.append(description);
+  const ownerLabel = element('label', 'ผู้รับผิดชอบเคส'), owner = element('select'); owner.setAttribute('aria-label', 'ผู้รับผิดชอบเคส');
+  owner.append(element('option', 'ฉันเอง (ค่าเริ่มต้น)')); owner.options[0].value = '';
+  ownerLabel.append(owner);
+  request('/registry/case-owners').then(owners => {
+
+    owner.replaceChildren(); const self = element('option', 'ฉันเอง (ค่าเริ่มต้น)'); self.value = ''; owner.append(self);
+    owners.forEach(item => { const option = element('option', item.label); option.value = item.id; owner.append(option); });
+  }).catch(failure);
+  const attachmentLabel = element('label', 'ภาพหน้าจอ / ไฟล์แนบ'), attachmentInput = element('input');
+  attachmentInput.type = 'file'; attachmentInput.multiple = true; attachmentInput.accept = 'image/*,.pdf,.txt'; attachmentLabel.append(attachmentInput);
+  const dropZone = element('div', 'วางไฟล์ที่นี่ หรือกด Ctrl+V เพื่อวางภาพจากคลิปบอร์ด', 'attachment-drop-zone'); dropZone.tabIndex = 0; dropZone.setAttribute('role', 'button');
+  const attachmentList = element('ul', null, 'attachment-pending-list'); let pendingAttachments = [];
+  const addPendingFiles = files => { for (const file of files || []) { if (!file.type.startsWith('image/') && !['application/pdf','text/plain'].includes(file.type)) { notify(`ไม่รองรับไฟล์ ${file.name}`, true); continue; } if (file.size > 10 * 1024 * 1024) { notify(`${file.name}: ไฟล์ต้องไม่เกิน 10 MB`, true); continue; } if (!pendingAttachments.some(item => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) pendingAttachments.push(file); } drawPendingAttachments(); };
+  const drawPendingAttachments = () => { attachmentList.replaceChildren(); pendingAttachments.forEach((file, index) => { const item = element('li', `${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB)`); item.append(button('เอาออก', () => { pendingAttachments.splice(index, 1); drawPendingAttachments(); })); attachmentList.append(item); }); };
+  attachmentInput.addEventListener('change', () => { addPendingFiles(attachmentInput.files); attachmentInput.value = ''; });
+  dropZone.addEventListener('click', () => attachmentInput.click()); dropZone.addEventListener('dragover', event => { event.preventDefault(); dropZone.classList.add('dragging'); }); dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging')); dropZone.addEventListener('drop', event => { event.preventDefault(); dropZone.classList.remove('dragging'); addPendingFiles(event.dataTransfer.files); });
+  dropZone.addEventListener('paste', event => { const files = [...(event.clipboardData?.items || [])].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean); if (files.length) { event.preventDefault(); addPendingFiles(files); } });
+  document.addEventListener('paste', event => { if (!form.isConnected || !event.clipboardData) return; const target = event.target; if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return; const files = [...event.clipboardData.items].filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean); if (files.length) { event.preventDefault(); addPendingFiles(files); } }, {signal: new AbortController().signal});
+
   const submit = element('button', 'สร้างเคส', 'primary'); submit.type = 'submit'; submit.disabled = !user.can_create_cases;
   const result = element('div'); result.setAttribute('role', 'status');
   const channels = element('div', null, 'channel-options');
@@ -337,12 +424,13 @@ async function showCapture() {
   for (const option of channel.options) {
     if (!option.value) continue;
     const choice = button(option.textContent, () => { channel.value = option.value; channel.dispatchEvent(new Event('change')); });
+    choice.prepend(icon(({phone: 'phone', email: 'mail', face_to_face: 'users', portal: 'product', other: 'plus'}[option.value] || 'message')));
     choice.dataset.channel = option.value; choice.setAttribute('aria-pressed', 'false'); channels.append(choice);
   }
   channelLabel.append(channels);
   const more = element('details', null, 'capture-optional'), moreTitle = element('summary', 'รายละเอียดเพิ่มเติม · เติมภายหลังได้');
   more.append(moreTitle, descriptionLabel, optional);
-  form.append(subjectLabel, channelLabel, existing, more, result); card.append(form); formCard.remove();
+  form.append(subjectLabel, existing, channelLabel, ownerLabel, attachmentLabel, dropZone, attachmentList, more, result); card.append(form); formCard.remove();
   const footer = element('footer', null, 'capture-footer'), completion = element('p'), actions = element('div', null, 'actions');
   let saveDraft = false, saving = false;
   const draftButton = button('บันทึกเป็นร่าง', () => { saveDraft = true; form.requestSubmit(); }); draftButton.disabled = !user.can_create_cases;
@@ -350,6 +438,9 @@ async function showCapture() {
   actions.append(draftButton, submit); footer.append(completion, actions); workspace.append(footer);
   const preview = element('section', null, 'card capture-preview'), previewData = element('dl'), previewState = element('span', 'ยังไม่สร้าง', 'preview-state');
   preview.append(element('h2', 'ตัวอย่างเคส'), previewState, previewData);
+  const previewInfo = element('div', null, 'preview-info');
+  previewInfo.append(icon('check'), element('strong', 'ระบบบันทึกให้หลังสร้างเคส'), element('p', 'เลขที่เคส · ผู้สร้าง · วันเวลาที่สร้าง · สถานะเริ่มต้น'));
+  preview.append(previewInfo);
   const updatePreview = () => {
     previewData.replaceChildren();
     for (const [name, value] of [['เลขที่เคส', 'ระบบออกเลขหลังสร้าง'], ['ลูกค้า / ผู้แจ้ง', selected ? input.value : 'ยังไม่เลือก'], ['หัวข้อ', subject.value.trim() || 'ยังไม่ระบุ'], ['ช่องทาง', channel.selectedOptions[0]?.textContent || 'ยังไม่ระบุ']]) {
@@ -405,9 +496,15 @@ async function showCapture() {
     submit.disabled = true; draftButton.disabled = true;
     try {
       const ticket = await request('/tickets', {method: 'POST', body: {...selected, ...caseSelection,
-        subject: subject.value, channel: channel.value || null, description: description.value, save_as_draft: draftRequested}});
+        subject: subject.value, channel: channel.value || null, description: description.value, created_for_user_id: owner.value ? Number(owner.value) : null, save_as_draft: draftRequested}});
       if (!form.isConnected) return;
-      result.replaceChildren(element('p', `บันทึก ${ticket.status}: ${ticket.ticket_no || `ร่าง #${ticket.id}`}`), button('ดูเคสที่บันทึก', () => showTicket(ticket.id)));
+      const uploadErrors = [], failedAttachments = [], requestedAttachmentCount = pendingAttachments.length;
+      for (const file of pendingAttachments) {
+        try { const data = new FormData(); data.append('file', file, file.name); await request(`/tickets/${ticket.id}/attachments`, {method: 'POST', body: data}); }
+        catch (error) { uploadErrors.push(`${file.name}: ${error.message}`); failedAttachments.push(file); }
+      }
+      if (uploadErrors.length) { pendingAttachments = failedAttachments; drawPendingAttachments(); result.replaceChildren(element('p', `บันทึกเคสแล้ว แต่แนบไฟล์ไม่ครบ: ${uploadErrors.join(' · ')}`, 'error-inline'), button('ลองแนบไฟล์ที่เหลืออีกครั้ง', async () => { const failed = []; for (const file of pendingAttachments) { try { const data = new FormData(); data.append('file', file, file.name); await request(`/tickets/${ticket.id}/attachments`, {method: 'POST', body: data}); } catch (error) { failed.push(file); } } pendingAttachments = failed; drawPendingAttachments(); if (failed.length) notify(`ยังแนบไม่สำเร็จ ${failed.length} ไฟล์`, true); else { notify('แนบไฟล์ครบแล้ว'); await showTicket(ticket.id); } })); }
+      else { result.replaceChildren(element('p', `บันทึก ${ticket.status}: ${ticket.ticket_no || `ร่าง #${ticket.id}`}${requestedAttachmentCount ? ` · แนบ ${requestedAttachmentCount} ไฟล์` : ''}`), button('ดูเคสที่บันทึก', () => showTicket(ticket.id))); pendingAttachments = []; drawPendingAttachments(); }
       subject.value = ''; description.value = '';
     } catch (error) { failure(error); }
     finally { saving = false; saveDraft = false; if (user && form.isConnected) updatePreview(); }
@@ -468,7 +565,9 @@ document.querySelector('#login-form').addEventListener('submit', async event => 
     const data = await request('/auth/login', {method: 'POST', body: new URLSearchParams(new FormData(form))});
     token = data.access_token; user = await request('/registry/session'); form.reset();
     document.querySelector('#login-panel').hidden = true; workspace.hidden = false; document.querySelector('#logout').hidden = false;
-    document.querySelector('#user-label').textContent = `${user.username} · ${user.role}`;
+    const account = element('div', null, 'topbar-account');
+    account.append(element('strong', user.username), element('small', user.role));
+    document.querySelector('#user-label').replaceChildren(element('span', user.username.slice(0, 2).toUpperCase(), 'topbar-avatar'), account);
     document.querySelector('#sidebar-initials').textContent = user.username.slice(0, 2).toUpperCase();
     document.querySelector('#sidebar-account').replaceChildren(element('strong', user.username), element('small', user.role));
     document.querySelector('#new-case').hidden = !user.can_create_cases;
@@ -493,10 +592,86 @@ async function showTicket(id) {
   startView(ticket.ticket_no || `ร่าง #${ticket.id}`, ticket.subject || 'ยังไม่มีหัวข้อ');
   if (ticket.organization_id) workspace.prepend(button('← กลับลูกค้า', async () => showOrganization(await request(orgPath(ticket.organization_id)))));
   const card = section('รายละเอียดเคส', '', null, false);
+  if (user.can_create_cases && !['DRAFT', 'DUPLICATE', 'CANCELLED'].includes(ticket.status)) {
+    card.append(button('สร้างเคสต่อเนื่อง', async () => {
+      const subject = window.prompt('หัวข้อเคสต่อเนื่อง', ticket.subject || '');
+      if (subject === null) return;
+      const description = window.prompt('รายละเอียดเคสต่อเนื่อง', ticket.description || '');
+      if (description === null) return;
+      try {
+        const created = await request(`/tickets/${ticket.id}/follow-up`, {method: 'POST', body: {
+          subject: subject.trim() || null, description: description.trim() || null, channel: ticket.channel || null
+        }});
+        notify(`สร้างเคสต่อเนื่องแล้ว: ${created.ticket_no || created.id}`);
+        await showTicket(created.id);
+      } catch (error) { failure(error); }
+    }));
+  }
+  if (ticket.master_ticket_id) {
+    card.append(element('p', `เคสต่อเนื่องจากเคส #${ticket.master_ticket_id}`, 'muted'),
+      button('เปิดเคสต้นทาง', () => showTicket(ticket.master_ticket_id)));
+  }
   card.append(element('p', `สถานะ: ${ticket.status} · ช่องทาง: ${ticket.channel || 'ยังไม่ระบุ'}`),
     element('p', ticket.description || 'ยังไม่มีรายละเอียด'),
     element('p', `เวลาที่ลูกค้าแจ้ง: ${new Date(ticket.reported_at).toLocaleString('th-TH')}`),
     element('p', `เวลาที่ระบบบันทึก: ${new Date(ticket.created_at).toLocaleString('th-TH')}`));
+  const attachmentSection = section('ไฟล์แนบ', '', null, false), attachmentRows = element('div', 'กำลังโหลดไฟล์แนบ…', 'ticket-attachments'); card.append(attachmentSection); attachmentSection.append(attachmentRows);
+
+try {
+  const attachments = await request(`/tickets/${ticket.id}/attachments`);
+  attachmentRows.replaceChildren();
+
+  if (!attachments.length) {
+    attachmentRows.append(element('p', 'ยังไม่มีไฟล์แนบ', 'muted'));
+  }
+
+  for (const file of attachments) {
+    const row = element('div', null, 'ticket-attachment-row');
+    const link = element(
+      'button',
+      `${file.filename} · ${Math.max(1, Math.round(file.size_bytes / 1024))} KB`
+    );
+    link.type = 'button';
+    link.addEventListener('click', () => {
+      openAttachment(file.download_url, file.filename).catch(failure);
+    });
+    row.append(link);
+
+    if (file.content_type.startsWith('image/')) {
+      const image = element('img');
+      image.alt = file.filename;
+      image.loading = 'lazy';
+      image.style.cursor = 'pointer';
+
+      loadAttachmentBlob(file.download_url)
+        .then(url => {
+          if (image.isConnected) {
+            image.src = url;
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        })
+        .catch(error => {
+  console.error('โหลดภาพแนบไม่สำเร็จ:', file.filename, error);
+  image.alt = `ไม่สามารถแสดงภาพ: ${file.filename}`;
+});
+
+      image.addEventListener('click', () => {
+        openAttachment(file.download_url, file.filename).catch(failure);
+      });
+
+      row.append(image);
+    }
+
+    attachmentRows.append(row);
+  }
+} catch (error) {
+  attachmentRows.replaceChildren(
+    element('p', error.message, 'error-inline')
+  );
+}
+
+
   if (user.can_create_cases && (user.role === 'Admin' || [ticket.created_by_id, ticket.owner_id, ticket.assignee_id].includes(user.id))) {
     const form = element('form', null, 'inline-editor'), label = element('label', 'เวลาที่ลูกค้าแจ้ง'), input = element('input');
     input.type = 'datetime-local'; input.required = true; input.setAttribute('aria-label', 'แก้เวลาที่ลูกค้าแจ้ง');
@@ -583,6 +758,7 @@ async function refreshProductNavigation() {
   if (!user) return;
   for (const product of products) {
     const item = button(product.name, () => { currentView = 'products'; document.querySelectorAll('.nav').forEach(node => node.classList.remove('active')); item.classList.add('active'); document.querySelector('#breadcrumb').textContent = product.name; return showProduct(product); }, 'nav');
+    item.replaceChildren(icon(product.name.toLowerCase().includes('logbook') ? 'book' : 'product'), element('span', product.name), icon('chevron'));
     item.setAttribute('aria-label', `ผลิตภัณฑ์ ${product.name}`); root.append(item);
   }
 }
@@ -596,28 +772,46 @@ document.querySelector('#toggle-sidebar').addEventListener('click', () => {
 async function showQueue(view) {
   const title = {work: 'งานของฉัน', cases: 'เคสทั้งหมด', unassigned: 'ยังไม่มีผู้รับผิดชอบ'}[view];
   const heading = startView(title, view === 'work' ? 'ดูเคสที่ต้องดำเนินการและเคสร่างของคุณ' : 'ค้นหาและเปิดดูเคสในระบบ');
+  if (view === 'work') {
+    const date = element('span', new Date().toLocaleDateString('th-TH', {weekday: 'long', day: 'numeric', month: 'long'}), 'heading-date');
+    date.setAttribute('aria-hidden', 'true'); heading.querySelector('h1').append(date);
+  }
   if (user.can_create_cases) heading.append(button('＋ สร้างเคส', () => navigate('capture'), 'primary'));
   const version = renderVersion;
   const summary = await request('/tickets/queue-summary');
   if (version !== renderVersion || !user) return;
   if (view === 'work') {
     const counts = element('div', null, 'action-counts');
-    for (const [count, label, action] of [[summary.unassigned, 'ยังไม่มีผู้รับผิดชอบ', () => navigate('unassigned')], ['—', 'เหลือเวลา SLA ไม่ถึง 25%', null], [summary.mine, 'งานของฉันที่เปิดอยู่', () => loadQueue({mine: true})], [summary.today, 'เคสเข้าใหม่วันนี้', () => loadQueue({today_only: true})]]) {
-      const item = button('', action || (() => {}), 'action-count'); item.append(element('strong', count), element('span', label)); item.disabled = !action; counts.append(item);
+    for (const [count, label, action, symbol] of [[summary.unassigned, 'ยังไม่มีผู้รับผิดชอบ', () => navigate('unassigned'), 'unassigned'], ['—', 'เหลือเวลา SLA ไม่ถึง 25%', null, 'clock'], [summary.mine, 'งานของฉันที่เปิดอยู่', () => loadQueue({mine: true}), 'users'], [summary.today, 'เคสเข้าใหม่วันนี้', () => loadQueue({today_only: true}), 'inbox']]) {
+      const item = button('', action || (() => {}), 'action-count');
+      const mark = element('span', null, `count-icon count-${symbol}`); mark.append(icon(symbol));
+      item.append(mark, element('strong', count), element('span', label, 'count-label'), icon('chevron')); item.disabled = !action;
+      if (!action) item.title = 'ยังไม่มีการคำนวณ SLA'; counts.append(item);
     }
     workspace.append(counts);
   }
   const card = section(view === 'cases' ? 'รายการเคส' : 'คิวเคสที่เปิดอยู่', '', null, false);
-  const controls = element('div', null, 'toolbar');
-  controls.append(button('ทั้งหมด', () => loadQueue({})), button('งานของฉัน', () => loadQueue({mine: true})), button('ยังไม่มีผู้รับ', () => loadQueue({unassigned: true})));
-  card.append(controls, element('p', 'เรียงตามเวลาบันทึกล่าสุด · ยังไม่มีข้อมูลเวลา SLA สำหรับจัดลำดับ', 'queue-note'));
+  card.classList.add('queue-card');
+  const controls = element('div', null, 'queue-tabs');
+  for (const [label, next] of [['ทั้งหมด', {}], ['งานของฉัน', {mine: true}], ['ยังไม่มีผู้รับ', {unassigned: true}]]) {
+    const tab = button(label, () => loadQueue(next)); tab.dataset.queueFilter = label; controls.append(tab);
+  }
+  card.querySelector('.section-title').append(controls);
+  const sort = element('span', 'เรียงตาม: เวลาบันทึกล่าสุด ↓', 'queue-sort'); card.querySelector('.section-title').append(sort);
+  card.append(element('p', 'ยังไม่มีข้อมูลเวลา SLA สำหรับจัดลำดับ', 'queue-note'));
   const searchForm = element('form', null, 'queue-search'), search = element('input'), searchButton = element('button', 'ค้นหา');
-  search.placeholder = 'ค้นหาเลขเคสหรือหัวข้อ'; search.setAttribute('aria-label', 'ค้นหาเคส'); searchButton.type = 'submit'; searchForm.append(search, searchButton); card.append(searchForm);
+  search.placeholder = 'ค้นหาเลขเคสหรือหัวข้อ...'; search.setAttribute('aria-label', 'ค้นหาเคส'); searchButton.type = 'submit'; searchForm.append(icon('search'), search, searchButton); card.append(searchForm);
+  if (view === 'cases') {
+    const searchPanel = element('section', null, 'card case-search-panel');
+    searchPanel.append(searchForm, element('p', 'ค้นหาจากเลขที่เคสหรือหัวข้อ · แสดงข้อมูลจากระบบปัจจุบัน', 'subtle'));
+    workspace.insertBefore(searchPanel, card);
+  }
   const results = element('div', null, 'queue-table'); card.append(results);
   let offset = 0, filters = view === 'unassigned' ? {unassigned: true} : {}, generation = 0;
   searchForm.addEventListener('submit', event => { event.preventDefault(); offset = 0; draw().catch(failure); });
   async function loadQueue(next) { filters = next; offset = 0; await draw(); }
   async function draw() {
+    controls.querySelectorAll('button').forEach(tab => { const active = tab.dataset.queueFilter === (filters.mine ? 'งานของฉัน' : filters.unassigned ? 'ยังไม่มีผู้รับ' : 'ทั้งหมด'); tab.classList.toggle('active', active); tab.setAttribute('aria-pressed', String(active)); });
     const current = ++generation;
     results.replaceChildren(); for (let i = 0; i < 4; i++) results.append(element('div', null, 'skeleton'));
     try {
@@ -632,8 +826,8 @@ async function showQueue(view) {
       if (current !== generation || version !== renderVersion || !user) return;
       results.replaceChildren();
       table(results, [['Case / Subject', row => { const link = button('', () => showTicket(row.id), 'link queue-subject'); link.append(element('small', row.ticket_no || `ร่าง #${row.id}`), element('strong', row.subject || 'ยังไม่มีหัวข้อ')); return link; }],
-        ['Customer', row => organizations.get(row.organization_id) || 'ยังไม่ระบุ'], ['Priority', row => { const priority = element('span', row.severity || 'ยังไม่ระบุ'); if (row.severity === 'S1') priority.className = 'priority-critical'; return priority; }],
-        ['Product', row => productNames.get(row.product_instance_id) || 'ยังไม่ระบุ'], ['Status', row => row.status], ['Channel', row => ({phone: 'โทรศัพท์', face_to_face: 'พบหน้า', email: 'อีเมล', line_oa: 'LINE OA', line_group: 'LINE Group', line_personal: 'LINE ส่วนตัว', portal: 'Portal', other: 'อื่น ๆ'}[row.channel] || '—')], ['Tier', row => row.current_tier === null ? '—' : `Tier ${row.current_tier}`], ['SLA', () => 'ยังไม่มีข้อมูล'], ['Assignee', row => row.assignee_id === user.id ? user.username : row.assignee_id ? 'มีผู้รับผิดชอบ' : 'ยังไม่มีผู้รับ']
+        ['Customer', row => element('span', organizations.get(row.organization_id) || 'ยังไม่ระบุ', 'customer-name')], ['Priority', row => element('span', ({S1: 'S1 Critical', S2: 'S2 High', S3: 'S3 Medium', S4: 'S4 Low'}[row.severity] || 'ยังไม่ระบุ'), `priority-badge priority-${row.severity || 'none'}`)],
+        ['Product', row => { const product = element('span', null, 'product-cell'); product.append(icon('product'), element('span', productNames.get(row.product_instance_id) || 'ยังไม่ระบุ')); return product; }], ['Status', row => element('span', row.status.replaceAll('_', ' '), `status-badge status-${row.status}`)], ['Channel', row => ({phone: 'โทรศัพท์', face_to_face: 'พบหน้า', email: 'อีเมล', line_oa: 'LINE OA', line_group: 'LINE Group', line_personal: 'LINE ส่วนตัว', portal: 'Portal', other: 'อื่น ๆ'}[row.channel] || '—')], ['Tier', row => element('span', row.current_tier === null ? '—' : `Tier ${row.current_tier}`, 'tier-badge')], ['SLA', () => element('span', 'ยังไม่มีข้อมูล', 'sla-unavailable')], ['Assignee', row => { const owner = element('span', null, 'owner-cell'); const name = row.assignee_id === user.id ? user.username : row.assignee_id ? 'มีผู้รับผิดชอบ' : 'ยังไม่มีผู้รับ'; owner.append(element('span', row.assignee_id === user.id ? user.username.slice(0, 2).toUpperCase() : row.assignee_id ? '•' : '–', 'owner-avatar'), element('span', name)); return owner; }]
       ], rows.slice(0, 25));
       const pager = element('div', null, 'pager');
       const prev = button('ก่อนหน้า', () => { offset -= 25; return draw(); }); prev.disabled = offset === 0;
@@ -648,6 +842,8 @@ async function showQueue(view) {
   if (view === 'work' && version === renderVersion && user) {
     const drafts = section(`เคสร่างของคุณ (${summary.drafts})`, '', null, false);
     drafts.classList.add('queue-table');
+    drafts.classList.add('drafts-card');
+    drafts.append(element('p', 'เคสที่ยังไม่ได้ส่ง เติมข้อมูลต่อได้ทีละช่องโดยไม่ต้องเปิดฟอร์มเต็ม', 'drafts-note'));
     let reload;
     reload = collection(drafts, '/tickets?drafts_only=true', [['หัวข้อ', row => row.subject || 'ยังไม่มีหัวข้อ'], ['สร้างเมื่อ', row => new Date(row.created_at).toLocaleString('th-TH')]], row => [button('ดูร่าง', () => showTicket(row.id)), ...(user.can_create_cases ? [draftEditButton(row, () => reload())] : [])]);
   }

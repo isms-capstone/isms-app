@@ -1,0 +1,643 @@
+/* ISMS adapters for GET Design. Shared sizes apply by role, across every route. */
+:root {
+  --ui-control-height: 36px;
+  --ui-field-height: 42px;
+  --ui-radius: 8px;
+  --ui-body: 14px;
+  --ui-label: 13px;
+  --ui-meta: 12px;
+}
+
+/* Navigation links and GET Design buttons share the same control dimensions. */
+.app-shell .button,
+.app-shell .ui-button,
+.login-screen .ui-button {
+  height: var(--ui-control-height);
+  min-height: var(--ui-control-height);
+  padding: 0 12px;
+  border-radius: var(--ui-radius);
+  font: 500 var(--ui-label)/20px var(--font-sans);
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.app-shell .ui-button .gd-Button__label,
+.login-screen .ui-button .gd-Button__label {
+  font: inherit;
+  letter-spacing: normal;
+  gap: 8px;
+}
+.app-shell :is(.button, .ui-button) > svg,
+.ui-button .gd-Button__label > svg {
+  width: 16px;
+  height: 16px;
+}
+.app-shell .ui-button-icon {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+.app-shell :is(.button-sm, .ui-button-sm) {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: var(--ui-meta);
+}
+.bulk-toolbar {
+  gap: 8px;
+}
+.bulk-toolbar > :is(.button, .ui-button) {
+  height: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.selected-count {
+  min-height: 36px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+/* The library owns the field border/focus; the wrapper supplies layout only. */
+.app-shell .company-input,
+.login-screen .company-input {
+  width: 100%;
+  min-width: 0;
+}
+.app-shell .company-input .gd-InputText__inputWrapper,
+.login-screen .company-input .gd-InputText__inputWrapper {
+  height: var(--ui-field-height);
+  min-height: var(--ui-field-height);
+  padding: 0 12px;
+  border-radius: var(--ui-radius);
+}
+.app-shell .company-input .gd-InputText__input,
+.login-screen .company-input .gd-InputText__input {
+  font: 400 var(--ui-body)/22px var(--font-sans);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 0;
+  height: 100%;
+  background: transparent;
+}
+.app-shell .company-input .gd-InputText__charCount {
+  font: 400 12px/18px var(--font-sans);
+}
+.subject-field > .company-input {
+  margin-top: 8px;
+}
+.search-field:has(.company-input) {
+  gap: 0;
+}
+.search-field:has(.company-input) > svg {
+  display: none;
+}
+.queue-toolbar .company-input .gd-InputText__inputWrapper {
+  height: 36px;
+  min-height: 36px;
+}
+.queue-toolbar .company-input .gd-InputText__input {
+  font-size: 13px;
+}
+.filter-select,
+.sort-control select,
+.table-pagination select,
+.pagination select {
+  height: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--brand);
+  font: 500 13px/20px var(--font-sans);
+}
+.capture-optional-fields select,
+.date-label input,
+.drawer-body select {
+  height: 42px;
+  min-height: 42px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.capture-optional-fields textarea {
+  font-size: 14px;
+  line-height: 1.65;
+  border-radius: 8px;
+}
+
+/* Consistent type hierarchy; metadata remains readable on compact screens. */
+.page-heading h1,
+.capture-page h1 {
+  font-size: 24px;
+  line-height: 34px;
+}
+.queue-heading h2,
+.drafts-heading h2,
+.capture-card-heading h2,
+.preview-heading h2,
+.detail-card h2 {
+  font-size: 17px;
+  line-height: 26px;
+}
+.page-description,
+.page-heading p,
+.heading-date,
+.capture-intro p {
+  font-size: 13px;
+  line-height: 21px;
+}
+.nav-item {
+  font-size: 13px;
+  min-height: 38px;
+}
+.nav-group h2 {
+  font-size: 10px;
+  letter-spacing: 1.4px;
+}
+.breadcrumb,
+.user-menu strong {
+  font-size: 13px;
+}
+.user-menu small,
+.last-updated,
+.sort-control,
+.drafts-heading p,
+.draft-copy small,
+.case-preview dt,
+.case-preview dd,
+.capture-card-heading > small,
+.field-hint,
+.related-heading small,
+.related-heading > span,
+.selected-customer small,
+.customer-options small {
+  font-size: 12px;
+  line-height: 19px;
+}
+.customer-picker label,
+.subject-field,
+.capture-optional-fields label,
+.channel-field legend,
+.customer-options strong,
+.selected-customer strong,
+.related-heading h3,
+.draft-copy strong,
+.drawer-body,
+.drawer-body h3,
+.company-checkbox .gd-Checkbox__label {
+  font-size: 13px;
+  line-height: 21px;
+}
+.selected-customer {
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.required-chip {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+.related-number,
+.related-case small,
+.related-case p {
+  font-size: 12px;
+  line-height: 19px;
+}
+.related-subject {
+  font-size: 13px;
+  line-height: 21px;
+}
+.channel-options .channel-option {
+  min-height: 36px;
+  font-size: 13px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+.channel-options .channel-option svg {
+  width: 16px;
+  height: 16px;
+}
+.drawer-header h2 {
+  font-size: 17px;
+}
+.drawer-footer {
+  gap: 8px;
+}
+.drawer-footer .ui-button {
+  flex: 1;
+}
+
+/* Four operational counts, composed from GET Design StatCard + IconDisplay. */
+.action-counts {
+  gap: 16px;
+  align-items: stretch;
+}
+.native-stat-action {
+  border-radius: 10px;
+  position: relative;
+}
+.native-stat-action .work-stat {
+  width: 100%;
+  min-width: 0;
+  min-height: 108px;
+  height: 100%;
+  padding: 18px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.native-stat-action:hover:not(:disabled) .work-stat,
+.native-stat-action[aria-pressed="true"] .work-stat {
+  border-color: var(--muted);
+  box-shadow: 0 2px 8px #33454e0a;
+}
+.native-stat-action[aria-pressed="true"] .work-stat {
+  background: #76949f08;
+}
+.native-stat-action .work-stat-icon {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 10px;
+  background: #76949f18;
+  color: var(--brand);
+}
+.native-stat-action .work-stat-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.stat-incoming .work-stat-icon {
+  background: #73e8af2e;
+}
+.stat-unassigned .work-stat-icon {
+  background: #76949f22;
+}
+.native-stat-action .work-stat-content {
+  min-width: 0;
+  gap: 5px;
+}
+.native-stat-action .work-stat-label {
+  font: 500 13px/20px var(--font-sans);
+  color: var(--brand);
+}
+.native-stat-action .work-stat-value {
+  font: 700 28px/34px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Segment belongs beside the heading, while its options share one size. */
+.queue-heading > [class*="gd-Segment"] {
+  width: auto;
+  flex: 0 1 auto;
+  min-width: 300px;
+}
+.queue-heading [class*="gd-Segment"] {
+  font-family: var(--font-sans);
+}
+.queue-heading [role="tab"] {
+  font: 500 13px/20px var(--font-sans);
+  min-height: 32px;
+}
+
+/* The same case information keeps the same typography in both queues. */
+.case-table th {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 13px 12px;
+}
+.case-table td,
+.all-cases-table td {
+  font-size: 13px;
+  line-height: 21px;
+  padding: 15px 12px;
+}
+.case-subject-cell strong,
+.all-cases-table .subject-only {
+  font-size: 13px;
+  line-height: 21px;
+  font-weight: 600;
+}
+.case-subject-cell > a,
+.case-subject-cell > span,
+.case-number-cell {
+  font-size: 12px !important;
+}
+.customer-cell small,
+.sla-indicator small,
+.case-number-cell small,
+.muted-cell {
+  font-size: 12px;
+  line-height: 19px;
+}
+.case-table .case-priority {
+  min-width: 88px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 12px/18px var(--font-sans);
+  background: #76949f08;
+}
+.case-priority .gd-Tag__label {
+  font: inherit;
+}
+/* Keep long labels and sort glyphs on a shared baseline. */
+.case-table th .gd-Table__cellText {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.case-table .product-label,
+.case-table .channel-label,
+.case-table .assignee,
+.case-table .sla-indicator > span {
+  font-size: 13px;
+  line-height: 21px;
+}
+.case-table .tier-label {
+  font-size: 12px;
+  line-height: 18px;
+}
+.case-table .avatar {
+  font-size: 11px;
+  width: 32px;
+  height: 32px;
+}
+.queue-toolbar .search-field {
+  height: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+}
+.queue-toolbar .search-field input,
+.all-search-panel .search-field input {
+  font-size: 13px;
+  line-height: 20px;
+}
+.all-search-panel .search-field {
+  min-height: 42px;
+  border-radius: 8px;
+}
+.all-search-panel > p,
+.saved-views,
+.saved-views button {
+  font-size: 12px;
+}
+.related-subject strong {
+  font-size: 13px;
+  line-height: 21px;
+}
+.related-subject small,
+.related-cases > p {
+  font-size: 12px;
+  line-height: 19px;
+}
+.case-preview-heading {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.case-preview-heading h2 {
+  font-size: 16px;
+  line-height: 24px;
+}
+.case-preview-heading > span {
+  font-size: 11px;
+  line-height: 18px;
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+.case-preview dd {
+  font-size: 13px;
+  line-height: 21px;
+}
+.case-preview dd.preview-case-number {
+  font-size: 14px;
+}
+.case-preview .preview-number-hint,
+.automatic-fields,
+.automatic-fields strong,
+.severity-preview,
+.capture-accordion summary,
+.capture-accordion .field-hint {
+  font-size: 12px;
+  line-height: 20px;
+}
+.capture-accordion summary {
+  min-height: 48px;
+}
+.customer-picker .search-field > span:first-child {
+  display: none;
+}
+.case-preview .case-priority {
+  font: 500 12px/18px var(--font-sans);
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 7px;
+}
+.preview-priority,
+.preview-priority p {
+  font-size: 12px;
+  line-height: 20px;
+}
+.drawer-body legend,
+.drawer-body .check-label {
+  font-size: 13px;
+  line-height: 21px;
+}
+.case-table .case-priority[data-priority="S1"] {
+  background: #9e2a2b0b;
+}
+.case-table .case-priority[data-priority="S3"] {
+  background: #73e8af18;
+}
+.status-label {
+  font-size: 11px;
+  min-height: 26px;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+.table-pagination {
+  font-size: 12px;
+}
+.table-pagination .ui-button {
+  min-width: 36px;
+}
+.table-pagination select {
+  height: 36px;
+  min-height: 36px;
+  font-size: 13px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+.detail-card dt,
+.detail-edit label,
+.login-card label {
+  font-size: 13px;
+  line-height: 21px;
+}
+.detail-card dd,
+.detail-card p {
+  font-size: 14px;
+  line-height: 22px;
+}
+.detail-card select.input {
+  height: 42px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.login-card .ui-button {
+  width: 100%;
+}
+.login-card > p,
+.login-brand small {
+  font-size: 13px;
+  line-height: 21px;
+}
+
+@media (max-width: 1200px) {
+  .action-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .native-stat-action .work-stat {
+    min-height: 100px;
+  }
+  .queue-heading-actions {
+    gap: 8px;
+  }
+}
+@media (max-width: 700px) {
+  .page-heading h1,
+  .capture-page h1 {
+    font-size: 22px;
+    line-height: 32px;
+  }
+  .action-counts {
+    gap: 10px;
+  }
+  .native-stat-action .work-stat {
+    padding: 14px 12px;
+    min-height: 130px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .native-stat-action .work-stat-icon {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+  .native-stat-action .work-stat-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .native-stat-action .work-stat-label {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .native-stat-action .work-stat-value {
+    font-size: 26px;
+    line-height: 32px;
+  }
+  .queue-heading > [class*="gd-Segment"] {
+    width: 100%;
+    min-width: 0;
+  }
+  .queue-heading-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .sort-control {
+    min-width: 0;
+    font-size: 12px;
+  }
+  .sort-control select {
+    max-width: 160px;
+    font-size: 12px;
+  }
+  .quick-filters {
+    gap: 8px;
+  }
+  .queue-toolbar > .search-field {
+    width: 100%;
+    max-width: none;
+  }
+  .case-table td,
+  .all-cases-table td {
+    padding: 4px 0;
+  }
+  .case-subject-cell strong {
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .case-table .case-priority {
+    min-width: 82px;
+  }
+  .customer-picker-row {
+    align-items: stretch;
+  }
+  .channel-options .channel-option {
+    min-height: 42px;
+    white-space: normal;
+    padding: 6px;
+    font-size: 12px;
+  }
+  .capture-bottom-bar .ui-button {
+    flex: 1;
+    height: 42px;
+    min-height: 42px;
+  }
+  .related-case {
+    gap: 8px;
+  }
+  .related-subject {
+    flex-basis: 100%;
+  }
+  .capture-card-heading > small {
+    display: none;
+  }
+}
+
+.lifecycle-panel {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.lifecycle-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.lifecycle-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  max-width: 680px;
+}
+.lifecycle-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.lifecycle-form select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 8px;
+}

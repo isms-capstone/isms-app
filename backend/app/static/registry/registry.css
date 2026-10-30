@@ -20,3 +20,17 @@ button,input,select{min-height:44px}
 .queue-table td.actions { white-space: normal; }
 .queue-table td.actions::before { display: none; }
 .queue-table td:first-child { overflow-wrap: anywhere; }
+
+/* CAP-05 case attachments */
+.attachment-drop-zone{border:2px dashed #9aafb8;border-radius:8px;padding:18px;text-align:center;color:#526b75;cursor:pointer;background:#f8fbfc;margin:10px 0}.attachment-drop-zone.dragging{background:#e6f3f7;border-color:#33454e}.attachment-pending-list{padding-left:20px}.attachment-pending-list li{margin:8px 0;overflow-wrap:anywhere}.attachment-pending-list button{margin-left:10px;padding:4px 8px;font-size:12px}.ticket-attachment-row{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;border-bottom:1px solid var(--border);padding:12px 0}.ticket-attachment-row a{overflow-wrap:anywhere}.ticket-attachment-row img {
+ display: block;
+    width: auto;
+    height: auto;
+    max-width: min(100%, 320px);
+    max-height: 220px;
+    object-fit: contain;
+    object-position: left top;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+}

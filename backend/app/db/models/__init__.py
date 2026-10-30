@@ -41,3 +41,6 @@ __all__ = [
 ]
 
 from app.db.models.ticket import Ticket, TicketNumberSequence
+
+from app.db.models.ticket_history import TicketStatusHistory
+from app.db.models.ticket_attachment import TicketAttachment
