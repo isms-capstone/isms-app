@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock3, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Clock3, CheckCircle2, Pencil, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import {
@@ -33,7 +33,13 @@ export function CaseDetail({ id }: { id: number }) {
     [reported, setReported] = useState(""),
     [saving, setSaving] = useState(false),
     [message, setMessage] = useState(""),
-    [attempt, setAttempt] = useState(0);
+    [attempt, setAttempt] = useState(0),
+    [assigneeName, setAssigneeName] = useState("ยังไม่มีผู้รับผิดชอบ"),
+    [editingNew, setEditingNew] = useState(false),
+    [newSubject, setNewSubject] = useState(""),
+    [newDescription, setNewDescription] = useState(""),
+    [newChannel, setNewChannel] = useState(""),
+    [savingNew, setSavingNew] = useState(false);
 
   useEffect(() => {
     if (preview || !session) return;
@@ -49,7 +55,22 @@ export function CaseDetail({ id }: { id: number }) {
         }
         setTicket(row);
         setValue(row.subject || "");
+        setNewSubject(row.subject || "");
+        setNewDescription(row.description || "");
+        setNewChannel(row.channel || "");
         setReported(localDateTime(row.reported_at));
+        if (row.assignee_id) {
+          const options = await api<{ assignees: { id: number; name: string }[] }>(
+            `/tickets/${id}/lifecycle-options`,
+            { signal: controller.signal },
+          );
+          setAssigneeName(
+            options.assignees.find((person) => person.id === row.assignee_id)?.name ||
+              `ผู้ใช้ #${row.assignee_id}`,
+          );
+        } else {
+          setAssigneeName("ยังไม่มีผู้รับผิดชอบ");
+        }
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -76,6 +97,42 @@ export function CaseDetail({ id }: { id: number }) {
   }
 
   const editable = !preview && session?.can_create_cases;
+  const canEditNew = Boolean(
+    !preview && ticket?.status === "NEW" && session &&
+    (session.role === "Admin" || [ticket.created_by_id, ticket.owner_id, ticket.assignee_id].includes(session.id)),
+  );
+
+  async function saveNewDetails(event: FormEvent) {
+    event.preventDefault();
+    if (!ticket) return;
+    setSavingNew(true);
+    setError("");
+    setMessage("");
+    try {
+      const changes: [string, string | null][] = [
+        ["subject", newSubject.trim()],
+        ["description", newDescription.trim() || null],
+        ["channel", newChannel || null],
+      ];
+      for (const [fieldName, fieldValue] of changes) {
+        const currentValue = ticket[fieldName as "subject" | "description" | "channel"] || null;
+        if (currentValue !== fieldValue) {
+          const updated = await api<Ticket>(`/tickets/${id}/new-field`, {
+            method: "PATCH",
+            body: JSON.stringify({ field: fieldName, value: fieldValue }),
+          });
+          setTicket(updated);
+        }
+      }
+      setEditingNew(false);
+      setMessage("บันทึกข้อมูลเคสแล้ว");
+      setAttempt((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "บันทึกข้อมูลไม่สำเร็จ");
+    } finally {
+      setSavingNew(false);
+    }
+  }
 
   return (
     <AppShell title="รายละเอียดเคส">
@@ -108,7 +165,14 @@ export function CaseDetail({ id }: { id: number }) {
             <LifecycleActions ticket={ticket} onUpdated={setTicket} />
           )}
 
-          <h2>ข้อมูลเคส</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2>ข้อมูลเคส</h2>
+            {canEditNew && !editingNew && (
+              <Button type="button" onClick={() => setEditingNew(true)}>
+                <Pencil size={14} /> แก้ไขข้อมูลเคส
+              </Button>
+            )}
+          </div>
           <dl className="detail-grid">
             {[
               [
@@ -128,6 +192,7 @@ export function CaseDetail({ id }: { id: number }) {
                 new Date(ticket.created_at).toLocaleString("th-TH"),
               ],
               ["รายละเอียด", ticket.description || "ยังไม่มีรายละเอียด"],
+              ["ผู้รับผิดชอบ (Assigned To)", assigneeName],
             ].map(([label, text]) => (
               <div key={label}>
                 <dt>{label}</dt>
@@ -151,6 +216,37 @@ export function CaseDetail({ id }: { id: number }) {
               <dd className="text-muted">ยังไม่มีการคำนวณจาก Backend</dd>
             </div>
           </dl>
+
+          {canEditNew && editingNew && (
+            <form className="detail-edit" onSubmit={saveNewDetails}>
+              <div className="flex items-center justify-between gap-2">
+                <h3>แก้ไขข้อมูลเคส (สถานะ NEW)</h3>
+                <Button type="button" onClick={() => setEditingNew(false)}>
+                  <X size={14} /> ยกเลิก
+                </Button>
+              </div>
+              <label>
+                หัวข้อเคส
+                <Input maxLength={255} required value={newSubject} onChange={setNewSubject} />
+              </label>
+              <label>
+                รายละเอียด
+                <textarea maxLength={20000} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+              </label>
+              <label>
+                ช่องทาง
+                <select className="input" value={newChannel} onChange={(e) => setNewChannel(e.target.value)}>
+                  <option value="">ยังไม่ระบุ</option>
+                  {Object.entries(channelNames).map(([channelId, label]) => (
+                    <option key={channelId} value={channelId}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <Button type="submit" variant="primary" disabled={savingNew}>
+                {savingNew ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+              </Button>
+            </form>
+          )}
 
           {editable &&
             ticket.status === "DRAFT" &&

@@ -101,13 +101,19 @@ export function LifecycleActions({
               setError("");
             }}
           >
-            {statusNames[action] || action}
+            {action === "CANCELLED"
+              ? "ยกเลิกเคส (สร้างผิด)"
+              : statusNames[action] || action}
           </Button>
         ))}
       </div>
       {target && (
         <form onSubmit={submit} className="lifecycle-form">
-          <strong>{statusNames[target] || target}</strong>
+          <strong>
+            {target === "CANCELLED"
+              ? "ยกเลิกเคส (สร้างผิด)"
+              : statusNames[target] || target}
+          </strong>
           {target === "IN_PROGRESS" &&
             !ticket.assignee_id &&
             choice("assignee_id", "ผู้ดำเนินการ", options.assignees)}

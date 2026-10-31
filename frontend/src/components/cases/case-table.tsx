@@ -68,18 +68,19 @@ export function CaseTable({
           "PRIORITY",
           "STATUS",
           "CHANNEL",
-          "ASSIGNEE",
+          "ASSIGNED TO",
           "SLA",
         ]
       : [
           "CASE / SUBJECT",
           "CUSTOMER",
+          "STATUS",
           "PRIORITY",
           "PRODUCT",
           "CHANNEL",
           "TIER",
           "SLA",
-          "ASSIGNEE",
+          "ASSIGNED TO",
         ];
   return (
     <>
@@ -196,6 +197,11 @@ export function CaseTable({
                   </>
                 ) : (
                   <>
+                    <TableCell data-label="สถานะ">
+                      <span className={`status-label status-${row.status}`}>
+                        {row.status.replaceAll("_", " ")}
+                      </span>
+                    </TableCell>
                     <TableCell data-label="Priority">
                       <PriorityBadge value={row.severity} />
                     </TableCell>
