@@ -19,10 +19,11 @@ export class ApiError extends Error {
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api/backend${path}`, {
     ...init,
-    headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
+   headers: {
+  ...(init.body && !(init.body instanceof FormData)
+    ? { "Content-Type": "application/json" } : {}),
+  ...init.headers,
+},
     cache: "no-store",
   });
   const data = response.status === 204 ? null : await response.json();

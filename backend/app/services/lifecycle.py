@@ -9,9 +9,26 @@ from app.db.models.master_data import CauseCode, SolutionCode, ProblemType
 from app.db.models.product import ProductInstance
 
 
-def authorize_case(ticket, user):
+SUPPORT_ROLES = {'Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'}
+
+
+def authorize_view(ticket, user):
+    """อ่าน/ขอข้อมูลประกอบของเคสได้ แค่ต้องมี support role ใดก็ได้
+    ไม่บังคับว่าต้องเป็น creator/owner/assignee ของเคสนั้นโดยเฉพาะ
+    ใช้กับ endpoint ที่แค่ "ดู" เช่น lifecycle-options, ticket detail
+    ไม่ใช้กับ endpoint ที่ "แก้ไข" เคส (ใช้ authorize_case แทน)
+    """
     role = user.role.name if user.role else None
-    if role not in {'Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'}:
+    if role not in SUPPORT_ROLES:
+        raise HTTPException(403, 'Case operations require a support role')
+
+
+def authorize_case(ticket, user):
+    """แก้ไข/เปลี่ยนสถานะเคสได้ ต้องเป็น Admin หรือ participant ของเคสนั้นเท่านั้น
+    คงพฤติกรรมเดิมไว้ทั้งหมด — ใช้กับทุก endpoint ที่ mutate เคส
+    """
+    role = user.role.name if user.role else None
+    if role not in SUPPORT_ROLES:
         raise HTTPException(403, 'Case operations require a support role')
     if role == 'Admin' or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
         return

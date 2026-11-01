@@ -24,6 +24,7 @@ import {
   PriorityBadge,
   ProductLabel,
   SlaIndicator,
+  StatusBadge,
 } from "./case-badges";
 export function CaseTable({
   rows,
@@ -181,9 +182,7 @@ export function CaseTable({
                       <PriorityBadge value={row.severity} compact />
                     </TableCell>
                     <TableCell data-label="สถานะ">
-                      <span className={`status-label status-${row.status}`}>
-                        {row.status.replaceAll("_", " ")}
-                      </span>
+                      <StatusBadge status={row.status} compact />
                     </TableCell>
                     <TableCell data-label="ช่องทาง">
                       <ChannelLabel channel={row.channel} />
@@ -198,9 +197,7 @@ export function CaseTable({
                 ) : (
                   <>
                     <TableCell data-label="สถานะ">
-                      <span className={`status-label status-${row.status}`}>
-                        {row.status.replaceAll("_", " ")}
-                      </span>
+                      <StatusBadge status={row.status} compact />
                     </TableCell>
                     <TableCell data-label="Priority">
                       <PriorityBadge value={row.severity} />

@@ -18,6 +18,8 @@ import {
   Check,
   PlayCircle,
   FileEdit,
+  RotateCcw,
+  Hourglass,
 } from "lucide-react";
 import type { CaseRow } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
@@ -35,7 +37,7 @@ export function StatusBadge({
   const currentStatus = status.toUpperCase();
 
   // กำหนดสไตล์ สี และไอคอนตาม Requirement BR-01..13
-  const statusConfig: Record<
+   const statusConfig: Record<
     string,
     {
       label: string;
@@ -47,66 +49,97 @@ export function StatusBadge({
   > = {
     DRAFT: {
       label: statusNames.DRAFT || "ร่าง",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#64748b",
+      bg: "#f1f5f9",
+      border: "#cbd5e1",
       icon: FileEdit,
     },
     NEW: {
       label: statusNames.NEW || "ใหม่",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#0369a1",
+      bg: "#e0f2fe",
+      border: "#7dd3fc",
       icon: Clock3,
     },
     OPEN: {
       label: statusNames.OPEN || "เปิด",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#4338ca",
+      bg: "#eef2ff",
+      border: "#a5b4fc",
       icon: Clock3,
     },
     IN_PROGRESS: {
       label: statusNames.IN_PROGRESS || "กำลังดำเนินการ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#1d4ed8",
+      bg: "#dbeafe",
+      border: "#93c5fd",
       icon: PlayCircle,
     },
     PENDING: {
       label: statusNames.PENDING || "รอดำเนินการ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#b45309",
+      bg: "#fef3c7",
+      border: "#fcd34d",
       icon: Clock3,
+    },
+    // เพิ่ม: สถานะจริงของระบบคือ PENDING_CUSTOMER / PENDING_EXTERNAL ไม่ใช่ PENDING เฉยๆ
+    // เดิมไม่มี key นี้ เลยตกไปใช้สีเทา fallback ทั้งที่ backend ส่งค่านี้มาจริง
+    PENDING_CUSTOMER: {
+      label: statusNames.PENDING_CUSTOMER || "รอลูกค้าตอบกลับ",
+      color: "#b45309",
+      bg: "#fef3c7",
+      border: "#fcd34d",
+      icon: Hourglass,
+    },
+    PENDING_EXTERNAL: {
+      label: statusNames.PENDING_EXTERNAL || "รอหน่วยงานภายนอก",
+      color: "#7e22ce",
+      bg: "#f3e8ff",
+      border: "#d8b4fe",
+      icon: Hourglass,
     },
     ESCALATED: {
       label: statusNames.ESCALATED || "ส่งต่อผู้เชี่ยวชาญ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#c2410c",
+      bg: "#ffedd5",
+      border: "#fdba74",
       icon: AlertTriangle,
     },
     RESOLVED: {
       label: statusNames.RESOLVED || "แก้ไขแล้ว",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#15803d",
+      bg: "#dcfce7",
+      border: "#86efac",
       icon: CheckCircle2,
     },
     CLOSED: {
       label: statusNames.CLOSED || "ปิดเคส",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#475569",
+      bg: "#f1f5f9",
+      border: "#cbd5e1",
       icon: Check,
+    },
+    // เพิ่ม: REOPENED เดิมไม่มี key นี้เลยตกไปใช้สีเทา fallback
+    REOPENED: {
+      label: statusNames.REOPENED || "เปิดใหม่อีกครั้ง",
+      color: "#a16207",
+      bg: "#fef9c3",
+      border: "#fde047",
+      icon: RotateCcw,
     },
     CANCELLED: {
       label: statusNames.CANCELLED || "ยกเลิก",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
+      color: "#b91c1c",
+      bg: "#fee2e2",
+      border: "#fca5a5",
       icon: XCircle,
+    },
+    DUPLICATE: {
+      label: statusNames.DUPLICATE || "เคสซ้ำ",
+      color: "#7e22ce",
+      bg: "#f3e8ff",
+      border: "#d8b4fe",
+      icon: AlertTriangle,
     },
   };
 
@@ -122,10 +155,10 @@ export function StatusBadge({
 
   return (
     <span
-      className={cx(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors",
-        compact && "px-2 py-0.5 text-[11px]",
-      )}
+    className={cx(
+  "inline-flex items-center whitespace-nowrap rounded-full border font-semibold leading-none transition-colors",
+  compact ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-2.5 py-1 text-xs",
+)}
       style={{
         color: config.color,
         backgroundColor: config.bg,

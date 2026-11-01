@@ -25,12 +25,22 @@ from app.db.models.master_data import (
     SolutionCode,
     TicketType,
 )
+import logging
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
 from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut, TicketResolve, TicketFollowUp
+from app.schemas.ticket import (
+    DraftFieldUpdate,
+    ReportedTimeUpdate,
+    TicketCreate,
+    TicketDetailsUpdate,
+    TicketOut,
+    TicketResolve,
+    TicketFollowUp,
+)
+from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket import TicketStatus
 from app.services.auto_close import run_auto_close_resolved_tickets
 
@@ -138,6 +148,29 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True):
                   sla_policy_id=policy_id, is_exam_window=exam)
     return values, complete, now
 
+@router.get('/tickets/{ticket_id}/history')
+def ticket_history(ticket_id: int, db: Session = Depends(get_db),
+                   user: User = Depends(require_capture)):
+    from app.services.lifecycle import authorize_view
+    row = get_record(db, Ticket, ticket_id)
+    authorize_view(row, user)
+    rows = db.scalars(select(TicketStatusHistory)
+                      .where(TicketStatusHistory.ticket_id == ticket_id)
+                      .order_by(TicketStatusHistory.created_at, TicketStatusHistory.id)).all()
+    ids = {r.actor_id for r in rows}
+    for r in rows:
+        ids |= {v for k, v in (r.details or {}).items()
+                if k in ('owner_id', 'created_for_user_id', 'assignee_id') and isinstance(v, int)}
+    # ไม่กรอง is_active เพื่อให้แสดงชื่อคนที่ถูกปิดบัญชีไปแล้วด้วย
+    names = {u.id: getattr(u, 'name', None) or u.username
+             for u in db.scalars(select(User).where(User.id.in_(ids))).all()}
+    return [{'id': r.id, 'actor_id': r.actor_id,
+             'actor_name': names.get(r.actor_id, f'ผู้ใช้ #{r.actor_id}'),
+             'from_status': r.from_status, 'to_status': r.to_status,
+             'created_at': r.created_at.isoformat(),
+             'details': r.details or {},
+             'owner_name': names.get((r.details or {}).get('owner_id'))}
+            for r in rows]
 
 @router.post('/tickets', response_model=TicketOut, status_code=201)
 def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
@@ -153,16 +186,30 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
+    if body.created_for_user_id is not None:
+        values['assignee_id'] = owner_id  # สร้างแทน: ระบุผู้รับผิดชอบจริงตั้งแต่ต้น
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()  # ให้ ticket.id ก่อนเขียน history
+        db.add(TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=ticket.status,  # ไม่ใช้ None เพื่อกันคอลัมน์ที่ห้าม null; แยกแยะด้วย details.event
+            to_status=ticket.status,
+            actor_id=user.id, created_at=now,
+            details={'event': 'CASE_CREATED',
+                     'recorded_by_id': user.id,
+                     'owner_id': owner_id,
+                     'assignee_id': values.get('assignee_id'),
+                     'created_for_user_id': body.created_for_user_id}))
         db.commit()
     except HTTPException:
         db.rollback()
         raise
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
+        logging.getLogger(__name__).error('create_ticket IntegrityError: %s', exc.orig)
         raise HTTPException(409, 'Case data changed; reload and try again') from None
     db.refresh(ticket)
     return ticket
@@ -195,6 +242,12 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
     try:
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        db.add(TicketStatusHistory(
+            ticket_id=ticket.id, from_status=None, to_status=ticket.status,
+            actor_id=user.id, created_at=now,
+            details={'event': 'CASE_CREATED', 'recorded_by_id': user.id,
+                     'owner_id': user.id, 'source_ticket_id': source.id}))
         db.commit()
     except HTTPException:
         db.rollback()
@@ -270,6 +323,164 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
             setattr(ticket, field, value)
     return commit_edit(db, ticket)
 
+@router.patch('/tickets/{ticket_id}/details', response_model=TicketOut)
+def edit_ticket_details(
+    ticket_id: int,
+    body: TicketDetailsUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    """
+    Update business details of a NEW ticket.
+    Lifecycle and system-managed fields cannot be changed here.
+    """
+
+    # 1. Check permission and lock the ticket
+    ticket = editable_ticket(db, ticket_id, user)
+
+    # 2. Only NEW tickets can use this endpoint
+    if ticket.status != 'NEW':
+        raise HTTPException(
+            409,
+            'Only NEW tickets support detail editing',
+        )
+
+    changes = body.model_dump(exclude_unset=True)
+    changed_fields = body.model_fields_set
+
+    # 3. Start from existing ticket data
+    data = {
+        field: getattr(ticket, field)
+        for field in TicketCreate.model_fields
+        if field not in ('save_as_draft', 'created_for_user_id')
+    }
+
+    data.update({
+        key: value
+        for key, value in changes.items()
+        if key in TicketCreate.model_fields
+    })
+
+    # 4. Clear dependent selections when parent changes.
+    # Keep a dependent value if the request explicitly supplies it.
+    if (
+        'organization_id' in changed_fields
+        and data['organization_id'] != ticket.organization_id
+    ):
+        dependent_fields = (
+            'contact_id',
+            'department_id',
+            'course_or_exam_id',
+            'product_instance_id',
+            'module_id',
+            'category_id',
+            'symptom_id',
+            'service_stage_id',
+        )
+
+        for field in dependent_fields:
+            if field not in changed_fields:
+                data[field] = None
+
+    elif (
+        'product_instance_id' in changed_fields
+        and data['product_instance_id'] != ticket.product_instance_id
+    ):
+        dependent_fields = (
+            'module_id',
+            'category_id',
+            'symptom_id',
+            'service_stage_id',
+        )
+
+        for field in dependent_fields:
+            if field not in changed_fields:
+                data[field] = None
+
+    elif (
+        'module_id' in changed_fields
+        and data['module_id'] != ticket.module_id
+        and 'category_id' not in changed_fields
+    ):
+        data['category_id'] = None
+
+    # 5. Keep the original reported time.
+    # Reported At has its own endpoint and validation.
+    if data.get('reported_at') and data['reported_at'].tzinfo is None:
+        data['reported_at'] = data['reported_at'].replace(
+            tzinfo=timezone.utc
+        )
+
+    data['save_as_draft'] = False
+
+    # 6. Validate all customer/product/category relationships
+    from pydantic import ValidationError
+
+    try:
+        selection = TicketCreate.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(
+            422,
+            [
+                {
+                    'loc': error['loc'],
+                    'msg': error['msg'],
+                }
+                for error in exc.errors()
+            ],
+        ) from None
+
+    values, complete, _ = capture_values(
+        selection,
+        db,
+        validate_reported=False,
+    )
+
+    # A NEW ticket must remain complete
+    if not complete:
+        raise HTTPException(
+            422,
+            'A NEW ticket must have Organization, Subject and Channel',
+        )
+
+    # 7. Update business fields only.
+    # Never overwrite status, ticket number or creation time.
+    product_changed = (
+        data['product_instance_id'] != ticket.product_instance_id
+    )
+
+    for field, value in values.items():
+        if field in (
+            'status',
+            'created_at',
+            'reported_at',
+            'created_by_id',
+            'ticket_no',
+            'reopen_count',
+            'resolved_at',
+            'closed_at',
+        ):
+            continue
+
+        if field == 'sla_policy_id' and not product_changed:
+            continue
+
+        setattr(ticket, field, value)
+
+    # 8. Update additional context fields
+    extra_fields = (
+        'environment',
+        'browser_device',
+        'source_url',
+        'exam_or_course_context',
+    )
+
+    for field in extra_fields:
+        if field in changes:
+            setattr(ticket, field, changes[field])
+
+    # 9. Commit once
+    return commit_edit(db, ticket)
 
 @router.patch('/tickets/{ticket_id}/reported-at', response_model=TicketOut)
 def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = Depends(get_db),
@@ -359,6 +570,17 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
     return db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
 
 
+@router.get('/tickets/team-members')
+def team_members(db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    role = user.role.name if user.role else None
+    filters = [User.is_active.is_(True), User.id != user.id]
+    if role != 'Admin':
+        if user.team_id is None:
+            return []
+        filters.append(User.team_id == user.team_id)
+    return [{'id': u.id, 'name': getattr(u, 'name', None) or u.username}
+            for u in db.scalars(select(User).where(*filters)).all()]
+
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
     return get_record(db, Ticket, ticket_id)
@@ -366,11 +588,15 @@ def ticket(ticket_id: int, db: Session = Depends(get_db)):
 
 @router.get('/tickets/{ticket_id}/lifecycle-options')
 def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(require_capture)):
-    from app.services.lifecycle import authorize_case
+    from app.services.lifecycle import authorize_view
     from app.core.state_machine import TRANSITION_RULES
     from app.db.models.master_data import ProblemType
     row = get_record(db, Ticket, ticket_id)
-    authorize_case(row, user)
+    # แก้: เดิมเรียก authorize_case ซึ่งบังคับว่าต้องเป็น participant ของเคสนั้น
+    # ทำให้คนที่แค่ "ดู" เคส (ไม่ใช่เจ้าของ/assignee) โดน 403 ทั้งที่แค่จะขอ
+    # รายชื่อตัวเลือก (assignee list ฯลฯ) ไปแสดงผล ไม่ได้ขอแก้ไขอะไร
+    # เปลี่ยนมาเช็คแค่ว่ามี support role ก็พอ — endpoint นี้เป็น read-only
+    authorize_view(row, user)
     role = user.role.name if user.role else None
     policy_role = 'Agent' if role in {'Specialist', 'Developer', 'Team Lead'} else role
     actions = [str(rule['to'].value) for rule in TRANSITION_RULES

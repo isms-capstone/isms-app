@@ -73,6 +73,7 @@ export function CaptureScreen() {
     [category, setCategory] = useState(""),
     [symptom, setSymptom] = useState(""),
     [stage, setStage] = useState("");
+    const [files, setFiles] = useState<File[]>([]);
   const [options, setOptions] = useState<CaseOptions | null>(null),
     [optionsLoading, setOptionsLoading] = useState(false),
     [existing, setExisting] = useState<TicketType[]>([]),
@@ -158,8 +159,14 @@ export function CaptureScreen() {
           category_id: category ? Number(category) : null,
           symptom_id: symptom ? Number(symptom) : null,
           service_stage_id: stage ? Number(stage) : null,
+          created_for_user_id: createdFor ? Number(createdFor) : null,
         }),
       });
+      for (const f of files) {
+  const fd = new FormData();
+  fd.append("file", f);
+  await api(`/tickets/${ticket.id}/attachments`, { method: "POST", body: fd });
+}
       router.push(href(`/cases/${ticket.id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ");
@@ -167,6 +174,13 @@ export function CaptureScreen() {
       setSaving(false);
     }
   }
+
+const [createdFor, setCreatedFor] = useState("");
+const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
+useEffect(() => {
+  if (preview) return;
+  api<{ id: number; name: string }[]>("/tickets/team-members").then(setMembers).catch(() => {});
+}, [preview]);
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     save(false);
@@ -366,6 +380,13 @@ export function CaptureScreen() {
                   })}
                 </div>
               </fieldset>
+              {select(
+  "สร้างแทนเพื่อนร่วมทีม (ไม่บังคับ)",
+  createdFor,
+  setCreatedFor,
+  members,
+  members.length === 0,
+)}
               <details className="capture-accordion">
                 <summary>
                   <FileText size={15} />
@@ -457,9 +478,10 @@ export function CaptureScreen() {
                   <span>แนบภาพหรือไฟล์เพื่อช่วยตรวจสอบปัญหา</span>
                   <ChevronDown size={15} />
                 </summary>
-                <p className="field-hint">
-                  ส่วนแนบไฟล์ยังไม่เปิดใช้งานใน Backend รอบนี้
-                </p>
+                
+<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf"
+  onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+{files.map((f) => <small key={f.name}>{f.name}</small>)}
               </details>
               {error && (
                 <p className="form-error" role="alert">
