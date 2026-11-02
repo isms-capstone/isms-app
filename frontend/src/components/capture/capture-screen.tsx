@@ -55,6 +55,33 @@ type CaseOptions = {
   symptoms: Option[];
   service_stages: Option[];
 };
+
+type SimilarCase = {
+  id: number;
+  ticket_no: string | null;
+  subject: string | null;
+  status: string;
+  hint: string;
+  score: number;
+  customer: string;
+  product: string;
+  assignee: string | null;
+  last_activity: string;
+  channel?: string | null;
+  category_id?: number | null;
+  product_instance_id?: number | null;
+  severity?: string | null;
+  resolution_code_id?: number | null;
+  resolution_detail?: string | null;
+};
+
+type SimilarSearchResponse = {
+  feedback_id: number | null;
+  count: number;
+  items: SimilarCase[];
+};
+
+
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -80,6 +107,16 @@ export function CaptureScreen() {
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
     [message, setMessage] = useState("");
+  const [similarItems, setSimilarItems] = useState<SimilarCase[]>([]);
+const [similarFeedbackId, setSimilarFeedbackId] = useState<number | null>(null);
+const [similarLoading, setSimilarLoading] = useState(false);
+const [similarError, setSimilarError] = useState("");
+const [similarRetry, setSimilarRetry] = useState(0);
+const [similarDecision, setSimilarDecision] = useState<
+  "reuse" | "link" | "new" | ""
+>("");
+const [chosenSimilarId, setChosenSimilarId] = useState<number | null>(null);
+const [decisionSaving, setDecisionSaving] = useState(false);
   const onError = useCallback((value: string) => setError(value), []);
   const chooseContext = useCallback((value: SelectionContext | null) => {
     setContext(value);
@@ -130,10 +167,140 @@ export function CaptureScreen() {
     load();
     return () => controller.abort();
   }, [instance, context, preview]);
+  const similarityQuery = `${subject} ${description}`.trim();
+
+useEffect(() => {
+  if (preview || !session || similarityQuery.length < 10) {
+    setSimilarItems([]);
+    setSimilarFeedbackId(null);
+    setSimilarError("");
+    setSimilarLoading(false);
+    return;
+  }
+
+  const controller = new AbortController();
+
+  const debounceTimer = window.setTimeout(async () => {
+  const timeoutTimer = window.setTimeout(() => {
+  if (!controller.signal.aborted) {
+    setSimilarError("ค้นหาเคสใช้เวลานานเกินไป กรุณาลองอีกครั้ง");
+    setSimilarLoading(false);
+    controller.abort();
+  }
+}, 10000);
+
+    setSimilarLoading(true);
+    setSimilarError("");
+
+    try {
+      const params = new URLSearchParams({
+        q: similarityQuery,
+      });
+
+      if (context?.organization.id) {
+        params.set("organization_id", String(context.organization.id));
+      }
+
+      if (instance) {
+        params.set("product_instance_id", String(instance));
+      }
+
+      const result = await api<SimilarSearchResponse>(
+        `/tickets/similar?${params.toString()}`,
+        { signal: controller.signal },
+      );
+
+      if (!controller.signal.aborted) {
+        setSimilarItems(result.items || []);
+        setSimilarFeedbackId(result.feedback_id);
+        setSimilarDecision("");
+        setChosenSimilarId(null);
+      }
+    } catch (e) {
+      if (!controller.signal.aborted) {
+        setSimilarError(
+          e instanceof Error ? e.message : "ค้นหาเคสคล้ายไม่สำเร็จ",
+        );
+      }
+    } finally {
+  window.clearTimeout(timeoutTimer);
+
+  if (!controller.signal.aborted) {
+    setSimilarLoading(false);
+  }
+}
+  }, 500);
+
+  return () => {
+    window.clearTimeout(debounceTimer);
+    controller.abort();
+  };
+}, [
+  subject,
+  description,
+  context,
+  instance,
+  preview,
+  session,
+  similarRetry,
+]);
   const complete = !!context && !!subject.trim() && !!channel;
   const selectedProduct = context?.instances.find(
     (item) => item.id === instance,
   );
+  async function submitSimilarityDecision() {
+  if (!similarFeedbackId || !similarDecision || decisionSaving) return;
+
+  if (similarDecision !== "new" && !chosenSimilarId) {
+    setSimilarError("กรุณาเลือกเคสที่ต้องการอ้างอิงก่อน");
+    return;
+  }
+
+  setDecisionSaving(true);
+  setSimilarError("");
+
+  try {
+    await api(`/tickets/similarity-feedback/${similarFeedbackId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        decision: similarDecision,
+        chosen_ticket_id:
+          similarDecision === "new" ? null : chosenSimilarId,
+      }),
+    });
+
+    if (similarDecision === "reuse") {
+      const selected = similarItems.find(
+        (item) => item.id === chosenSimilarId,
+      );
+
+      if (selected) {
+        if (selected.product_instance_id) {
+          setInstance(selected.product_instance_id);
+        }
+
+        if (selected.category_id) {
+          setCategory(String(selected.category_id));
+        }
+
+        setMessage("เลือกใช้ข้อมูลจากเคสเดิมแล้ว กรุณาตรวจสอบข้อมูลก่อนสร้างเคส");
+      }
+   } else if (similarDecision === "link") {
+  setMessage(
+    "บันทึกการตัดสินใจแล้ว การสร้างความสัมพันธ์ระหว่างเคสจะดำเนินการเมื่อพัฒนา REL"
+  );
+} else {
+      setMessage("บันทึกการเลือกเปิดการสอบสวนใหม่แล้ว");
+    }
+  } catch (e) {
+    setSimilarError(
+      e instanceof Error ? e.message : "บันทึกผลการเลือกไม่สำเร็จ",
+    );
+  } finally {
+    setDecisionSaving(false);
+  }
+}
+
   async function save(draft: boolean) {
     if (preview) {
       setMessage("หน้านี้เป็น Design Preview · ไม่มีการบันทึกข้อมูลตัวอย่าง");
@@ -285,66 +452,120 @@ useEffect(() => {
                   onChange={setSubject}
                 />
               </label>
-              {preview ? (
-                <section className="related-cases">
-                  <div className="related-heading">
-                    <h3>เคสที่คล้ายกัน</h3>
-                    <span>พบ 3 รายการ</span>
-                    <small>ตัวอย่างการแสดงผล</small>
-                  </div>
-                  {previewRows.slice(0, 3).map((row, index) => (
-                    <div className="related-case" key={row.id}>
-                      <span className="match-score">
-                        {[94, 91, 78][index]}%
-                      </span>
-                      <div className="related-number">{row.ticket_no}</div>
-                      <div className="related-subject">
-                        <strong>{row.subject}</strong>
-                        <small>
-                          {row.product} ·{" "}
-                          {index === 0
-                            ? "Resolved"
-                            : index === 1
-                              ? "Closed"
-                              : "In Progress"}{" "}
-                          · {row.assignee} · {row.customer.split(" · ")[0]}
-                        </small>
-                      </div>
-                      <Link
-                        href={href(`/cases/${row.id}`)}
-                        className="button button-secondary button-sm"
-                      >
-                        <Eye size={12} />
-                        ดูเคส
-                      </Link>
-                    </div>
-                  ))}
-                  <p>
-                    เคสที่คล้ายกันเป็นเพียงคำแนะนำ คุณยังสามารถสร้างเคสใหม่ได้
-                  </p>
-                </section>
-              ) : context && existing.length > 0 ? (
-                <section className="related-cases">
-                  <div className="related-heading">
-                    <h3>เคสเปิดของลูกค้ารายนี้</h3>
-                    <span>{existing.length} รายการล่าสุด</span>
-                  </div>
-                  {existing.map((row) => (
-                    <div className="existing-case" key={row.id}>
-                      <span>
-                        <small>{row.ticket_no}</small>
-                        <strong>{row.subject}</strong>
-                      </span>
-                      <Link
-                        className="button button-secondary button-sm"
-                        href={href(`/cases/${row.id}`)}
-                      >
-                        ดูเคสเดิม
-                      </Link>
-                    </div>
-                  ))}
-                </section>
-              ) : null}
+              {!preview && (
+  <section className="related-cases">
+    <div className="related-heading">
+      <h3>เคสที่คล้ายกัน</h3>
+      <button
+        type="button"
+        className="button button-secondary button-sm"
+        onClick={() => setSimilarRetry((value) => value + 1)}
+        disabled={similarLoading}
+      >
+        ค้นหาเคสคล้ายอีกครั้ง
+      </button>
+    </div>
+
+    {similarLoading && <p>กำลังค้นหาเคสที่คล้ายกัน...</p>}
+
+    {similarError && (
+      <p className="form-error" role="alert">
+        {similarError}
+      </p>
+    )}
+
+    {!similarLoading && similarityQuery.length < 10 && (
+      <p>กรอกหัวข้อหรือรายละเอียดอย่างน้อย 10 ตัวอักษรเพื่อค้นหา</p>
+    )}
+
+    {!similarLoading && similarityQuery.length >= 10 &&
+      similarItems.length === 0 && (
+        <p>ยังไม่พบเคสที่คล้ายกัน คุณสามารถสร้างเคสใหม่ได้</p>
+      )}
+
+    {similarItems.map((item) => (
+      <div className="related-case" key={item.id}>
+        <span className="match-score">{item.score}%</span>
+
+        <div className="related-subject">
+          <strong>{item.ticket_no} · {item.subject}</strong>
+          <small>
+            {item.status} · {item.hint}
+          </small>
+          <small>
+            {item.product} · {item.customer}
+          </small>
+        </div>
+
+        <label>
+          <input
+            type="radio"
+            name="similar-ticket"
+            checked={chosenSimilarId === item.id}
+            onChange={() => setChosenSimilarId(item.id)}
+          />
+          เลือกเคสนี้
+        </label>
+
+        <Link
+          href={href(`/cases/${item.id}`)}
+          className="button button-secondary button-sm"
+        >
+          <Eye size={12} />
+          ดูเคส
+        </Link>
+      </div>
+    ))}
+
+    {similarFeedbackId && similarItems.length > 0 && (
+      <div className="similarity-decision">
+        <p><strong>คุณต้องการดำเนินการอย่างไร?</strong></p>
+
+        <label>
+          <input
+            type="radio"
+            name="similar-decision"
+            checked={similarDecision === "reuse"}
+            onChange={() => setSimilarDecision("reuse")}
+          />
+          ใช้วิธีแก้ไขจากเคสเดิม (Reuse)
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="similar-decision"
+            checked={similarDecision === "link"}
+            onChange={() => setSimilarDecision("link")}
+          />
+          เชื่อมโยงกับเคสเดิม (Link Existing)
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="similar-decision"
+            checked={similarDecision === "new"}
+            onChange={() => {
+              setSimilarDecision("new");
+              setChosenSimilarId(null);
+            }}
+          />
+          เปิดการสอบสวนใหม่ (New Investigation)
+        </label>
+
+        <Button
+          type="button"
+          disabled={!similarDecision || decisionSaving ||
+            (similarDecision !== "new" && !chosenSimilarId)}
+          onClick={submitSimilarityDecision}
+        >
+          {decisionSaving ? "กำลังบันทึก..." : "ยืนยันการเลือก"}
+        </Button>
+      </div>
+    )}
+  </section>
+)}
               <fieldset className="channel-field">
                 <legend>
                   ช่องทาง <span className="required">*</span>

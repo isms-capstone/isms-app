@@ -9,9 +9,14 @@ from fastapi.responses import FileResponse
 
 from pydantic import BaseModel, ConfigDict
 
+from typing import Literal
+
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.db.models.similarity_feedback import SimilarityFeedback
+from app.services.similarity import similar_cases
 
 from app.api.deps import RoleChecker, get_current_user
 from app.api.v1.endpoints.customers import get_record
@@ -65,6 +70,13 @@ class TicketStatusUpdatePayload(BaseModel):
     reopen_reason: str | None = None
     master_ticket_id: int | None = None
     cancel_reason: str | None = None
+    
+    
+class SimilarityDecisionPayload(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    decision: Literal['reuse', 'link', 'new']
+    chosen_ticket_id: int | None = None
 
 
 def next_ticket_number(db: Session, now: datetime):
@@ -580,6 +592,158 @@ def team_members(db: Session = Depends(get_db), user: User = Depends(require_cap
         filters.append(User.team_id == user.team_id)
     return [{'id': u.id, 'name': getattr(u, 'name', None) or u.username}
             for u in db.scalars(select(User).where(*filters)).all()]
+
+
+@router.get("/tickets/similar")
+def search_similar_tickets(
+    q: str = Query(..., min_length=10, max_length=20000),
+    organization_id: int | None = Query(default=None, ge=1),
+    product_instance_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    
+
+    """
+    Search similar tickets.
+    SIM-01, SIM-02, SIM-03, SIM-07, SIM-09
+    """
+
+    # ตรวจสอบความยาวข้อความหลังตัดช่องว่าง
+    query = q.strip()
+
+    if len(query) < 10:
+        raise HTTPException(
+            status_code=422,
+            detail="Search query must contain at least 10 characters",
+        )
+
+    try:
+        # ค้นหาเคสที่คล้ายกัน โดยแสดงสูงสุด 5 รายการ
+        items = similar_cases(
+            db=db,
+            q=query,
+            organization_id=organization_id,
+            product_instance_id=product_instance_id,
+            limit=5,
+        )
+
+        feedback_id = None
+
+        # บันทึกข้อเสนอทุกครั้งที่มีผลการค้นหาแสดงให้ผู้ใช้เลือก
+        if items:
+            feedback = SimilarityFeedback(
+                ticket_id=None,
+                suggested=[
+                    {
+                        "ticket_id": item["id"],
+                        "score": item["score"],
+                    }
+                    for item in items
+                ],
+                decision=None,
+                chosen_ticket_id=None,
+                created_by_id=user.id,
+            )
+
+            db.add(feedback)
+            db.commit()
+            db.refresh(feedback)
+
+            feedback_id = feedback.id
+
+        return {
+            "feedback_id": feedback_id,
+            "count": len(items),
+            "items": items,
+        }
+
+    except Exception:
+        db.rollback()
+        logging.exception("Similar ticket search failed")
+
+        # Search ล้มเหลวต้องไม่ทำให้การสร้าง Ticket หลักหยุดทำงาน
+        return {
+            "feedback_id": None,
+            "count": 0,
+            "items": [],
+        }
+
+@router.post('/tickets/similarity-feedback/{feedback_id}')
+def save_similarity_feedback(
+    feedback_id: int,
+    body: SimilarityDecisionPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    """
+    Record the user's decision for a SIM suggestion.
+    SIM-09 / KPI-10
+    """
+
+    feedback = db.get(SimilarityFeedback, feedback_id)
+
+    if feedback is None:
+        raise HTTPException(404, 'Similarity feedback not found')
+
+    # ป้องกันผู้ใช้อื่นมาแก้ไข feedback ของคนอื่น
+    if feedback.created_by_id != user.id:
+        role = user.role.name if user.role else None
+        if role != 'Admin':
+            raise HTTPException(403, 'You cannot update this feedback')
+
+    if body.decision in ('reuse', 'link'):
+        if body.chosen_ticket_id is None:
+            raise HTTPException(
+                422,
+                'Please select a suggested ticket',
+            )
+
+        # ต้องเลือก Ticket ที่อยู่ในรายการที่ SIM เสนอจริงเท่านั้น
+        suggested_ids = {
+            int(item['ticket_id'])
+            for item in (feedback.suggested or [])
+            if isinstance(item, dict) and item.get('ticket_id') is not None
+        }
+
+        if body.chosen_ticket_id not in suggested_ids:
+            raise HTTPException(
+                422,
+                'Selected ticket was not in the suggested results',
+            )
+
+        selected_ticket = db.get(Ticket, body.chosen_ticket_id)
+
+        if selected_ticket is None:
+            raise HTTPException(404, 'Selected ticket not found')
+
+    else:
+        # NEW: ไม่มี Ticket เดิมที่เลือก
+        if body.chosen_ticket_id is not None:
+            raise HTTPException(
+                422,
+                'New investigation must not include chosen_ticket_id',
+            )
+
+    feedback.decision = body.decision
+    feedback.chosen_ticket_id = body.chosen_ticket_id
+
+    try:
+        db.commit()
+        db.refresh(feedback)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            409,
+            'Unable to save similarity decision',
+        ) from None
+
+    return {
+        'message': 'Similarity decision saved',
+        'feedback_id': feedback.id,
+        'decision': feedback.decision,
+        'chosen_ticket_id': feedback.chosen_ticket_id,
+    }
 
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
