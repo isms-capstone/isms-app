@@ -52,7 +52,7 @@ Without Docker, run `python -m app.jobs.routing_worker` from `backend` in a sepa
 
 ## Latest revalidation — 3 November 2026
 
-The current working tree was rechecked against PRD pages 14–16 and SRS section 8.6. Backend: **90 passed, 2 skipped**; migrated MariaDB: **29 passed**; real Edge browser: **10 passed**, including the standalone production worker's actual five-minute cadence. Lint, type-check, production build and Ruff passed locally. The existing local app has been refreshed, backed up and its routing worker enabled for the existing open DEMO cases. These follow-up fixes are delivered on `feature/P1-ESC`; the historical hosted CI results below do not validate this newer revision. Check the current PR checks before merging.
+The follow-up ESC fixes were rechecked against PRD pages 14–16 and SRS section 8.6. Backend: **90 passed, 2 skipped**; migrated MariaDB: **29 passed**; real Edge browser: **10 passed**, including the standalone production worker's actual five-minute cadence. Lint, type-check, production build and Ruff passed locally. The existing local app has been refreshed, backed up and its routing worker enabled for the existing open DEMO cases. These follow-up fixes are delivered on `feature/P1-ESC`; the historical hosted CI results below do not validate this newer revision. Check the current PR checks before merging.
 
 See [the dated acceptance report](ESC-ACCEPTANCE-2026-11-03.md) for the requirement matrix, real defects fixed, evidence and manual verification steps. No merge or deployment was performed.
 
