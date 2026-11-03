@@ -1,12 +1,7 @@
 "use client";
 import { useState } from "react";
-import {
-  PanelLeftClose,
-  ChevronRight,
-  Bell,
-  Search,
-  LogOut,
-} from "lucide-react";
+import { Search as GetSearch } from "@DeverhoodHT/get-design";
+import { PanelLeftClose, ChevronRight, Bell, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/providers/session-provider";
 import { Button } from "@/components/ui/primitives";
@@ -43,12 +38,11 @@ export function TopBar({
             router.push(`${href("/cases")}?q=${encodeURIComponent(query)}`);
           }}
         >
-          <Search size={15} />
-          <input
+          <GetSearch
             aria-label="ค้นหาเคสจากทุกหน้า"
             placeholder="ค้นหาเคส..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
           />
         </form>
         <span className="notification-icon" title="ยังไม่มีระบบแจ้งเตือน">
