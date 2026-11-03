@@ -31,6 +31,7 @@
 - Browser: 10 passed ใน 5.1 นาที (ไม่มี skipped) — Next.js production build, Edge, API และ MariaDB จริง
 - Frontend lint / TypeScript / production build ผ่าน; Python Ruff และ diff whitespace ผ่าน
 - มีภาพหน้าจอ, วิดีโอ และ Playwright trace ของการกดฟอร์มจริงในผลทดสอบ
+- Registry เดิม: lint และ browser workflow ผ่านหลังปรับ assertion ให้ตรวจ category_id ของประเภทปัญหาที่เลือกจริง แทนเลขลำดับฐานข้อมูลคงที่ 1 ซึ่งไม่ถูกต้องเมื่อมี fixture ของ ESC เพิ่มเข้ามา การตรวจการบันทึกประเภทปัญหายังคงอยู่ครบ
 
 ## วิธีตรวจผ่านหน้าเว็บด้วยตนเอง
 

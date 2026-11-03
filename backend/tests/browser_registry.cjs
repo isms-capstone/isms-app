@@ -153,6 +153,8 @@ fs.mkdirSync(output, {recursive: true});
     assert.equal(JSON.parse(await page.locator('body').getAttribute('data-qa-context')).course_or_exam_id, 1);
     await page.getByLabel('โมดูลของเคส', {exact: true}).selectOption({label: 'Teacher'});
     await page.getByLabel('ประเภทปัญหาของเคส', {exact: true}).selectOption({label: 'รหัสผ่าน'});
+    const selectedCategoryId = Number(await page.getByLabel('ประเภทปัญหาของเคส', {exact: true}).inputValue());
+    assert.ok(Number.isInteger(selectedCategoryId) && selectedCategoryId > 0);
     await page.getByLabel('อาการของเคส', {exact: true}).selectOption({label: 'เข้าสู่ระบบไม่ได้'});
     await page.locator('.channel-options').getByRole('button', {name: 'อีเมล', exact: true}).click();
     for (let index = 0; index < 2; index++) {
@@ -165,7 +167,7 @@ fs.mkdirSync(output, {recursive: true});
       assert.equal(ticket.status, 'NEW');
       assert.equal(ticket.department_id, 1);
       assert.equal(ticket.course_or_exam_id, 1);
-      assert.equal(ticket.category_id, 1);
+      assert.equal(ticket.category_id, selectedCategoryId);
       await page.getByRole('status').getByText(`บันทึก NEW: ${ticket.ticket_no}`, {exact: true}).waitFor();
     }
     await page.getByLabel('หัวข้อเคส', {exact: true}).fill('Draft QA');
