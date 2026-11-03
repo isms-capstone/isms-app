@@ -13,6 +13,7 @@ import {
 import { api } from "@/lib/api";
 import type { RoutingOptions, RoutingUser } from "@/lib/routing-types";
 type Workload = RoutingUser & {
+  eligible_users: RoutingUser[];
   tickets: { id: number; ticket_no: string; subject: string; tier: number }[];
 };
 export function RoutingWorkspace() {
@@ -179,24 +180,13 @@ export function RoutingWorkspace() {
                           onChange={(e) => setRecipient(e.target.value)}
                         >
                           <option value="">
-                            เลือกเพื่อนร่วมทีมที่พร้อมรับงาน
+                            เลือกผู้พร้อมรับงานที่ตรงกับทุกเคส
                           </option>
-                          {options.users
-                            .filter(
-                              (u) =>
-                                u.id !== me.id &&
-                                u.is_active &&
-                                u.is_available &&
-                                u.team_id === me.team_id &&
-                                me.tickets.every(
-                                  (t) => t.tier === u.default_tier,
-                                ),
-                            )
-                            .map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name} · Tier {u.default_tier}
-                              </option>
-                            ))}
+                          {me.eligible_users.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} · Tier {u.default_tier}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label>

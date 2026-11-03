@@ -182,6 +182,30 @@ def set_policy(body: PolicyInput, db: Database):
 
 @router.get("/routing/me")
 def workload(db: Database, user: SupportUser):
+    tickets = db.scalars(
+        select(Ticket)
+        .where(Ticket.assignee_id == user.id, Ticket.status.in_(OPEN_STATUSES))
+        .order_by(Ticket.id)
+    ).all()
+    candidates = db.scalars(
+        select(User)
+        .where(
+            User.id != user.id, User.is_active.is_(True), User.is_available.is_(True)
+        )
+        .order_by(User.id)
+    ).all()
+    eligible = [
+        member(candidate)
+        for candidate in candidates
+        if tickets
+        and service.role(candidate) in service.SUPPORT_ROLES
+        and all(
+            candidate.default_tier == ticket.current_tier
+            and service.route_team(db, ticket) is not None
+            and candidate.team_id == service.route_team(db, ticket)
+            for ticket in tickets
+        )
+    ]
     return member(user) | {
         "tickets": [
             {
@@ -190,12 +214,9 @@ def workload(db: Database, user: SupportUser):
                 "subject": row.subject,
                 "tier": row.current_tier,
             }
-            for row in db.scalars(
-                select(Ticket)
-                .where(Ticket.assignee_id == user.id, Ticket.status.in_(OPEN_STATUSES))
-                .order_by(Ticket.id)
-            ).all()
-        ]
+            for row in tickets
+        ],
+        "eligible_users": eligible,
     }
 
 
@@ -238,14 +259,7 @@ def routing_state(db, ticket, user):
         ):
             eligible.append(member(candidate))
     active = ticket.status in OPEN_STATUSES
-    latest = next(
-        (
-            row
-            for row in reversed(state["events"])
-            if row["kind"] in {"handoff", "auto_escalate", "return"}
-        ),
-        None,
-    )
+    latest = service.returnable_handoff(db, ticket)
     destination = user.id == ticket.assignee_id or service.lead_for(
         db, user, service.route_team(db, ticket)
     )
@@ -256,10 +270,7 @@ def routing_state(db, ticket, user):
             and authorized
             and ticket.current_tier is not None
             and ticket.current_tier > 0,
-            "return_case": active
-            and authorized
-            and destination
-            and bool(latest and latest["kind"] in {"handoff", "auto_escalate"}),
+            "return_case": active and authorized and destination and latest is not None,
             "assign": active
             and service.lead_for(db, user, service.route_team(db, ticket)),
             "self_assign": active
@@ -271,9 +282,7 @@ def routing_state(db, ticket, user):
             ),
             "respond": active and authorized and ticket.first_response_at is None,
         },
-        return_event_id=latest["id"]
-        if latest and latest["kind"] in {"handoff", "auto_escalate"}
-        else None,
+        return_event_id=latest.id if latest else None,
     )
     return state
 

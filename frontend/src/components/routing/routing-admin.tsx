@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GitBranch, Clock3, UsersRound, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -22,7 +23,10 @@ type Config = {
   worker: { last_success_at: string | null } | null;
 };
 export function RoutingAdmin() {
-  const { session, preview } = useSession();
+  const { session, preview, href } = useSession();
+  const [leaderTeam, setLeaderTeam] = useState("");
+  const [tierUser, setTierUser] = useState("");
+  const [userTier, setUserTier] = useState(2);
   const [options, setOptions] = useState<RoutingOptions | null>(null),
     [config, setConfig] = useState<Config | null>(null),
     [error, setError] = useState(""),
@@ -138,6 +142,44 @@ export function RoutingAdmin() {
             <TableSkeleton />
           ) : (
             <>
+              <section
+                className="surface routing-panel routing-guide"
+                aria-label="เริ่มตั้งค่าการส่งต่อ"
+              >
+                <h2>ตั้งครั้งแรกหรือเมื่อทีมเปลี่ยน</h2>
+                <p>
+                  หน้านี้สำหรับ Admin กำหนดว่าใครรับงานระดับไหน
+                  ไม่ใช่หน้ารับเคสประจำวัน และไม่ต้องตั้งใหม่ทุกเคส
+                </p>
+                <p>
+                  <strong>บทบาท</strong> คือสิทธิ์ใช้งาน · <strong>ทีม</strong>{" "}
+                  คือกลุ่มผู้รับผิดชอบ · <strong>Tier</strong> คือระดับบริการ: 2
+                  หน้าด่าน → 1 ผู้เชี่ยวชาญ → 0 ทีมพัฒนา
+                </p>
+                <Link className="text-link" href={href("/my-work")}>
+                  ไปงานของฉันเพื่อรับหรือส่งต่อเคส →
+                </Link>
+                {!config.worker?.last_success_at && (
+                  <p className="routing-error">
+                    ยังไม่พบการตรวจอัตโนมัติ
+                    ต้องให้ผู้ดูแลเปิดบริการตรวจเคสก่อนทดสอบ S1 และ New ค้าง
+                    การบันทึกนโยบายอย่างเดียวไม่ได้เริ่มบริการ
+                  </p>
+                )}
+                {!options.products.length && (
+                  <p role="status">
+                    ยังไม่มีผลิตภัณฑ์ในทะเบียน{" "}
+                    <Link
+                      className="text-link"
+                      prefetch={false}
+                      href="/registry"
+                    >
+                      เปิดทะเบียนผลิตภัณฑ์เพื่อเพิ่มข้อมูล
+                    </Link>{" "}
+                    แล้วกลับมากดโหลดข้อมูลใหม่
+                  </p>
+                )}
+              </section>
               <div className="routing-admin-grid">
                 <section className="surface routing-panel">
                   <h2>
@@ -154,7 +196,15 @@ export function RoutingAdmin() {
                     {select("product", "ผลิตภัณฑ์", options.products)}
                     {tiers}
                     {select("team", "ทีมปลายทาง", options.teams)}
-                    <Button type="submit" variant="primary" disabled={busy}>
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={
+                        busy ||
+                        !options.products.length ||
+                        !options.teams.length
+                      }
+                    >
                       บันทึกเส้นทาง
                     </Button>
                   </form>
@@ -168,11 +218,28 @@ export function RoutingAdmin() {
                     className="routing-form"
                     onSubmit={(e) => form(e, "leader")}
                   >
-                    {select("team", "ทีม", options.teams)}
+                    <label>
+                      ทีม
+                      <select
+                        required
+                        name="team"
+                        value={leaderTeam}
+                        onChange={(e) => setLeaderTeam(e.target.value)}
+                      >
+                        <option value="">เลือกทีม</option>
+                        {options.teams.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     {select(
                       "user",
                       "หัวหน้าทีม",
-                      options.users.filter((u) => u.is_active),
+                      options.users.filter(
+                        (u) => u.is_active && u.team_id === Number(leaderTeam),
+                      ),
                     )}
                     <small>ต้องเป็นสมาชิกที่เปิดใช้งานอยู่ในทีมที่เลือก</small>
                     <Button type="submit" variant="primary" disabled={busy}>
@@ -189,8 +256,47 @@ export function RoutingAdmin() {
                     className="routing-form"
                     onSubmit={(e) => form(e, "tier")}
                   >
-                    {select("user", "ผู้ใช้", options.users)}
-                    {tiers}
+                    <label>
+                      ผู้ใช้
+                      <select
+                        required
+                        name="user"
+                        value={tierUser}
+                        onChange={(e) => {
+                          setTierUser(e.target.value);
+                          setUserTier(
+                            options.users.find(
+                              (u) => u.id === Number(e.target.value),
+                            )?.default_tier ?? 2,
+                          );
+                        }}
+                      >
+                        <option value="">เลือกผู้ใช้</option>
+                        {options.users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} · {u.role}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Tier
+                      <select
+                        name="tier"
+                        value={userTier}
+                        onChange={(e) => setUserTier(Number(e.target.value))}
+                      >
+                        {[2, 1, 0].map((t) => (
+                          <option key={t} value={t}>
+                            Tier {t}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <small>
+                      เลือกผู้ใช้แล้วจะแสดง Tier ที่บันทึกไว้เดิม
+                      บทบาทบัญชียังคงเดิมเมื่อแก้ Tier
+                    </small>
                     <Button type="submit" variant="primary" disabled={busy}>
                       บันทึก Tier
                     </Button>

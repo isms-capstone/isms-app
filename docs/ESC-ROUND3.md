@@ -50,9 +50,15 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml -f docker-compo
 
 Without Docker, run `python -m app.jobs.routing_worker` from `backend` in a separate terminal with the same database environment as the API. The worker refuses to start against a stale schema. Admin should configure product/tier teams, user tiers and heads before expecting automatic assignment. `/routing/admin` reports the worker's last successful check. `/preview` remains a read-only visual fixture; use authenticated pages to operate routing.
 
-## Verification
+## Latest revalidation — 3 November 2026
 
-Validated on commit `9521b99`:
+The current working tree was rechecked against PRD pages 14–16 and SRS section 8.6. Backend: **90 passed, 2 skipped**; migrated MariaDB: **29 passed**; real Edge browser: **10 passed**, including the standalone production worker's actual five-minute cadence. Lint, type-check, production build and Ruff passed locally. The existing local app has been refreshed, backed up and its routing worker enabled for the existing open DEMO cases. These follow-up fixes are delivered on `feature/P1-ESC`; the historical hosted CI results below do not validate this newer revision. Check the current PR checks before merging.
+
+See [the dated acceptance report](ESC-ACCEPTANCE-2026-11-03.md) for the requirement matrix, real defects fixed, evidence and manual verification steps. No merge or deployment was performed.
+
+## Original validation — 30 October 2026
+
+Historical results on commit `9521b99`:
 
 - GitHub backend suite: **86 passed, 2 skipped** (the skips include the MariaDB-specific race in the SQLite suite).
 - GitHub MariaDB suite: **26 passed**, including real concurrent self-assignment; migration upgrade/downgrade and application image startup passed.
@@ -68,4 +74,4 @@ Evidence: https://github.com/isms-capstone/isms-app/actions/runs/40998965693 . R
 - Existing four frontend browser flows remain intact; lint, TypeScript and production build are required.
 - CI MariaDB job runs migrations and ESC tests against disposable MariaDB. Compose worker overlay validation is included.
 
-No local existing project database has been migrated during implementation. Local Docker engine startup was unavailable; migration, real row-lock behavior and image startup were successfully verified using disposable MariaDB in CI. The hosted frontend dependency-download failure above still needs resolution before merging.
+At the original validation on 30 October, Docker was unavailable and the existing local database had not been migrated. It was subsequently backed up and upgraded for the local demo; the 3 November revalidation above also used a separate disposable MariaDB database. Historical hosted CI is not proof for the follow-up revision; run current CI before merging.

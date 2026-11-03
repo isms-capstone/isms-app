@@ -5,6 +5,10 @@ import signal
 from threading import Event
 
 from app.db.migration_state import require_current_schema
+
+# A standalone worker does not import the HTTP router that normally registers
+# these tables. Ticket flushes must still resolve every customer-context FK.
+from app.db.models import customer, customer_context  # noqa: F401
 from app.db.session import SessionLocal, engine
 from app.services.routing_jobs import run_routing_checks
 

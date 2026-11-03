@@ -600,3 +600,127 @@ def test_team_lead_role_receives_alert_without_explicit_leader_mapping(routing):
         db.delete(db.get(TeamRouting, r.teams[0]))
         db.flush()
         assert [u.id for u in leaders(db, db.get(Ticket, case))] == [r.ids["lead"]]
+
+
+def test_nested_escalations_can_return_through_each_tier(routing):
+    r = routing
+    case = r.create()
+    first = handoff(r, case)
+    assert first.status_code == 200, first.text
+    r.login("specialist")
+    second = handoff(r, case, tier=0, assignee_id=r.ids["developer"])
+    assert second.status_code == 200, second.text
+    r.login("developer")
+    current = state(r, case)
+    returned = post(
+        r,
+        case,
+        "return",
+        expected_version=current["version"],
+        event_id=current["return_event_id"],
+        reason="Dev fixed; specialist verify",
+    )
+    assert returned.status_code == 200, returned.text
+    r.login("specialist")
+    current = state(r, case)
+    assert current["permissions"]["return_case"], (
+        "Tier 1 must be able to return the original Tier 2 handoff after Dev returns it"
+    )
+    returned = post(
+        r,
+        case,
+        "return",
+        expected_version=current["version"],
+        event_id=current["return_event_id"],
+        reason="Verified; support contact customer",
+    )
+    assert returned.status_code == 200, returned.text
+    assert (
+        returned.json()["tier"] == 2
+        and returned.json()["owner"]["id"] == r.ids["owner"]
+    )
+    assert returned.json()["assignee"]["id"] == r.ids["owner"]
+    with r.factory() as db:
+        assert (
+            db.scalar(select(func.count()).select_from(Ticket).where(Ticket.id == case))
+            == 1
+        )
+
+
+def test_bulk_recipient_options_follow_all_product_routes_not_source_team(routing):
+    r = routing
+    r.create()
+    with r.factory() as db:
+        route = db.scalar(
+            select(ProductTierRoute).where(
+                ProductTierRoute.product_id == r.product, ProductTierRoute.tier == 2
+            )
+        )
+        route.team_id = r.teams[1]
+        db.commit()
+    response = r.client.get("/api/v1/routing/me")
+    assert response.status_code == 200, response.text
+    assert r.ids["outsider"] in [u["id"] for u in response.json()["eligible_users"]]
+    assert r.ids["peer"] not in [u["id"] for u in response.json()["eligible_users"]]
+
+
+def test_scheduled_escalation_rechecks_recipient_availability(routing, monkeypatch):
+    from app.services import routing as service
+
+    r = routing
+    now = datetime(2026, 10, 27, 3, 0)
+    case = r.create(severity="S1", created_at=now - timedelta(minutes=21))
+    validate = service.target_user
+
+    def recipient_became_unavailable(db, ticket, user_id, tier):
+        db.get(User, user_id).is_available = False
+        db.flush()
+        return validate(db, ticket, user_id, tier)
+
+    monkeypatch.setattr(service, "target_user", recipient_became_unavailable)
+    with r.factory() as db:
+        result = run_routing_checks(db, now)
+        assert result["escalated"] == 0
+        assert db.get(Ticket, case).current_tier == 2
+        assert db.get(Ticket, case).assignee_id == r.ids["owner"]
+        assert db.scalar(
+            select(RoutingNotification.id).where(
+                RoutingNotification.ticket_id == case,
+                RoutingNotification.kind == "routing_blocked",
+            )
+        )
+        assert not db.scalar(
+            select(RoutingEvent.id).where(
+                RoutingEvent.ticket_id == case,
+                RoutingEvent.kind == "auto_escalate",
+            )
+        )
+
+
+def test_standalone_worker_loads_all_case_foreign_keys():
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = """
+from app.jobs import routing_worker
+from app.db.base_class import Base
+from sqlalchemy.orm import configure_mappers
+configure_mappers()
+assert 'ticket' in Base.metadata.tables
+for table in Base.metadata.sorted_tables:
+    for foreign_key in table.foreign_keys:
+        assert foreign_key.column is not None
+"""
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr

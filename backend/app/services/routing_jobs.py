@@ -3,6 +3,7 @@
 from datetime import UTC, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from fastapi import HTTPException
 from sqlalchemy import select, update
 
 from app.db.models.master_data import BusinessCalendar, BusinessHoliday
@@ -200,6 +201,21 @@ def run_routing_checks(db, now=None):
                 (user for user in candidates if leader and user.id == leader.leader_id),
                 candidates[0],
             )
+            try:
+                target = routing.target_user(db, ticket, target.id, tier - 1)
+            except HTTPException as error:
+                if error.status_code != 422:
+                    raise
+                routing.notify(
+                    db,
+                    ticket,
+                    recipients,
+                    "routing_blocked",
+                    "unavailable:" + key,
+                    f"{ticket.ticket_no}: ผู้รับไม่พร้อมแล้ว กรุณาตรวจทีมปลายทาง",
+                    now,
+                )
+                continue
             routing.claim_version(db, ticket, ticket.routing_version)
             routing.record(
                 db,

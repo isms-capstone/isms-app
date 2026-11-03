@@ -282,19 +282,29 @@ def handoff(db, ticket_id, body, user):
     return ticket
 
 
-def return_case(db, ticket_id, body, user):
-    ticket = lock_case(db, ticket_id, body.expected_version)
-    authorize(db, ticket, user)
-    original = db.get(RoutingEvent, body.event_id)
-    latest = db.scalar(
+def returnable_handoff(db, ticket):
+    """The top outstanding handoff at this tier, including after a nested return."""
+    returned = select(RoutingEvent.return_of_id).where(
+        RoutingEvent.ticket_id == ticket.id, RoutingEvent.return_of_id.is_not(None)
+    )
+    return db.scalar(
         select(RoutingEvent)
         .where(
             RoutingEvent.ticket_id == ticket.id,
-            RoutingEvent.kind.in_(["handoff", "auto_escalate", "return"]),
+            RoutingEvent.kind.in_(["handoff", "auto_escalate"]),
+            RoutingEvent.to_tier == ticket.current_tier,
+            RoutingEvent.id.not_in(returned),
         )
         .order_by(RoutingEvent.id.desc())
         .limit(1)
     )
+
+
+def return_case(db, ticket_id, body, user):
+    ticket = lock_case(db, ticket_id, body.expected_version)
+    authorize(db, ticket, user)
+    original = db.get(RoutingEvent, body.event_id)
+    latest = returnable_handoff(db, ticket)
     if (
         not original
         or original.ticket_id != ticket.id
