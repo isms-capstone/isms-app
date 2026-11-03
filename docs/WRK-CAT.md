@@ -155,6 +155,8 @@ npm run build
 npm run test:e2e
 ```
 
-This checkout has not been committed, pushed, merged or deployed. Production and
-staging data have not been migrated. Complete the pending frontend/MariaDB checks
-before treating the feature as ready to merge.
+At the original delivery this checkout had not been committed, pushed, merged or
+deployed. The later snapshot commits and local integration of the latest merged
+frontend are recorded in [the integration report](WRK-CAT-FRONTEND-INTEGRATION.md).
+Production and staging data have not been migrated. Full CAT browser acceptance
+remains separate from the WRK and frontend regression checks recorded there.

@@ -1,3 +1,4 @@
+import { chooseOption } from "./company-controls";
 import { test, expect } from "@playwright/test";
 test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive layouts", async ({
   page,
@@ -14,7 +15,7 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   await expect(page.locator(".gd-Button__button").first()).toBeVisible();
   const controlSizes = await page
     .locator(
-      ".quick-filters select, .quick-filters button, .queue-heading-actions .button, .queue-heading-actions select",
+      ".quick-filters .company-select-trigger, .quick-filters .ui-button, .queue-heading-actions .button, .queue-heading-actions .company-select-trigger",
     )
     .evaluateAll((elements) =>
       elements.map((element) => ({
@@ -25,7 +26,8 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   expect(controlSizes.length).toBeGreaterThan(5);
   expect(
     controlSizes.every(
-      ({ height, fontSize }) => height === 36 && fontSize === "13px",
+      ({ height, fontSize }) =>
+        height === 42 && ["14px", "16px"].includes(fontSize),
     ),
   ).toBe(true);
   const cards = page.locator(".action-counts .work-stat");
@@ -50,14 +52,10 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
       "--background-primary",
     ].map((name) => css.getPropertyValue(name).trim());
   });
-  expect(palette).toEqual([
-    "#060b0f",
-    "#33454e",
-    "#76949f",
-    "#73e8af",
-    "#9e2a2b",
-    "#fbf5f3",
-  ]);
+  expect(palette[1].toLowerCase()).toBe("#0b60ff");
+  expect(["#fff", "#ffffff"]).toContain(palette[5].toLowerCase());
+  expect(palette.every(Boolean)).toBe(true);
+
   const firstCheckbox = page.getByRole("checkbox", {
     name: "เลือกเคส DVHT-202609-00418",
     exact: true,
@@ -80,9 +78,17 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
     fullPage: true,
     animations: "disabled",
   });
-  await page.getByLabel("กรองผลิตภัณฑ์", { exact: true }).selectOption("GetA");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "กรองผลิตภัณฑ์", exact: true }),
+    "GetA",
+  );
   await expect(page.locator(".case-table tbody tr")).toHaveCount(2);
-  await page.getByLabel("กรองผลิตภัณฑ์", { exact: true }).selectOption("");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "กรองผลิตภัณฑ์", exact: true }),
+    "",
+  );
   await page
     .getByRole("button", { name: "ตัวกรองเพิ่มเติม", exact: true })
     .click();

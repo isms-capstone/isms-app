@@ -1,0 +1,317 @@
+/* Application layout consumes GET Design's public tokens. Component visuals
+   remain owned by the library; only page composition and semantic states live here. */
+:root {
+  --ui-control-height: 42px;
+}
+body {
+  font-family: var(--font-family-th), var(--font-family-en), sans-serif;
+}
+/* A pale blue navigation surface complements GetX's blue controls. */
+.sidebar {
+  --sidebar-surface: #edf4ff;
+  --sidebar-text: #243b60;
+  --sidebar-muted: #536b8c;
+  --sidebar-selected: #d9e8ff;
+  --sidebar-border: #cfddf0;
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--sidebar-border);
+}
+.sidebar .brand {
+  background: #e5efff;
+  border-color: var(--sidebar-border);
+}
+.sidebar .brand-link {
+  color: #18345a;
+}
+.sidebar .nav-item {
+  color: var(--sidebar-text);
+  border-radius: var(--radius-8);
+}
+.sidebar .nav-item svg,
+.sidebar small,
+.sidebar .sidebar-collapse,
+.sidebar .sidebar-account > svg {
+  color: var(--sidebar-muted);
+}
+.sidebar .nav-item:hover:not(:disabled) {
+  background: #e0ecff;
+}
+.sidebar .nav-item.active,
+.sidebar .nav-item[aria-current="page"] {
+  color: #084bbd;
+  background: var(--sidebar-selected);
+  box-shadow: inset 3px 0 0 #0b60ff;
+}
+.sidebar .nav-item.active svg {
+  color: #0b60ff;
+}
+.sidebar .nav-item:disabled {
+  color: var(--sidebar-muted);
+  opacity: 0.65;
+}
+.sidebar .nav-count {
+  background: #dce7f7;
+  color: var(--sidebar-text);
+}
+.sidebar .nav-item.active .nav-count {
+  background: #c2d8ff;
+  color: #084bbd;
+}
+.sidebar nav {
+  scrollbar-color: #829bc0 transparent;
+}
+.sidebar :is(a, button):focus-visible {
+  outline: 2px solid #0b60ff;
+  outline-offset: 2px;
+}
+.top-bar {
+  background: var(--fill-container-base);
+  border-color: var(--border-primary);
+}
+.surface,
+.action-counts .work-stat {
+  background: var(--fill-container-base);
+}
+h1,
+h2,
+h3 {
+  color: var(--label-primary);
+}
+.company-select {
+  display: inline-block;
+  min-width: 0;
+  vertical-align: middle;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  height: auto;
+}
+label > .company-select,
+.routing-form .company-select,
+.lifecycle-form .company-select {
+  width: 100%;
+}
+.company-select > div {
+  width: 100%;
+}
+.company-select select {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+.company-textarea {
+  width: 100%;
+  min-width: 0;
+}
+.company-textarea textarea {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  min-height: 0;
+  width: 100%;
+}
+.native-typed-input {
+  min-height: 42px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-8);
+  padding: 8px 12px;
+  background: var(--fill-container-base);
+  color: var(--label-primary);
+  width: 100%;
+}
+.field-error {
+  color: var(--label-danger);
+  display: block;
+  margin-top: 4px;
+}
+.quick-filters .company-select {
+  min-width: 90px;
+}
+.sort-control .company-select {
+  min-width: 190px;
+}
+.table-pagination .company-select {
+  width: 76px;
+}
+.queue-toolbar > .company-search {
+  flex: 1 1 300px;
+  max-width: 430px;
+  margin-left: auto;
+}
+.all-search-panel > .company-search {
+  width: 100%;
+}
+.global-search {
+  width: 220px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.global-search input {
+  width: 100%;
+}
+.button {
+  min-height: 42px;
+  height: 42px;
+  border-radius: var(--radius-8);
+  font-size: 14px;
+  font-weight: 600;
+}
+.button-primary {
+  background: var(--fill-element-brand);
+  color: var(--label-inverse);
+  border-color: transparent;
+}
+.button-primary:hover {
+  background: var(--label-brand-strong);
+}
+.case-status {
+  display: inline-flex;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.case-status[data-tone="brand"] {
+  color: var(--label-brand);
+  background: var(--fill-tint-brand-bg);
+}
+.case-status[data-tone="success"] {
+  color: var(--success-light-700);
+  background: var(--success-light-100);
+}
+.case-status[data-tone="warning"] {
+  color: var(--warning-light-800);
+  background: var(--warning-light-100);
+}
+.case-status[data-tone="danger"] {
+  color: var(--danger-light-700);
+  background: var(--danger-light-100);
+}
+.case-status[data-tone="neutral"] {
+  color: var(--label-secondary);
+  background: var(--fill-element-neutral-subtle2);
+}
+.case-priority[data-priority="S1"] {
+  color: var(--danger-light-700);
+  background: var(--danger-light-100);
+  border-color: var(--danger-light-300);
+}
+.case-priority[data-priority="S2"] {
+  color: var(--warning-light-800);
+  background: var(--warning-light-100);
+  border-color: var(--warning-light-300);
+}
+.case-priority[data-priority="S3"] {
+  color: var(--success-light-700);
+  background: var(--success-light-100);
+  border-color: var(--success-light-300);
+}
+.case-priority[data-priority="S4"] {
+  color: var(--label-secondary);
+  background: var(--fill-element-neutral-subtle);
+  border-color: var(--border-primary);
+}
+.sla-breached {
+  color: var(--label-danger);
+}
+.sla-risk {
+  color: var(--warning-light-800);
+}
+.sla-safe {
+  color: var(--label-secondary);
+}
+.native-stat-action .work-stat {
+  border-radius: var(--radius-8);
+  padding: 16px;
+  min-height: 108px;
+}
+.native-stat-action[aria-pressed="true"] .work-stat {
+  border-color: var(--border-brand);
+  background: var(--brand-light-100);
+}
+@media (max-width: 760px) {
+  .global-search {
+    display: none;
+  }
+  .queue-toolbar > .company-search {
+    max-width: none;
+    flex-basis: 100%;
+  }
+  .quick-filters .company-select {
+    flex: 1 1 88px;
+  }
+  .sort-control .company-select {
+    min-width: 160px;
+  }
+  .capture-bottom-bar .ui-button {
+    flex: 1;
+  }
+}
+
+.sidebar .nav-group h2 {
+  color: var(--sidebar-muted);
+}
+.sidebar .sidebar-account {
+  color: var(--sidebar-text);
+  background: #e5efff;
+  border-top: 1px solid var(--sidebar-border);
+}
+.sidebar .avatar-outline {
+  color: var(--sidebar-text);
+  background: transparent;
+  border-color: #829bc0;
+}
+
+/* One typography scale for controls with the same operational role. */
+.app-shell .company-select,
+.app-shell .ui-button,
+.app-shell .more-filters {
+  font-size: 14px;
+  line-height: 22px;
+}
+.app-shell .nav-item {
+  font-size: 14px;
+}
+.app-shell .native-stat-action .work-stat-label {
+  color: var(--label-secondary);
+  font-size: 14px;
+}
+.app-shell .case-table td,
+.app-shell .all-cases-table td {
+  font-size: 14px;
+  line-height: 22px;
+}
+.app-shell .case-subject-cell strong,
+.app-shell .all-cases-table .subject-only {
+  font-size: 14px;
+  line-height: 22px;
+}
+.app-shell .assignee .avatar {
+  color: var(--label-inverse);
+}
+.app-shell .assignee.unassigned .avatar {
+  color: var(--label-tertiary);
+}
+.app-shell .sort-control {
+  white-space: nowrap;
+}
+
+.company-toggle-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--label-primary);
+}
+.company-toggle-field > label {
+  cursor: pointer;
+}
+.customer-search > div {
+  width: 100%;
+}

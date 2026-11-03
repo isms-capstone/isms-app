@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -141,10 +142,10 @@ export function CaptureScreen() {
   ) => (
     <label>
       {title}
-      <select
+      <SelectControl
         value={value}
         disabled={disabled}
-        onChange={(e) => setValue(e.target.value)}
+        onValueChange={(nextValue) => setValue(nextValue)}
       >
         <option value="">ยังไม่ระบุ</option>
         {items.map((item) => (
@@ -152,7 +153,7 @@ export function CaptureScreen() {
             {item.name}
           </option>
         ))}
-      </select>
+      </SelectControl>
     </label>
   );
   return (
@@ -367,11 +368,11 @@ export function CaptureScreen() {
                     value={categories} onChange={setCategories} preview={preview} onLoading={setOptionsLoading} /></div>
                   <label className="full-width">
                     รายละเอียดปัญหา
-                    <textarea
+                    <TextArea
                       value={description}
                       maxLength={20000}
                       rows={4}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onValueChange={(nextValue) => setDescription(nextValue)}
                       placeholder="อธิบายปัญหาและข้อมูลเพิ่มเติม..."
                     />
                   </label>
