@@ -86,10 +86,11 @@ def active_record(db, model, record_id):
     return record
 
 
-def capture_values(body: TicketCreate, db: Session, validate_reported=True):
+def capture_values(body: TicketCreate, db: Session, validate_reported=True, allow_legacy_assessment=False):
     values = body.model_dump()
     values.pop('save_as_draft')
     values.pop('created_for_user_id', None)
+    values.pop('tags', None)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
@@ -135,7 +136,9 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True):
                 and body.subject is not None and body.channel is not None)
     values.update(organization_id=organization_id, reported_at=reported, created_at=now,
                   status='NEW' if complete else 'DRAFT',
-                  sla_policy_id=policy_id, is_exam_window=exam)
+                  sla_policy_id=policy_id, is_exam_window=exam if body.is_exam_window is None else body.is_exam_window)
+    from app.services.categorization import validate_assessment
+    validate_assessment(values, db, allow_legacy=allow_legacy_assessment)
     return values, complete, now
 
 
@@ -157,6 +160,9 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        from app.services.categorization import record_categories
+        record_categories(db, ticket, user, body.tags)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -240,7 +246,7 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
     data = {
     field: getattr(ticket, field)
     for field in TicketCreate.model_fields
-    if field not in ('save_as_draft', 'created_for_user_id')
+    if field not in ('save_as_draft', 'created_for_user_id', 'tags')
 }
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
@@ -256,18 +262,25 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
             data[field] = None
     elif body.field == 'module_id' and body.value != ticket.module_id:
         data['category_id'] = None
+    if body.field in ('organization_id', 'department_id'):
+        data['is_exam_window'] = None
+        if not ticket.severity_overridden_reason:
+            data['severity'] = None
     from pydantic import ValidationError
     try:
         selection = TicketCreate.model_validate(data)
     except ValidationError as exc:
         raise HTTPException(422, [{'loc': error['loc'], 'msg': error['msg']} for error in exc.errors()]) from None
-    values, _, _ = capture_values(selection, db, validate_reported=False)
+    values, _, _ = capture_values(selection, db, validate_reported=False, allow_legacy_assessment=True)
+    from app.services.categorization import snapshot, record_categories
+    before = snapshot(db, ticket)
     product_changed = data['product_instance_id'] != ticket.product_instance_id
     for field, value in values.items():
         if field not in ('created_at', 'reported_at', 'status') and (
             field != 'sla_policy_id' or product_changed
         ):
             setattr(ticket, field, value)
+    record_categories(db, ticket, user, before['tags'], before)
     return commit_edit(db, ticket)
 
 

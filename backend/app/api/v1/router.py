@@ -66,3 +66,5 @@ api_router.include_router(tickets_router, tags=["Case Capture"])
 from app.api.v1.endpoints.customer_cases import router as customer_cases_router
 api_router.include_router(customer_cases_router, tags=["Customer Cases"])
 api_router.include_router(automation_rules_router)
+from app.api.v1.endpoints.work_category import router as work_category_router
+api_router.include_router(work_category_router, tags=['Work Log and Categorization'])

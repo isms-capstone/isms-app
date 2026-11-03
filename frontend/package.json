@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test:e2e": "playwright test",
+    "test:worklog-compat": "playwright test --config=playwright.worklog.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

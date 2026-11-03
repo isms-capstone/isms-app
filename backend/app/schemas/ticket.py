@@ -2,9 +2,10 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.schemas.categorization import CategoryFields
 
 
-class TicketCreate(BaseModel):
+class TicketCreate(CategoryFields):
     model_config = ConfigDict(extra='forbid')
     save_as_draft: bool = False
     created_for_user_id: int | None = Field(default=None, ge=1)
@@ -111,6 +112,9 @@ class TicketOut(BaseModel):
     sla_policy_id: int | None
     is_exam_window: bool
     severity: str | None
+    impact_scope: str | None = None
+    severity_overridden_reason: str | None = None
+    root_cause_detail: str | None = None
     current_tier: int | None
     root_cause_code_id: int | None
     resolution_code_id: int | None

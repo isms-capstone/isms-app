@@ -16,6 +16,9 @@ import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
 import { LifecycleActions } from "./lifecycle-actions";
 import { PriorityBadge, ChannelLabel, StatusBadge } from "./case-badges";
+import { CategoryEditor } from "./category-editor";
+import { WorklogPanel } from "./worklog-panel";
+import { RequestWorkflow } from "./request-workflow";
 
 export function CaseDetail({ id }: { id: number }) {
   const { session, preview, href } = useSession();
@@ -103,7 +106,7 @@ export function CaseDetail({ id }: { id: number }) {
       {!ticket ? (
         !error && <TableSkeleton />
       ) : (
-        <section className="surface detail-card">
+        <><section className="surface detail-card">
           {!preview && session?.can_create_cases && (
             <LifecycleActions ticket={ticket} onUpdated={setTicket} />
           )}
@@ -266,6 +269,10 @@ export function CaseDetail({ id }: { id: number }) {
             </p>
           )}
         </section>
+        {!preview && session?.can_create_cases && <CategoryEditor ticket={ticket} onUpdated={setTicket} />}
+        {!preview && session?.can_create_cases && <RequestWorkflow ticket={ticket} onUpdated={setTicket} />}
+        {!preview && session?.can_create_cases && <WorklogPanel ticket={ticket} />}
+        </>
       )}
     </AppShell>
   );

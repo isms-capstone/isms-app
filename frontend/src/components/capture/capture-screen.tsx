@@ -33,6 +33,7 @@ import {
 } from "@/lib/types";
 import { previewRows } from "@/lib/preview";
 import { CustomerPicker } from "./customer-picker";
+import { CategoryFields, emptyCategories, type CategoryValues } from "@/components/cases/category-fields";
 const previewContext: SelectionContext = {
   organization: { id: 2, name: "Fammed · เวชศาสตร์ครอบครัว", is_active: true },
   contact: { id: 2, name: "อ.นนท์" },
@@ -49,12 +50,6 @@ const previewContext: SelectionContext = {
   courses: [],
 };
 type Option = { id: number; name: string; module_id?: number };
-type CaseOptions = {
-  modules: Option[];
-  problem_types: Option[];
-  symptoms: Option[];
-  service_stages: Option[];
-};
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -68,13 +63,9 @@ export function CaptureScreen() {
     [description, setDescription] = useState(""),
     [instance, setInstance] = useState<number | null>(preview ? 1 : null);
   const [department, setDepartment] = useState(""),
-    [course, setCourse] = useState(""),
-    [moduleId, setModuleId] = useState(""),
-    [category, setCategory] = useState(""),
-    [symptom, setSymptom] = useState(""),
-    [stage, setStage] = useState("");
-  const [options, setOptions] = useState<CaseOptions | null>(null),
-    [optionsLoading, setOptionsLoading] = useState(false),
+    [course, setCourse] = useState("");
+  const [categories, setCategories] = useState<CategoryValues>(emptyCategories);
+  const [optionsLoading, setOptionsLoading] = useState(false),
     [existing, setExisting] = useState<TicketType[]>([]),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
@@ -86,11 +77,7 @@ export function CaptureScreen() {
     setInstance(value?.instances.length === 1 ? value.instances[0].id : null);
     setDepartment("");
     setCourse("");
-    setModuleId("");
-    setCategory("");
-    setSymptom("");
-    setStage("");
-    setOptions(null);
+    setCategories(emptyCategories);
     setError("");
   }, []);
   useEffect(() => {
@@ -106,29 +93,6 @@ export function CaptureScreen() {
       });
     return () => controller.abort();
   }, [context, preview]);
-  useEffect(() => {
-    if (!instance || !context || preview) return;
-    const selected = context.instances.find((item) => item.id === instance);
-    if (!selected) return;
-    const controller = new AbortController();
-    const load = async () => {
-      setOptionsLoading(true);
-      try {
-        const result = await api<CaseOptions>(
-          `/products/${selected.product_id}/case-options`,
-          { signal: controller.signal },
-        );
-        setOptions(result);
-      } catch (e) {
-        if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : "โหลดหมวดหมู่ไม่สำเร็จ");
-      } finally {
-        if (!controller.signal.aborted) setOptionsLoading(false);
-      }
-    };
-    load();
-    return () => controller.abort();
-  }, [instance, context, preview]);
   const complete = !!context && !!subject.trim() && !!channel;
   const selectedProduct = context?.instances.find(
     (item) => item.id === instance,
@@ -154,10 +118,7 @@ export function CaptureScreen() {
           product_instance_id: instance,
           department_id: department ? Number(department) : null,
           course_or_exam_id: course ? Number(course) : null,
-          module_id: moduleId ? Number(moduleId) : null,
-          category_id: category ? Number(category) : null,
-          symptom_id: symptom ? Number(symptom) : null,
-          service_stage_id: stage ? Number(stage) : null,
+          ...categories,
         }),
       });
       router.push(href(`/cases/${ticket.id}`));
@@ -379,27 +340,13 @@ export function CaptureScreen() {
                     String(instance || ""),
                     (value) => {
                       setInstance(value ? Number(value) : null);
-                      setModuleId("");
-                      setCategory("");
-                      setSymptom("");
-                      setStage("");
-                      setOptions(null);
+                      setCategories((current) => ({ ...current, module_id: null, category_id: null, symptom_id: null, service_stage_id: null }));
                     },
                     context?.instances.map((item) => ({
                       id: item.id,
                       name: `${item.name} · ${item.version} · ${item.environment}`,
                     })) || [],
                     !context,
-                  )}
-                  {select(
-                    "โมดูล (Module)",
-                    moduleId,
-                    (value) => {
-                      setModuleId(value);
-                      setCategory("");
-                    },
-                    options?.modules || [],
-                    !options,
                   )}
                   {select(
                     "หน่วยงาน / ภาควิชา",
@@ -415,29 +362,9 @@ export function CaptureScreen() {
                     context?.courses || [],
                     !context,
                   )}
-                  {select(
-                    "ประเภทปัญหา",
-                    category,
-                    setCategory,
-                    options?.problem_types.filter(
-                      (item) => item.module_id === Number(moduleId),
-                    ) || [],
-                    !moduleId,
-                  )}
-                  {select(
-                    "อาการ",
-                    symptom,
-                    setSymptom,
-                    options?.symptoms || [],
-                    !options,
-                  )}
-                  {select(
-                    "ช่วงบริการ",
-                    stage,
-                    setStage,
-                    options?.service_stages || [],
-                    !options,
-                  )}
+                  <div className="full-width"><CategoryFields key={`${instance}-${context?.organization.id}`} productId={selectedProduct?.product_id || null}
+                    organizationId={context?.organization.id} departmentId={department ? Number(department) : null}
+                    value={categories} onChange={setCategories} preview={preview} onLoading={setOptionsLoading} /></div>
                   <label className="full-width">
                     รายละเอียดปัญหา
                     <textarea

@@ -78,6 +78,7 @@ class Ticket(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime)
     root_cause_code_id: Mapped[int | None] = mapped_column(ForeignKey('cause_codes.id'))
+    root_cause_detail: Mapped[str | None] = mapped_column(Text)
     resolution_code_id: Mapped[int | None] = mapped_column(ForeignKey('solution_codes.id'))
     resolution_detail: Mapped[str | None] = mapped_column(Text)
     # KB is Phase 5: reserve the reference, add its FK when that table exists.

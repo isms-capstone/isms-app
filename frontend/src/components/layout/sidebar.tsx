@@ -92,7 +92,8 @@ export function Sidebar({
     },
     {
       title: "REPORTS",
-      items: [{ label: "Dashboard", icon: ChartNoAxesColumn, disabled: true }],
+      items: [{ label: "Dashboard", icon: ChartNoAxesColumn, disabled: true },
+        ...(session?.role === "Admin" && !preview ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }] : [])],
     },
     {
       title: "ADMINISTRATION",

@@ -16,10 +16,12 @@ backend/tests/ui-output/
 dist/
 build/
 .next/
+.next-*/
 *.tsbuildinfo
 frontend/playwright-report/
 frontend/test-results/
 *.egg-info/
+tmp/
 
 # IDE & OS
 .vscode/
