@@ -1,12 +1,7 @@
 "use client";
+import { Notifications } from "@/components/routing/notifications";
 import { useState } from "react";
-import {
-  PanelLeftClose,
-  ChevronRight,
-  Bell,
-  Search,
-  LogOut,
-} from "lucide-react";
+import { PanelLeftClose, ChevronRight, Search, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/providers/session-provider";
 import { Button } from "@/components/ui/primitives";
@@ -51,9 +46,7 @@ export function TopBar({
             onChange={(e) => setQuery(e.target.value)}
           />
         </form>
-        <span className="notification-icon" title="ยังไม่มีระบบแจ้งเตือน">
-          <Bell size={19} />
-        </span>
+        <Notifications />
         <span className="topbar-divider" />
         <div className="user-menu">
           <span className="avatar avatar-square">

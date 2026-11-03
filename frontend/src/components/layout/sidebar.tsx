@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowRightLeft,
+  GitBranch,
   Inbox,
   List,
   ClipboardList,
@@ -66,6 +68,9 @@ export function Sidebar({
           badge: counts?.mine,
         },
         { label: "All Cases", path: "/cases", icon: List },
+        ...(session?.can_create_cases
+          ? [{ label: "การส่งมอบงาน", path: "/routing", icon: ArrowRightLeft }]
+          : []),
         {
           label: "Unassigned",
           path: "/unassigned",
@@ -102,6 +107,15 @@ export function Sidebar({
         { label: "SLA & Business Hours", path: "/admin/", icon: Clock3 },
         { label: "Automation Rules", path: "/admin/", icon: Zap },
         { label: "Audit Log", icon: History, disabled: true },
+        ...(session?.role === "Admin"
+          ? [
+              {
+                label: "Escalation & Routing",
+                path: "/routing/admin",
+                icon: GitBranch,
+              },
+            ]
+          : []),
       ],
     },
   ];
@@ -168,6 +182,7 @@ export function Sidebar({
                   <Link
                     key={item.label}
                     href={destination}
+                    prefetch={legacy ? false : undefined}
                     onClick={onClose}
                     className={cx("nav-item", active && "active")}
                     aria-current={active ? "page" : undefined}

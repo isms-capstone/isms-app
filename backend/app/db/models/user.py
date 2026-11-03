@@ -35,6 +35,9 @@ class User(Base):
     role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.id"), nullable=False)
     team_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("teams.id"), nullable=True)
 
+    default_tier: Mapped[int] = mapped_column(Integer, default=2, server_default="2", nullable=False)
+    is_available: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

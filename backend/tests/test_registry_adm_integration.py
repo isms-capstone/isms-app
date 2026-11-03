@@ -18,7 +18,7 @@ def test_merged_adm_cap_migration_graph_roundtrip():
     config = Config()
     config.set_main_option('script_location', str(directory))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ['r2_lifecycle']
+    assert script.get_heads() == ['esc01_routing']
 
     engine = create_engine('sqlite://')
 

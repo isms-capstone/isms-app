@@ -23,7 +23,7 @@ def test_ticket_migration_round_trip():
         migration.op = Operations(MigrationContext.configure(connection))
         migration.upgrade()
         inspector = inspect(connection)
-        assert {c['name'] for c in inspector.get_columns('ticket')} == set(Ticket.__table__.columns.keys()) - {'pending_external_reason', 'cancel_reason'}
+        assert {c['name'] for c in inspector.get_columns('ticket')} == set(Ticket.__table__.columns.keys()) - {'pending_external_reason', 'cancel_reason', 'routing_version'}
         assert {i['name'] for i in inspector.get_indexes('ticket')} == {i.name for i in Ticket.__table__.indexes}
         assert len(inspector.get_foreign_keys('ticket')) == 17
         migration.downgrade()
