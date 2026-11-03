@@ -6,43 +6,64 @@
 body {
   font-family: var(--font-family-th), var(--font-family-en), sans-serif;
 }
+/* A quiet charcoal/sage navigation surface complements GetX's blue controls. */
 .sidebar {
-  background: var(--fill-container-base);
-  color: var(--label-secondary);
-  border-right: 1px solid var(--border-primary);
+  --sidebar-surface: #293832;
+  --sidebar-text: #e5ece8;
+  --sidebar-muted: #afc0b6;
+  --sidebar-selected: #42584c;
+  --sidebar-border: #46574e;
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--sidebar-border);
 }
-.sidebar .brand,
-.sidebar .sidebar-footer {
-  border-color: var(--border-secondary);
+.sidebar .brand {
+  background: #24312c;
+  border-color: var(--sidebar-border);
 }
-.sidebar .brand-link,
-.sidebar .user-name {
-  color: var(--label-primary);
+.sidebar .brand-link {
+  color: #f5f7f5;
 }
 .sidebar .nav-item {
-  color: var(--label-secondary);
+  color: var(--sidebar-text);
   border-radius: var(--radius-8);
 }
 .sidebar .nav-item svg,
-.sidebar .nav-group-title,
 .sidebar small,
-.sidebar .sidebar-collapse {
-  color: var(--label-tertiary);
+.sidebar .sidebar-collapse,
+.sidebar .sidebar-account > svg {
+  color: var(--sidebar-muted);
 }
-.sidebar .nav-item:hover {
-  background: var(--interaction-surface-hover-default);
+.sidebar .nav-item:hover:not(:disabled) {
+  background: #35473d;
 }
 .sidebar .nav-item.active,
 .sidebar .nav-item[aria-current="page"] {
-  color: var(--label-brand);
-  background: var(--fill-tint-brand-bg);
+  color: #ffffff;
+  background: var(--sidebar-selected);
+  box-shadow: inset 3px 0 0 #c2d1b5;
 }
 .sidebar .nav-item.active svg {
-  color: var(--label-brand);
+  color: #e1eadb;
+}
+.sidebar .nav-item:disabled {
+  color: var(--sidebar-muted);
+  opacity: 0.65;
 }
 .sidebar .nav-count {
-  background: var(--fill-element-neutral-subtle2);
-  color: var(--label-secondary);
+  background: #3b4e43;
+  color: var(--sidebar-text);
+}
+.sidebar .nav-item.active .nav-count {
+  background: #536b5b;
+  color: #ffffff;
+}
+.sidebar nav {
+  scrollbar-color: #657c6d transparent;
+}
+.sidebar :is(a, button):focus-visible {
+  outline: 2px solid #c2d1b5;
+  outline-offset: 2px;
 }
 .top-bar {
   background: var(--fill-container-base);
@@ -235,15 +256,17 @@ label > .company-select,
 }
 
 .sidebar .nav-group h2 {
-  color: var(--label-tertiary);
+  color: var(--sidebar-muted);
 }
 .sidebar .sidebar-account {
-  color: var(--label-primary);
-  border-top: 1px solid var(--border-primary);
+  color: var(--sidebar-text);
+  background: #24312c;
+  border-top: 1px solid var(--sidebar-border);
 }
 .sidebar .avatar-outline {
-  color: var(--label-brand);
-  border-color: var(--border-primary);
+  color: var(--sidebar-text);
+  background: transparent;
+  border-color: #657c6d;
 }
 
 /* One typography scale for controls with the same operational role. */
