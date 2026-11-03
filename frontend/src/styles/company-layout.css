@@ -6,23 +6,23 @@
 body {
   font-family: var(--font-family-th), var(--font-family-en), sans-serif;
 }
-/* A quiet charcoal/sage navigation surface complements GetX's blue controls. */
+/* A pale blue navigation surface complements GetX's blue controls. */
 .sidebar {
-  --sidebar-surface: #293832;
-  --sidebar-text: #e5ece8;
-  --sidebar-muted: #afc0b6;
-  --sidebar-selected: #42584c;
-  --sidebar-border: #46574e;
+  --sidebar-surface: #edf4ff;
+  --sidebar-text: #243b60;
+  --sidebar-muted: #536b8c;
+  --sidebar-selected: #d9e8ff;
+  --sidebar-border: #cfddf0;
   background: var(--sidebar-surface);
   color: var(--sidebar-text);
   border-right: 1px solid var(--sidebar-border);
 }
 .sidebar .brand {
-  background: #24312c;
+  background: #e5efff;
   border-color: var(--sidebar-border);
 }
 .sidebar .brand-link {
-  color: #f5f7f5;
+  color: #18345a;
 }
 .sidebar .nav-item {
   color: var(--sidebar-text);
@@ -35,34 +35,34 @@ body {
   color: var(--sidebar-muted);
 }
 .sidebar .nav-item:hover:not(:disabled) {
-  background: #35473d;
+  background: #e0ecff;
 }
 .sidebar .nav-item.active,
 .sidebar .nav-item[aria-current="page"] {
-  color: #ffffff;
+  color: #084bbd;
   background: var(--sidebar-selected);
-  box-shadow: inset 3px 0 0 #c2d1b5;
+  box-shadow: inset 3px 0 0 #0b60ff;
 }
 .sidebar .nav-item.active svg {
-  color: #e1eadb;
+  color: #0b60ff;
 }
 .sidebar .nav-item:disabled {
   color: var(--sidebar-muted);
   opacity: 0.65;
 }
 .sidebar .nav-count {
-  background: #3b4e43;
+  background: #dce7f7;
   color: var(--sidebar-text);
 }
 .sidebar .nav-item.active .nav-count {
-  background: #536b5b;
-  color: #ffffff;
+  background: #c2d8ff;
+  color: #084bbd;
 }
 .sidebar nav {
-  scrollbar-color: #657c6d transparent;
+  scrollbar-color: #829bc0 transparent;
 }
 .sidebar :is(a, button):focus-visible {
-  outline: 2px solid #c2d1b5;
+  outline: 2px solid #0b60ff;
   outline-offset: 2px;
 }
 .top-bar {
@@ -260,13 +260,13 @@ label > .company-select,
 }
 .sidebar .sidebar-account {
   color: var(--sidebar-text);
-  background: #24312c;
+  background: #e5efff;
   border-top: 1px solid var(--sidebar-border);
 }
 .sidebar .avatar-outline {
   color: var(--sidebar-text);
   background: transparent;
-  border-color: #657c6d;
+  border-color: #829bc0;
 }
 
 /* One typography scale for controls with the same operational role. */
