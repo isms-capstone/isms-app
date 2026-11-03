@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRightLeft, UserCheck, UsersRound } from "lucide-react";
@@ -6,7 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import {
   Button,
-  Checkbox,
+  ToggleField,
   ErrorState,
   TableSkeleton,
 } from "@/components/ui/primitives";
@@ -133,7 +134,7 @@ export function RoutingWorkspace() {
                   {options.teams.find((t) => t.id === me.team_id)?.name ||
                     "ยังไม่มีทีม"}
                 </p>
-                <Checkbox
+                <ToggleField
                   label="พร้อมรับงานใหม่และงานส่งต่อ"
                   checked={me.is_available}
                   disabled={busy}
@@ -174,10 +175,10 @@ export function RoutingWorkspace() {
                     <form className="routing-form" onSubmit={handover}>
                       <label>
                         <UsersRound size={16} /> ผู้รับงานแทน *
-                        <select
+                        <SelectControl
                           required
                           value={recipient}
-                          onChange={(e) => setRecipient(e.target.value)}
+                          onValueChange={(nextValue) => setRecipient(nextValue)}
                         >
                           <option value="">
                             เลือกผู้พร้อมรับงานที่ตรงกับทุกเคส
@@ -187,16 +188,16 @@ export function RoutingWorkspace() {
                               {u.name} · Tier {u.default_tier}
                             </option>
                           ))}
-                        </select>
+                        </SelectControl>
                       </label>
                       <label>
                         เหตุผลในการส่งมอบ *
-                        <textarea
+                        <TextArea
                           required
                           maxLength={5000}
                           rows={3}
                           value={reason}
-                          onChange={(e) => setReason(e.target.value)}
+                          onValueChange={(nextValue) => setReason(nextValue)}
                         />
                       </label>
                       <p className="routing-note">

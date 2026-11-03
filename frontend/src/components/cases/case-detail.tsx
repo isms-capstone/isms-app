@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock3, CheckCircle2 } from "lucide-react";
@@ -174,11 +175,11 @@ export function CaseDetail({ id }: { id: number }) {
                   <h3>เติมข้อมูลร่างทีละช่อง</h3>
                   <label>
                     ช่องที่ต้องการแก้ไข
-                    <select
+                    <SelectControl
                       className="input"
                       value={field}
-                      onChange={(e) => {
-                        const next = e.target.value;
+                      onValueChange={(nextValue) => {
+                        const next = nextValue;
                         setField(next);
                         setValue(
                           String(
@@ -192,15 +193,15 @@ export function CaseDetail({ id }: { id: number }) {
                       <option value="subject">หัวข้อ</option>
                       <option value="description">รายละเอียด</option>
                       <option value="channel">ช่องทาง</option>
-                    </select>
+                    </SelectControl>
                   </label>
                   <label>
                     ข้อมูล
                     {field === "channel" ? (
-                      <select
+                      <SelectControl
                         className="input"
                         value={value}
-                        onChange={(e) => setValue(e.target.value)}
+                        onValueChange={(nextValue) => setValue(nextValue)}
                       >
                         <option value="">ยังไม่ระบุ</option>
                         {Object.entries(channelNames).map(([id, label]) => (
@@ -208,12 +209,12 @@ export function CaseDetail({ id }: { id: number }) {
                             {label}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                     ) : field === "description" ? (
-                      <textarea
+                      <TextArea
                         maxLength={20000}
                         value={value}
-                        onChange={(e) => setValue(e.target.value)}
+                        onValueChange={(nextValue) => setValue(nextValue)}
                       />
                     ) : (
                       <Input

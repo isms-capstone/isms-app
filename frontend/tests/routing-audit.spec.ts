@@ -1,3 +1,4 @@
+import { chooseOption } from "./company-controls";
 import { test, expect, type Page } from "@playwright/test";
 test.use({ video: "on", trace: "on" });
 async function loginUI(page: Page, name: string) {
@@ -52,15 +53,21 @@ test("ESC-01 all Admin forms persist and editing a user preserves their current 
     [1, "QA Specialists"],
     [0, "QA Developers"],
   ] as const) {
-    await routes
-      .getByRole("combobox", { name: "ผลิตภัณฑ์", exact: true })
-      .selectOption({ label: "ESC QA Product" });
-    await routes
-      .getByRole("combobox", { name: "Tier", exact: true })
-      .selectOption(String(tier));
-    await routes
-      .getByRole("combobox", { name: "ทีมปลายทาง", exact: true })
-      .selectOption({ label: team });
+    await chooseOption(
+      page,
+      routes.getByRole("combobox", { name: "ผลิตภัณฑ์", exact: true }),
+      { label: "ESC QA Product" },
+    );
+    await chooseOption(
+      page,
+      routes.getByRole("combobox", { name: "Tier", exact: true }),
+      String(tier),
+    );
+    await chooseOption(
+      page,
+      routes.getByRole("combobox", { name: "ทีมปลายทาง", exact: true }),
+      { label: team },
+    );
     await routes.getByRole("button", { name: "บันทึกเส้นทาง" }).click();
     await expect(page.getByRole("status")).toContainText(
       "บันทึกการตั้งค่าแล้ว",
@@ -70,27 +77,39 @@ test("ESC-01 all Admin forms persist and editing a user preserves their current 
     ).toBeEnabled();
   }
   const leader = cards.nth(1);
-  await leader
-    .getByRole("combobox", { name: "ทีม", exact: true })
-    .selectOption({ label: "Support" });
+  await chooseOption(
+    page,
+    leader.getByRole("combobox", { name: "ทีม", exact: true }),
+    { label: "Support" },
+  );
+  await chooseOption(
+    page,
+    leader.getByRole("combobox", { name: "หัวหน้าทีม", exact: true }),
+    { label: "qa-admin" },
+  );
   await leader
     .getByRole("combobox", { name: "หัวหน้าทีม", exact: true })
-    .selectOption({ label: "qa-admin" });
+    .click();
   await expect(
-    leader.getByRole("option", { name: "qa-developer", exact: true }),
+    page.getByRole("option", { name: "qa-developer", exact: true }),
   ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await leader.getByRole("button", { name: "บันทึกหัวหน้าทีม" }).click();
   await expect(page.getByRole("status")).toContainText("บันทึกการตั้งค่าแล้ว");
   const user = cards.nth(2);
-  await user
-    .getByRole("combobox", { name: "ผู้ใช้", exact: true })
-    .selectOption({ label: "qa-specialist · Specialist" });
+  await chooseOption(
+    page,
+    user.getByRole("combobox", { name: "ผู้ใช้", exact: true }),
+    { label: "qa-specialist · Specialist" },
+  );
   await expect(
     user.getByRole("combobox", { name: "Tier", exact: true }),
-  ).toHaveValue("1");
-  await user
-    .getByRole("combobox", { name: "Tier", exact: true })
-    .selectOption("0");
+  ).toHaveText("Tier 1");
+  await chooseOption(
+    page,
+    user.getByRole("combobox", { name: "Tier", exact: true }),
+    "0",
+  );
   await user.getByRole("button", { name: "บันทึก Tier" }).click();
   await expect
     .poll(
@@ -101,9 +120,11 @@ test("ESC-01 all Admin forms persist and editing a user preserves their current 
           .default_tier,
     )
     .toBe(0);
-  await user
-    .getByRole("combobox", { name: "Tier", exact: true })
-    .selectOption("1");
+  await chooseOption(
+    page,
+    user.getByRole("combobox", { name: "Tier", exact: true }),
+    "1",
+  );
   await user.getByRole("button", { name: "บันทึก Tier" }).click();
   await expect
     .poll(
@@ -118,7 +139,9 @@ test("ESC-01 all Admin forms persist and editing a user preserves their current 
   if (await policy.getByRole("checkbox").isChecked())
     await policy.getByRole("checkbox").uncheck();
   await policy.getByLabel("S1 timeout minutes").fill("1");
-  await policy.getByRole("combobox").selectOption({ label: "ESC QA all-day" });
+  await chooseOption(page, policy.getByRole("combobox"), {
+    label: "ESC QA all-day",
+  });
   await policy.getByRole("button", { name: "บันทึกนโยบาย" }).click();
   await expect
     .poll(
@@ -151,12 +174,16 @@ test("ESC-02..05 real browser sends Tier 2 to 1 to 0 and returns all the way bef
     await panel(page)
       .getByRole("button", { name: "ส่งต่อ Tier", exact: true })
       .click();
-    await panel(page)
-      .getByRole("combobox", { name: "Tier ปลายทาง", exact: true })
-      .selectOption(String(tier));
-    await panel(page)
-      .getByRole("combobox", { name: "ผู้รับงาน *", exact: true })
-      .selectOption({ label });
+    await chooseOption(
+      page,
+      panel(page).getByRole("combobox", { name: "Tier ปลายทาง", exact: true }),
+      String(tier),
+    );
+    await chooseOption(
+      page,
+      panel(page).getByRole("combobox", { name: "ผู้รับงาน *", exact: true }),
+      { label },
+    );
     await panel(page)
       .getByLabel("เหตุผลในการส่งงาน *", { exact: true })
       .fill("   ");
@@ -253,10 +280,13 @@ test("ESC-02..05 real browser sends Tier 2 to 1 to 0 and returns all the way bef
     ["สาเหตุปัญหา", "QA cause"],
     ["วิธีแก้ไข", "QA solution"],
   ])
-    await page
-      .locator(".lifecycle-panel")
-      .getByRole("combobox", { name: label, exact: true })
-      .selectOption({ label: value });
+    await chooseOption(
+      page,
+      page
+        .locator(".lifecycle-panel")
+        .getByRole("combobox", { name: label, exact: true }),
+      { label: value },
+    );
   await page
     .getByLabel("รายละเอียดการแก้ไข", { exact: true })
     .fill("ทดสอบสำเร็จและยืนยันกับลูกค้าแล้ว");
@@ -284,9 +314,11 @@ test("ESC-07 Admin assigns through form and a read-only user cannot route", asyn
   await panel(page)
     .getByRole("button", { name: "มอบหมายผู้รับผิดชอบ", exact: true })
     .click();
-  await panel(page)
-    .getByRole("combobox", { name: "ผู้รับงาน *", exact: true })
-    .selectOption({ label: "qa-auto · Tier 2" });
+  await chooseOption(
+    page,
+    panel(page).getByRole("combobox", { name: "ผู้รับงาน *", exact: true }),
+    { label: "qa-auto · Tier 2" },
+  );
   await panel(page)
     .getByLabel("เหตุผลในการส่งงาน *", { exact: true })
     .fill("หัวหน้าแบ่งงานให้ผู้พร้อมรับ");
@@ -325,7 +357,9 @@ test("ESC-06/08 production worker performs the real five-minute scheduled check 
   const policy = page.locator(".routing-admin-grid > section").nth(3);
   await policy.getByRole("checkbox").check();
   await policy.getByLabel("S1 timeout minutes").fill("1");
-  await policy.getByRole("combobox").selectOption({ label: "ESC QA all-day" });
+  await chooseOption(page, policy.getByRole("combobox"), {
+    label: "ESC QA all-day",
+  });
   await policy.getByRole("button", { name: "บันทึกนโยบาย" }).click();
   await expect
     .poll(

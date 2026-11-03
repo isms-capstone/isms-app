@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl } from "@/components/ui/company-fields";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GitBranch, Clock3, UsersRound, ShieldCheck } from "lucide-react";
@@ -88,26 +89,26 @@ export function RoutingAdmin() {
   ) => (
     <label>
       {label}
-      <select required name={name} defaultValue="">
+      <SelectControl required name={name} defaultValue="">
         <option value="">เลือก{label}</option>
         {rows.map((r) => (
           <option key={r.id} value={r.id}>
             {r.name}
           </option>
         ))}
-      </select>
+      </SelectControl>
     </label>
   );
   const tiers = (
     <label>
       Tier
-      <select name="tier" defaultValue="2">
+      <SelectControl name="tier" defaultValue="2">
         {[2, 1, 0].map((t) => (
           <option key={t} value={t}>
             Tier {t}
           </option>
         ))}
-      </select>
+      </SelectControl>
     </label>
   );
   return (
@@ -220,11 +221,11 @@ export function RoutingAdmin() {
                   >
                     <label>
                       ทีม
-                      <select
+                      <SelectControl
                         required
                         name="team"
                         value={leaderTeam}
-                        onChange={(e) => setLeaderTeam(e.target.value)}
+                        onValueChange={(nextValue) => setLeaderTeam(nextValue)}
                       >
                         <option value="">เลือกทีม</option>
                         {options.teams.map((t) => (
@@ -232,7 +233,7 @@ export function RoutingAdmin() {
                             {t.name}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                     </label>
                     {select(
                       "user",
@@ -258,15 +259,15 @@ export function RoutingAdmin() {
                   >
                     <label>
                       ผู้ใช้
-                      <select
+                      <SelectControl
                         required
                         name="user"
                         value={tierUser}
-                        onChange={(e) => {
-                          setTierUser(e.target.value);
+                        onValueChange={(nextValue) => {
+                          setTierUser(nextValue);
                           setUserTier(
                             options.users.find(
-                              (u) => u.id === Number(e.target.value),
+                              (u) => u.id === Number(nextValue),
                             )?.default_tier ?? 2,
                           );
                         }}
@@ -277,21 +278,23 @@ export function RoutingAdmin() {
                             {u.name} · {u.role}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                     </label>
                     <label>
                       Tier
-                      <select
+                      <SelectControl
                         name="tier"
                         value={userTier}
-                        onChange={(e) => setUserTier(Number(e.target.value))}
+                        onValueChange={(nextValue) =>
+                          setUserTier(Number(nextValue))
+                        }
                       >
                         {[2, 1, 0].map((t) => (
                           <option key={t} value={t}>
                             Tier {t}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                     </label>
                     <small>
                       เลือกผู้ใช้แล้วจะแสดง Tier ที่บันทึกไว้เดิม
@@ -348,15 +351,15 @@ export function RoutingAdmin() {
                     </label>
                     <label>
                       ปฏิทินแจ้งเตือน NEW ค้าง
-                      <select
+                      <SelectControl
                         value={config.policy.business_calendar_id || ""}
-                        onChange={(e) =>
+                        onValueChange={(nextValue) =>
                           setConfig({
                             ...config,
                             policy: {
                               ...config.policy,
-                              business_calendar_id: e.target.value
-                                ? Number(e.target.value)
+                              business_calendar_id: nextValue
+                                ? Number(nextValue)
                                 : null,
                             },
                           })
@@ -370,7 +373,7 @@ export function RoutingAdmin() {
                             {c.name}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                     </label>
                     <p className="routing-note">
                       ตรวจทุก 5 นาที · NEW เกิน 15 นาทีแจ้งเฉพาะเวลาทำการ · S1

@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -204,10 +205,10 @@ export function RoutingPanel({
           {action === "handoff" && (
             <label>
               Tier ปลายทาง
-              <select
+              <SelectControl
                 value={tier}
-                onChange={(e) => {
-                  setTier(Number(e.target.value));
+                onValueChange={(nextValue) => {
+                  setTier(Number(nextValue));
                   setRecipient("");
                 }}
               >
@@ -218,16 +219,16 @@ export function RoutingPanel({
                       Tier {t}
                     </option>
                   ))}
-              </select>
+              </SelectControl>
             </label>
           )}
           {action !== "return" && (
             <label>
               ผู้รับงาน *
-              <select
+              <SelectControl
                 required
                 value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
+                onValueChange={(nextValue) => setRecipient(nextValue)}
               >
                 <option value="">
                   เลือกผู้รับงานที่พร้อมและอยู่ในทีมปลายทาง
@@ -237,7 +238,7 @@ export function RoutingPanel({
                     {u.name} · Tier {u.default_tier}
                   </option>
                 ))}
-              </select>
+              </SelectControl>
               {!choices.length && (
                 <small>
                   ไม่มีผู้พร้อมรับงาน กรุณาให้ Admin ตรวจทีมและ Tier
@@ -251,11 +252,11 @@ export function RoutingPanel({
               ? "เหตุผล / คำแนะนำในการส่งคืน"
               : "เหตุผลในการส่งงาน"}{" "}
             *
-            <textarea
+            <TextArea
               required
               maxLength={5000}
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onValueChange={(nextValue) => setReason(nextValue)}
               rows={3}
             />
           </label>
@@ -263,21 +264,21 @@ export function RoutingPanel({
             <>
               <label>
                 สิ่งที่ตรวจสอบไปแล้ว *
-                <textarea
+                <TextArea
                   required
                   maxLength={5000}
                   value={checked}
-                  onChange={(e) => setChecked(e.target.value)}
+                  onValueChange={(nextValue) => setChecked(nextValue)}
                   rows={3}
                 />
               </label>
               <label>
                 สิ่งที่ต้องการให้ช่วย *
-                <textarea
+                <TextArea
                   required
                   maxLength={5000}
                   value={requested}
-                  onChange={(e) => setRequested(e.target.value)}
+                  onValueChange={(nextValue) => setRequested(nextValue)}
                   rows={3}
                 />
               </label>

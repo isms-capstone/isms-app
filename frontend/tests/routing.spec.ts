@@ -1,3 +1,4 @@
+import { chooseOption } from "./company-controls";
 import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, username: string, baseURL: string) {
   const response = await page.request.post("/api/session", {
@@ -36,9 +37,11 @@ test("ESC handoff, return, self-assign, bulk handover and admin policy", async (
   await expect(
     panel.getByRole("button", { name: "ยืนยันส่งงาน", exact: true }),
   ).toBeDisabled();
-  await panel
-    .getByRole("combobox", { name: "ผู้รับงาน *", exact: true })
-    .selectOption({ label: "qa-specialist · Tier 1" });
+  await chooseOption(
+    page,
+    panel.getByRole("combobox", { name: "ผู้รับงาน *", exact: true }),
+    { label: "qa-specialist · Tier 1" },
+  );
   await panel
     .getByLabel("เหตุผลในการส่งงาน *", { exact: true })
     .fill("ต้องตรวจสอบบริการฝั่งระบบ");
@@ -92,13 +95,19 @@ test("ESC handoff, return, self-assign, bulk handover and admin policy", async (
     panel.getByRole("button", { name: "รับเคสนี้", exact: true }),
   ).toHaveCount(0);
   await page.goto("/routing");
-  await page
-    .getByLabel("พร้อมรับงานใหม่และงานส่งต่อ", { exact: true })
-    .uncheck();
+  await page.getByText("พร้อมรับงานใหม่และงานส่งต่อ", { exact: true }).click();
+  await expect(
+    page.getByRole("switch", {
+      name: "พร้อมรับงานใหม่และงานส่งต่อ",
+      exact: true,
+    }),
+  ).not.toBeChecked();
   await expect(page.getByRole("status")).toContainText("ไม่พร้อมรับงาน");
-  await page
-    .getByRole("combobox", { name: "ผู้รับงานแทน *", exact: true })
-    .selectOption({ label: "qa-peer · Tier 2" });
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "ผู้รับงานแทน *", exact: true }),
+    { label: "qa-peer · Tier 2" },
+  );
   await page
     .getByLabel("เหตุผลในการส่งมอบ *", { exact: true })
     .fill("ลาพักร้อน ส่งมอบงานให้ทีมดูแลต่อ");

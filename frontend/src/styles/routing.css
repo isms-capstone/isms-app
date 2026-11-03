@@ -1,7 +1,7 @@
 .routing-panel {
   padding: 24px;
   margin-bottom: 20px;
-  color: #060b0f;
+  color: var(--label-primary);
   min-width: 0;
 }
 .routing-panel h2 {
@@ -21,7 +21,7 @@
   font-size: 13px;
   line-height: 1.7;
   margin: 8px 0;
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-heading {
   display: flex;
@@ -34,24 +34,26 @@
   line-height: 24px;
   padding: 0 9px;
   white-space: nowrap;
-  border: 1px solid #76949f55;
+  border: 1px solid color-mix(in srgb, var(--label-primary) 33.3%, transparent);
   border-radius: 6px;
-  color: #33454e;
-  background: #fbf5f3;
+  color: var(--label-brand);
+  background: var(--fill-container-subtle);
 }
 .routing-ownership {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   padding: 18px 0;
-  border-top: 1px solid #76949f33;
-  border-bottom: 1px solid #76949f33;
+  border-top: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
   margin: 12px 0 18px;
 }
 .routing-ownership dt,
 .routing-note {
   font-size: 12px !important;
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-ownership dd {
   font-size: 14px;
@@ -69,16 +71,20 @@
   gap: 16px;
   margin: 16px 0;
   padding: 18px;
-  border: 1px solid #76949f33;
+  border: 1px solid color-mix(in srgb, var(--label-primary) 20%, transparent);
   border-radius: 8px;
-  background: #fbf5f355;
+  background: color-mix(
+    in srgb,
+    var(--fill-container-subtle) 33.3%,
+    transparent
+  );
 }
 .routing-form label {
   display: grid;
   gap: 7px;
   font-size: 13px;
   font-weight: 500;
-  color: #33454e;
+  color: var(--label-brand);
   min-width: 0;
 }
 .routing-form label > svg {
@@ -89,8 +95,8 @@
   width: 100%;
   font: inherit;
   font-size: 14px;
-  color: #060b0f;
-  border: 1px solid #76949f66;
+  color: var(--label-primary);
+  border: 1px solid color-mix(in srgb, var(--label-primary) 40%, transparent);
   border-radius: 6px;
   background: white;
   padding: 10px 12px;
@@ -105,13 +111,13 @@
   min-height: 88px;
 }
 .routing-form :is(select, textarea):focus-visible {
-  outline: 2px solid #33454e;
+  outline: 2px solid var(--label-brand);
   outline-offset: 2px;
 }
 .routing-form small {
   font-size: 12px;
   line-height: 1.6;
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-form > .ui-button {
   justify-self: start;
@@ -127,16 +133,16 @@
   grid-template-columns: 20px 1fr;
   align-items: center;
   gap: 4px 8px;
-  background: #fbf5f3;
-  border: 1px solid #76949f33;
+  background: var(--fill-container-subtle);
+  border: 1px solid color-mix(in srgb, var(--label-primary) 20%, transparent);
   border-radius: 6px;
   padding: 12px;
-  color: #76949f;
+  color: var(--label-tertiary);
   font-size: 12px;
 }
 .routing-times strong {
   grid-column: 2;
-  color: #33454e;
+  color: var(--label-brand);
   font-size: 15px;
 }
 .routing-timeline {
@@ -146,8 +152,10 @@
 }
 .routing-timeline li {
   padding: 16px 0 16px 18px;
-  border-left: 2px solid #76949f55;
-  border-bottom: 1px solid #76949f22;
+  border-left: 2px solid
+    color-mix(in srgb, var(--label-primary) 33.3%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 13.3%, transparent);
 }
 .routing-event-heading {
   display: flex;
@@ -158,7 +166,7 @@
 }
 .routing-event-heading time {
   font-size: 12px;
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-timeline dl {
   display: grid;
@@ -169,7 +177,7 @@
   margin: 12px 0 0;
 }
 .routing-timeline dt {
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-timeline dd {
   margin: 0;
@@ -177,18 +185,18 @@
   overflow-wrap: anywhere;
 }
 .routing-error {
-  color: #9e2a2b !important;
-  background: #9e2a2b0a;
-  border: 1px solid #9e2a2b33;
+  color: var(--label-danger) !important;
+  background: color-mix(in srgb, var(--label-danger) 3.9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--label-danger) 20%, transparent);
   padding: 12px;
   border-radius: 6px;
   font-size: 13px;
 }
 .routing-success {
-  color: #33454e !important;
-  border-left: 3px solid #73e8af;
+  color: var(--label-brand) !important;
+  border-left: 3px solid var(--label-success);
   padding: 12px;
-  background: #73e8af15;
+  background: color-mix(in srgb, var(--label-success) 8.2%, transparent);
   font-size: 13px;
 }
 .routing-workspace-grid {
@@ -226,7 +234,8 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid #76949f33;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
 }
 .routing-workload a {
   display: grid;
@@ -234,12 +243,12 @@
   font-size: 13px;
 }
 .routing-workload strong {
-  color: #76949f;
+  color: var(--label-tertiary);
   font-size: 12px;
 }
 .routing-workload small {
   white-space: nowrap;
-  color: #76949f;
+  color: var(--label-tertiary);
 }
 .routing-config-list {
   display: grid;
@@ -250,11 +259,12 @@
   display: flex;
   gap: 16px;
   justify-content: space-between;
-  border-bottom: 1px solid #76949f33;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
   padding: 9px 0;
 }
 .routing-config-list strong {
-  color: #33454e;
+  color: var(--label-brand);
 }
 .routing-notifications {
   position: relative;
@@ -264,7 +274,7 @@
   right: -4px;
   top: -3px;
   border-radius: 12px;
-  background: #9e2a2b;
+  background: var(--label-danger);
   color: white;
   font-size: 10px;
   padding: 1px 5px;
@@ -278,9 +288,10 @@
   width: 360px;
   max-width: calc(100vw - 32px);
   background: white;
-  border: 1px solid #76949f55;
+  border: 1px solid color-mix(in srgb, var(--label-primary) 33.3%, transparent);
   border-radius: 8px;
-  box-shadow: 0 8px 24px #060b0f12;
+  box-shadow: 0 8px 24px
+    color-mix(in srgb, var(--label-primary) 7.1%, transparent);
   padding: 16px;
 }
 .routing-notice-popover h2 {
@@ -300,25 +311,26 @@
   gap: 6px;
   padding: 12px 8px;
   border: 0;
-  border-bottom: 1px solid #76949f33;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
   text-align: left;
   background: white;
   font: inherit;
   font-size: 13px;
   line-height: 1.6;
   cursor: pointer;
-  color: #33454e;
+  color: var(--label-brand);
 }
 .routing-notice-popover li > button:hover {
-  background: #fbf5f3;
+  background: var(--fill-container-subtle);
 }
 .routing-notice-popover li > button.is-unread {
-  border-left: 3px solid #9e2a2b;
+  border-left: 3px solid var(--label-danger);
   font-weight: 600;
 }
 .routing-notice-popover time {
   font-size: 11px;
-  color: #76949f;
+  color: var(--label-tertiary);
   font-weight: 400;
 }
 @media (max-width: 900px) {
