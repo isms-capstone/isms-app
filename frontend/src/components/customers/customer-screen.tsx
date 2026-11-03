@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, ArrowUpRight } from "lucide-react";
+import { Search as GetSearch } from "@DeverhoodHT/get-design";
+import { ArrowUpRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import { all } from "@/lib/api";
@@ -55,13 +56,12 @@ export function CustomerScreen() {
       </div>
       <section className="surface">
         <div className="p-4">
-          <div className="search-field">
-            <Search size={16} />
-            <input
+          <div className="customer-search">
+            <GetSearch
               aria-label="ค้นหาลูกค้า"
               placeholder="ค้นหาชื่อองค์กรลูกค้า..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={setQuery}
             />
           </div>
         </div>

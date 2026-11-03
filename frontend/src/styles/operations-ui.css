@@ -1,6 +1,6 @@
 /* ISMS adapters for GET Design. Shared sizes apply by role, across every route. */
 :root {
-  --ui-control-height: 36px;
+  --ui-control-height: 42px;
   --ui-field-height: 42px;
   --ui-radius: 8px;
   --ui-body: 14px;
@@ -8,99 +8,24 @@
   --ui-meta: 12px;
 }
 
-/* Navigation links and GET Design buttons share the same control dimensions. */
-.app-shell .button,
-.app-shell .ui-button,
-.login-screen .ui-button {
-  height: var(--ui-control-height);
-  min-height: var(--ui-control-height);
-  padding: 0 12px;
-  border-radius: var(--ui-radius);
-  font: 500 var(--ui-label)/20px var(--font-sans);
-  gap: 8px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.app-shell .ui-button .gd-Button__label,
-.login-screen .ui-button .gd-Button__label {
-  font: inherit;
-  letter-spacing: normal;
-  gap: 8px;
-}
-.app-shell :is(.button, .ui-button) > svg,
-.ui-button .gd-Button__label > svg {
-  width: 16px;
-  height: 16px;
-}
-.app-shell .ui-button-icon {
-  width: 36px;
-  min-width: 36px;
-  padding: 0;
-}
-.app-shell :is(.button-sm, .ui-button-sm) {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: var(--ui-meta);
-}
-.bulk-toolbar {
-  gap: 8px;
-}
-.bulk-toolbar > :is(.button, .ui-button) {
-  height: 36px;
-  min-height: 36px;
-  border-radius: 8px;
-  padding: 0 12px;
-  font-size: 13px;
-}
-.selected-count {
-  min-height: 36px;
-  font-size: 13px;
-  border-radius: 8px;
-}
-
-/* The library owns the field border/focus; the wrapper supplies layout only. */
-.app-shell .company-input,
-.login-screen .company-input {
+/* Library components retain their own sizes, state colours and focus treatment. */
+.company-input {
   width: 100%;
   min-width: 0;
-}
-.app-shell .company-input .gd-InputText__inputWrapper,
-.login-screen .company-input .gd-InputText__inputWrapper {
-  height: var(--ui-field-height);
-  min-height: var(--ui-field-height);
-  padding: 0 12px;
-  border-radius: var(--ui-radius);
-}
-.app-shell .company-input .gd-InputText__input,
-.login-screen .company-input .gd-InputText__input {
-  font: 400 var(--ui-body)/22px var(--font-sans);
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  min-height: 0;
-  height: 100%;
-  background: transparent;
-}
-.app-shell .company-input .gd-InputText__charCount {
-  font: 400 12px/18px var(--font-sans);
 }
 .subject-field > .company-input {
   margin-top: 8px;
 }
-.search-field:has(.company-input) {
-  gap: 0;
+.ui-button {
+  flex-shrink: 0;
 }
-.search-field:has(.company-input) > svg {
-  display: none;
+.ui-button-icon {
+  aspect-ratio: 1;
+  padding-inline: 0;
 }
-.queue-toolbar .company-input .gd-InputText__inputWrapper {
-  height: 36px;
-  min-height: 36px;
-}
-.queue-toolbar .company-input .gd-InputText__input {
-  font-size: 13px;
+.company-search {
+  min-width: 0;
+  width: 100%;
 }
 .filter-select,
 .sort-control select,
@@ -260,17 +185,17 @@
 .native-stat-action:hover:not(:disabled) .work-stat,
 .native-stat-action[aria-pressed="true"] .work-stat {
   border-color: var(--muted);
-  box-shadow: 0 2px 8px #33454e0a;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--label-brand) 3.9%, transparent);
 }
 .native-stat-action[aria-pressed="true"] .work-stat {
-  background: #76949f08;
+  background: var(--fill-element-neutral-subtle);
 }
 .native-stat-action .work-stat-icon {
   width: 44px;
   height: 44px;
   flex: 0 0 44px;
   border-radius: 10px;
-  background: #76949f18;
+  background: var(--fill-element-neutral-subtle2);
   color: var(--brand);
 }
 .native-stat-action .work-stat-icon svg {
@@ -278,10 +203,10 @@
   height: 22px;
 }
 .stat-incoming .work-stat-icon {
-  background: #73e8af2e;
+  background: color-mix(in srgb, var(--label-success) 18%, transparent);
 }
 .stat-unassigned .work-stat-icon {
-  background: #76949f22;
+  background: color-mix(in srgb, var(--label-primary) 13.3%, transparent);
 }
 .native-stat-action .work-stat-content {
   min-width: 0;
@@ -350,7 +275,7 @@
   align-items: center;
   justify-content: center;
   font: 500 12px/18px var(--font-sans);
-  background: #76949f08;
+  background: var(--fill-element-neutral-subtle);
 }
 .case-priority .gd-Tag__label {
   font: inherit;
@@ -459,10 +384,10 @@
   line-height: 21px;
 }
 .case-table .case-priority[data-priority="S1"] {
-  background: #9e2a2b0b;
+  background: color-mix(in srgb, var(--label-danger) 4.3%, transparent);
 }
 .case-table .case-priority[data-priority="S3"] {
-  background: #73e8af18;
+  background: color-mix(in srgb, var(--label-success) 9.4%, transparent);
 }
 .status-label {
   font-size: 11px;

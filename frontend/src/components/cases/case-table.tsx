@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl } from "@/components/ui/company-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -261,18 +262,18 @@ export function CaseTable({
         <div>
           <label>
             แสดงต่อหน้า:
-            <select
+            <SelectControl
               aria-label="จำนวนเคสต่อหน้า"
               value={pageSize}
-              onChange={(e) => {
-                onPageSize(Number(e.target.value));
+              onValueChange={(nextValue) => {
+                onPageSize(Number(nextValue));
                 onPage(1);
               }}
             >
               {[10, 25, 50].map((n) => (
                 <option key={n}>{n}</option>
               ))}
-            </select>
+            </SelectControl>
           </label>
           <Button
             size="icon"

@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl } from "@/components/ui/company-fields";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Button, Checkbox } from "@/components/ui/primitives";
@@ -158,16 +159,18 @@ export function FilterDrawer({
         </fieldset>
         <fieldset>
           <legend>วันที่สร้าง (Date)</legend>
-          <select
+          <SelectControl
             aria-label="วันที่สร้าง"
             value={value.date}
-            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            onValueChange={(nextValue) =>
+              onChange({ ...value, date: nextValue })
+            }
           >
             <option value="any">ทุกช่วงเวลา</option>
             <option value="today">วันนี้</option>
             <option value="7days">7 วันที่ผ่านมา</option>
             <option value="custom">กำหนดเอง</option>
-          </select>
+          </SelectControl>
           {value.date === "custom" && (
             <>
               <label className="date-label">
