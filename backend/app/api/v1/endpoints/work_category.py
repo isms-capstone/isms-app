@@ -22,6 +22,7 @@ from app.db.models.work_category import (
 from app.db.session import get_db
 from app.schemas.categorization import CategorizationUpdate, Impact
 from app.schemas.ticket import TicketCreate, TicketOut
+from app.schemas.worklog import WorklogCreate
 from app.services.categorization import (
     CATEGORY_FIELDS,
     record_categories,
@@ -51,29 +52,10 @@ def locked_ticket(db, ticket_id, user):
     return ticket
 
 
-class WorklogCreate(BaseModel):
-    model_config = ConfigDict(extra='forbid')
-    kind: Literal['internal_note', 'public_reply']
-    body: str = Field(min_length=1, max_length=20000)
-    channel: Channel | None = None
-
-    @field_validator('body')
-    @classmethod
-    def trim_body(cls, value):
-        if not value.strip():
-            raise ValueError('Message must not be blank')
-        return value.strip()
-
-    @model_validator(mode='after')
-    def validate_channel(self):
-        if (self.kind == 'public_reply') != (self.channel is not None):
-            raise ValueError('Public replies require the actual delivery channel; internal notes have no external channel')
-        return self
-
-
 def worklog_json(row, actor):
     return {'id': row.id, 'ticket_id': row.ticket_id, 'kind': row.kind, 'body': row.body,
-            'channel': row.channel, 'actor_id': row.actor_id, 'actor': actor,
+            'channel': None if row.is_internal else row.channel, 'actor_id': row.actor_id, 'actor': actor,
+            'message': row.body, 'is_internal': row.is_internal, 'author_id': row.actor_id,
             'created_at': utc(row.created_at)}
 
 
@@ -144,7 +126,10 @@ def category_options(db: Session = Depends(get_db)):
     def options(model):
         return [{'id': row.id, 'name': row.name, **({'code': row.code} if hasattr(row, 'code') else {})}
                 for row in db.scalars(select(model).where(model.is_active.is_(True)).order_by(model.name, model.id))]
-    return {'ticket_types': options(TicketType), 'causes': options(CauseCode), 'solutions': options(SolutionCode)}
+    standard_types = ['Issues', 'Bugs', 'Request', 'Question', 'Export Data', 'Data Transfer', 'Data Recovery', 'Change Request']
+    ticket_types = options(TicketType)
+    ticket_types.sort(key=lambda row: standard_types.index(row['name']) if row['name'] in standard_types else len(standard_types))
+    return {'ticket_types': ticket_types, 'causes': options(CauseCode), 'solutions': options(SolutionCode)}
 
 
 @router.get('/categorization/severity-suggestion')
@@ -196,7 +181,9 @@ def update_categorization(ticket_id: int, body: CategorizationUpdate,
     changes = body.model_dump(exclude_unset=True)
     data = {field: getattr(ticket, field) for field in TicketCreate.model_fields
             if field not in ('save_as_draft', 'created_for_user_id', 'tags')}
-    data.update(tags=before['tags'], save_as_draft=True,
+    # CAT does not edit intake channel. Older records may contain legacy values
+    # such as WEB; do not revalidate those against today's capture-only enum.
+    data.update(tags=before['tags'], save_as_draft=True, channel=None,
                 reported_at=ticket.reported_at.replace(tzinfo=timezone.utc))
     if changes.get('product_instance_id', ticket.product_instance_id) != ticket.product_instance_id:
         data.update(module_id=None, category_id=None, symptom_id=None, service_stage_id=None)

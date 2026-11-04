@@ -1,5 +1,13 @@
 # WRK / CAT implementation and QA
 
+Current status (2026-11-04): WRK-01/02 and CAT-01..07 are integrated with the
+running local backend. See [current CAT integration, acceptance results and test
+data](CAT-OPTIONS-FIX-2026-11-04.md) for the latest status; it supersedes the
+historical limitations below. Backend regression: 96 passed, 1 skipped;
+browser/contract acceptance: 18 passed, including 390px touch emulation.
+The skipped test requires the isolated MariaDB CI environment. The deployed
+CAT migration follows the existing WRK revisions and preserves `ticket_worklogs`.
+
 Follow-up for the reported WRK 404/422 and immediate timeline update issue:
 [confirmed cause, compatibility fix and executed browser QA](WRK-COMMUNICATION-FIX.md).
 The later follow-up supersedes the original frontend-dependency limitation for

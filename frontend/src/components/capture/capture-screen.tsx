@@ -34,7 +34,11 @@ import {
 } from "@/lib/types";
 import { previewRows } from "@/lib/preview";
 import { CustomerPicker } from "./customer-picker";
-import { CategoryFields, emptyCategories, type CategoryValues } from "@/components/cases/category-fields";
+import {
+  CategoryFields,
+  emptyCategories,
+  type CategoryValues,
+} from "@/components/cases/category-fields";
 const previewContext: SelectionContext = {
   organization: { id: 2, name: "Fammed · เวชศาสตร์ครอบครัว", is_active: true },
   contact: { id: 2, name: "อ.นนท์" },
@@ -341,13 +345,28 @@ export function CaptureScreen() {
                     String(instance || ""),
                     (value) => {
                       setInstance(value ? Number(value) : null);
-                      setCategories((current) => ({ ...current, module_id: null, category_id: null, symptom_id: null, service_stage_id: null }));
+                      setCategories((current) => ({
+                        ...current,
+                        module_id: null,
+                        category_id: null,
+                        symptom_id: null,
+                        service_stage_id: null,
+                      }));
                     },
                     context?.instances.map((item) => ({
                       id: item.id,
                       name: `${item.name} · ${item.version} · ${item.environment}`,
                     })) || [],
                     !context,
+                  )}
+                  {!preview && (
+                    <p className="field-hint full-width">
+                      {!context
+                        ? "เลือกลูกค้า / ผู้แจ้งก่อน จึงจะเลือกระบบที่ลูกค้าใช้งานได้"
+                        : !context.instances.length
+                          ? "ลูกค้านี้ยังไม่มีผลิตภัณฑ์ / ระบบที่ผูกไว้ ให้ผู้ดูแลระบบเพิ่มระบบของลูกค้าก่อน"
+                          : "เลือกระบบที่ต้องการจัดหมวดหมู่จากรายการของลูกค้า"}
+                    </p>
                   )}
                   {select(
                     "หน่วยงาน / ภาควิชา",
@@ -363,9 +382,18 @@ export function CaptureScreen() {
                     context?.courses || [],
                     !context,
                   )}
-                  <div className="full-width"><CategoryFields key={`${instance}-${context?.organization.id}`} productId={selectedProduct?.product_id || null}
-                    organizationId={context?.organization.id} departmentId={department ? Number(department) : null}
-                    value={categories} onChange={setCategories} preview={preview} onLoading={setOptionsLoading} /></div>
+                  <div className="full-width">
+                    <CategoryFields
+                      key={`${instance}-${context?.organization.id}`}
+                      productId={selectedProduct?.product_id || null}
+                      organizationId={context?.organization.id}
+                      departmentId={department ? Number(department) : null}
+                      value={categories}
+                      onChange={setCategories}
+                      preview={preview}
+                      onLoading={setOptionsLoading}
+                    />
+                  </div>
                   <label className="full-width">
                     รายละเอียดปัญหา
                     <TextArea

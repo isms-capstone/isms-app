@@ -27,6 +27,26 @@ def post(client, path, body):
     return response.json()
 
 
+def test_category_edit_preserves_legacy_intake_channel(capture):
+    client, _, factory, context, _ = capture
+    ticket = create(client, context)
+    with factory() as db:
+        db.get(Ticket, ticket['id']).channel = 'WEB'
+        db.commit()
+    response = client.patch(f"/api/v1/tickets/{ticket['id']}/categorization", json={'tags': ['legacy-channel-qa']})
+    assert response.status_code == 200, response.text
+    assert response.json()['channel'] == 'WEB'
+    assert response.json()['status'] == ticket['status']
+    from app.db.models.master_data import TicketType
+    with factory() as db:
+        for name in ['Request', 'Bugs', 'Issues']:
+            if not db.scalar(select(TicketType).where(TicketType.name == name)):
+                db.add(TicketType(name=name))
+        db.commit()
+    options = client.get('/api/v1/categorization/options').json()
+    assert [row['name'] for row in options['ticket_types']][:3] == ['Issues', 'Bugs', 'Request']
+
+
 @pytest.mark.parametrize('impact,exam,expected', [
     ('organization', True, 'S1'), ('organization', False, 'S2'),
     ('group', True, 'S2'), ('group', False, 'S3'),
@@ -95,22 +115,24 @@ def test_override_codes_tags_audit_and_no_lifecycle_changes(capture):
     path = f"/api/v1/tickets/{ticket['id']}/categorization"
     assert client.patch(path, json={'severity': 'S4', 'severity_overridden_reason': ' '}).status_code == 422
     assert client.patch(path, json={'severity': 'S4', 'severity_overridden_reason': 'ระบบสำรองรองรับได้'}).status_code == 200
-    cause = post(client, '/admin/master-data/cause-codes', {'code': 'QA', 'name': 'Configuration'})['id']
-    solution = post(client, '/admin/master-data/solution-codes', {'code': 'QA', 'name': 'Reconfigure'})['id']
+    cause = post(client, '/admin/master-data/cause-codes', {'code': f"QA-{ticket['id']}", 'name': 'Configuration'})['id']
+    solution = post(client, '/admin/master-data/solution-codes', {'code': f"QA-{ticket['id']}", 'name': 'Reconfigure'})['id']
+    tag = f"exam-{ticket['id']}"
     result = client.patch(path, json={'root_cause_code_id': cause, 'root_cause_detail': ' สาเหตุ ',
-        'resolution_code_id': solution, 'resolution_detail': ' แก้ไข ', 'tags': [' Exam ', 'exam', 'ภาษาไทย']})
+        'resolution_code_id': solution, 'resolution_detail': ' แก้ไข ', 'tags': [f' {tag.upper()} ', tag, 'ภาษาไทย']})
     assert result.status_code == 200, result.text
     saved = result.json()
     for key in ('status', 'ticket_no', 'reported_at', 'created_at', 'owner_id', 'assignee_id', 'sla_policy_id'):
         assert saved[key] == ticket[key]
     assert saved['root_cause_detail'] == 'สาเหตุ' and saved['resolution_detail'] == 'แก้ไข'
-    assert client.get(path).json()['tags'] == ['exam', 'ภาษาไทย']
-    assert client.get('/api/v1/categorization/popular-tags').json()[0] == {'name': 'exam', 'ticket_count': 1}
+    assert client.get(path).json()['tags'] == [tag, 'ภาษาไทย']
+    report = {row['name']: row['ticket_count'] for row in client.get('/api/v1/categorization/popular-tags').json()}
+    assert report[tag] == 1
     before_count = len(client.get(f"/api/v1/tickets/{ticket['id']}/audit").json())
-    assert client.patch(path, json={'tags': ['exam', 'ภาษาไทย']}).status_code == 200
+    assert client.patch(path, json={'tags': [tag, 'ภาษาไทย']}).status_code == 200
     assert len(client.get(f"/api/v1/tickets/{ticket['id']}/audit").json()) == before_count
     assert client.patch(path, json={'tags': []}).status_code == 200
-    assert client.get('/api/v1/categorization/popular-tags').json() == []
+    assert tag not in {row['name'] for row in client.get('/api/v1/categorization/popular-tags').json()}
     for bad in ({'tags': ['']}, {'tags': ['a' * 65]}, {'tags': ['x\x00y']}, {'tags': ['x'] * 21},
                 {'module_id': 99999999}, {'root_cause_code_id': 99999999}, {'status': 'CLOSED'}):
         assert client.patch(path, json=bad).status_code == 422
@@ -143,7 +165,7 @@ def test_product_cascade_independent_axes_and_personal_frequency(capture):
     assert updated.json()['category_id'] is None and updated.json()['symptom_id'] == symptom
     # Selecting a module must not erase either independent axis.
     assert client.patch(path, json={'module_id': context['module_id']}).json()['service_stage_id'] == stage
-    product2 = post(client, '/products', {'code': 'other', 'name': 'Other'})['id']
+    product2 = post(client, '/products', {'code': f"other-{ticket['id']}", 'name': f"Other {ticket['id']}"})['id']
     instance2 = post(client, f"/organizations/{context['organization_id']}/products/{product2}/instances",
         {'code': 'prod2', 'name': 'Other', 'version': '1', 'environment': 'production', 'url': 'https://example.org'})['id']
     invalid = client.patch(path, json={'product_instance_id': instance2, 'symptom_id': symptom})
@@ -218,3 +240,20 @@ def test_legacy_assessment_and_core_category_audit(capture):
     assert result.status_code == 200, result.text
     audit = client.get(f"/api/v1/tickets/{active['id']}/audit").json()
     assert any(row['changes'].get('category_id') == {'old': context['category_id'], 'new': category_id} for row in audit)
+
+
+def test_existing_worklog_contract_and_storage_are_preserved(capture):
+    client, _, factory, context, _ = capture
+    ticket = create(client, context)
+    path = f"/tickets/{ticket['id']}/worklogs"
+    note = post(client, path, {'message': 'Legacy internal note', 'is_internal': True})
+    reply = post(client, path, {'message': 'Legacy LINE OA reply', 'is_internal': False, 'channel': 'line_oa'})
+    assert note['body'] == note['message'] == 'Legacy internal note'
+    assert note['kind'] == 'internal_note' and note['is_internal'] is True
+    assert reply['channel'] == 'line_oa' and reply['is_internal'] is False
+    assert client.post('/api/v1' + path, json={'message': 'No actual channel', 'is_internal': False}).status_code == 422
+    assert client.post('/api/v1' + path, json={'message': 'Ambiguous', 'body': 'other', 'kind': 'internal_note'}).status_code == 422
+    with factory() as db:
+        stored = db.get(TicketWorklog, note['id'])
+        assert stored.__tablename__ == 'ticket_worklogs'
+        assert stored.message == note['body'] and stored.author_id == note['actor_id']

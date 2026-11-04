@@ -3,29 +3,39 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
-    CheckConstraint,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
     String,
     Text,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, synonym
 
 from app.db.base_class import Base
 
 
 class TicketWorklog(Base):
-    __tablename__ = 'ticket_worklog'
-    __table_args__ = (CheckConstraint("kind IN ('internal_note','public_reply')", name='ck_worklog_kind'),
-        CheckConstraint("(kind = 'internal_note' AND channel IS NULL) OR (kind = 'public_reply' AND channel IS NOT NULL)", name='ck_worklog_channel'))
+    __tablename__ = 'ticket_worklogs'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey('ticket.id'), index=True)
-    kind: Mapped[str] = mapped_column(String(20))
-    body: Mapped[str] = mapped_column(Text)
+    is_internal: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default='1')
+    message: Mapped[str] = mapped_column(Text)
+    body = synonym('message')
     channel: Mapped[str | None] = mapped_column(String(50))
-    actor_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    author_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    actor_id = synonym('author_id')
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def kind(self):
+        return 'internal_note' if self.is_internal else 'public_reply'
+
+    @kind.setter
+    def kind(self, value):
+        if value not in ('internal_note', 'public_reply'):
+            raise ValueError('Invalid worklog kind')
+        self.is_internal = value == 'internal_note'
 
 
 class TicketAudit(Base):

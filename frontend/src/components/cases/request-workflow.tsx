@@ -92,6 +92,7 @@ export function RequestWorkflow({
             <label>
               ผู้ดำเนินคำขอ
               <select
+                aria-label="ผู้ดำเนินคำขอ"
                 required={!ticket.assignee_id}
                 value={assignee}
                 onChange={(event) => setAssignee(event.target.value)}
@@ -117,6 +118,7 @@ export function RequestWorkflow({
               <label>
                 ผลการส่งมอบคำขอ
                 <textarea
+                  aria-label="ผลการส่งมอบคำขอ"
                   required
                   maxLength={20000}
                   value={detail}

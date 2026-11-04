@@ -1,14 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { Ticket } from "@/lib/types";
+import type { Ticket, Instance, SelectionContext } from "@/lib/types";
 import { useSession } from "@/components/providers/session-provider";
 import { Button } from "@/components/ui/primitives";
-import { CategoryFields, type CategoryValues } from "./category-fields";
+import {
+  CategoryFields,
+  CategorySelect,
+  type CategoryValues,
+} from "./category-fields";
 import { backendCapabilities } from "@/lib/backend-capabilities";
 
 type CategoryState = CategoryValues & {
   product_id: number | null;
+  product_instance_id: number | null;
   workflow: string;
 };
 export function CategoryEditor({
@@ -27,6 +32,8 @@ export function CategoryEditor({
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [instances, setInstances] = useState<Instance[]>([]);
+  const dirty = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
     backendCapabilities(controller.signal)
@@ -37,8 +44,17 @@ export function CategoryEditor({
           `/tickets/${ticket.id}/categorization`,
           { signal: controller.signal },
         );
-        setValue(result);
-        setOriginal(result);
+        if (!dirty.current) {
+          setValue(result);
+          setOriginal(result);
+        }
+        if (ticket.organization_id) {
+          const context = await api<SelectionContext>(
+            `/customers/organizations/${ticket.organization_id}/selection-context`,
+            { signal: controller.signal },
+          );
+          setInstances(context.instances);
+        }
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -67,6 +83,14 @@ export function CategoryEditor({
               JSON.stringify(original?.[key as keyof CategoryState]),
         ),
       );
+      // An explicit override may equal the old severity while its assessment inputs changed.
+      if (
+        "impact_scope" in body ||
+        "is_exam_window" in body ||
+        "severity_overridden_reason" in body
+      ) {
+        body.severity = value.severity;
+      }
       const updated = await api<Ticket>(
         `/tickets/${ticket.id}/categorization`,
         { method: "PATCH", body: JSON.stringify(body) },
@@ -76,6 +100,7 @@ export function CategoryEditor({
       );
       setValue(refreshed);
       setOriginal(refreshed);
+      dirty.current = false;
       onUpdated(updated);
       setMessage("บันทึกหมวดหมู่และประวัติการเปลี่ยนแล้ว");
     } catch (e) {
@@ -95,6 +120,30 @@ export function CategoryEditor({
       {value && (
         <form onSubmit={save}>
           <fieldset disabled={!editable || busy}>
+            <CategorySelect
+              label="ผลิตภัณฑ์ / ระบบที่ลูกค้าใช้งาน"
+              value={value.product_instance_id}
+              options={instances.map((instance) => ({
+                id: instance.id,
+                name: `${instance.name} · ${instance.version} · ${instance.environment}`,
+              }))}
+              disabled={!editable || busy || !ticket.organization_id}
+              onChange={(next) => {
+                dirty.current = true;
+                const selected = instances.find(
+                  (instance) => instance.id === Number(next),
+                );
+                setValue({
+                  ...value,
+                  product_instance_id: selected?.id ?? null,
+                  product_id: selected?.product_id ?? null,
+                  module_id: null,
+                  category_id: null,
+                  symptom_id: null,
+                  service_stage_id: null,
+                });
+              }}
+            />
             <CategoryFields
               key={ticket.id}
               productId={value.product_id}
@@ -102,7 +151,10 @@ export function CategoryEditor({
               departmentId={ticket.department_id}
               value={value}
               readOnly={!editable || busy}
-              onChange={(next) => setValue({ ...value, ...next })}
+              onChange={(next) => {
+                dirty.current = true;
+                setValue({ ...value, ...next });
+              }}
               onLoading={setLoading}
             />
           </fieldset>

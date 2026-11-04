@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.schemas.categorization import CategoryFields
+from app.schemas.worklog import WorklogCreate
 
 
 class TicketCreate(CategoryFields):
