@@ -27,6 +27,7 @@ const labels: Record<string, string> = {
   request_start: "เริ่มดำเนินคำขอ",
   request_fulfil: "ส่งมอบผลคำขอ",
   request_confirm: "ยืนยันและปิดคำขอ",
+  similarity_decision: "ตัดสินใจจากเคสที่คล้ายกัน",
 };
 const fieldLabels: Record<string, string> = {
   module_id: "โมดูล",
@@ -46,6 +47,9 @@ const fieldLabels: Record<string, string> = {
   tags: "แท็ก",
   action: "ขั้นตอนคำขอ",
   status: "สถานะ",
+  feedback_id: "ผลการค้นหา",
+  chosen_ticket_id: "เคสต้นทาง",
+  decision: "แนวทางที่เลือก",
 };
 export function WorklogPanel({ ticket }: { ticket: Ticket }) {
   const { session } = useSession();

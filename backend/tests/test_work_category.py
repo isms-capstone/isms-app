@@ -16,7 +16,16 @@ from test_tickets import capture
 
 
 def create(client, context, **extra):
-    response = client.post('/api/v1/tickets', json=context | {'subject': 'WRK CAT QA', 'channel': 'phone'} | extra)
+    body = context | {'subject': 'WRK CAT QA', 'channel': 'phone'} | extra
+    query = f"{body.get('subject') or ''} {body.get('description') or ''}".strip()
+    if not body.get('save_as_draft') and len(query) >= 10:
+        suggestions = client.get('/api/v1/tickets/similar',params={'q':query,
+            'organization_id':body['organization_id'],'product_instance_id':body['product_instance_id']}).json()
+        if suggestions.get('decision_required'):
+            fid = suggestions['feedback_id']
+            assert client.post(f'/api/v1/tickets/similarity-feedback/{fid}',json={'decision':'new'}).status_code == 200
+            body['similarity_feedback_id'] = fid
+    response = client.post('/api/v1/tickets', json=body)
     assert response.status_code == 201, response.text
     return response.json()
 

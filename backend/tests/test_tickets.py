@@ -10,7 +10,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_current_user
 from app.api.v1.router import api_router
@@ -21,12 +20,16 @@ from app.db.session import get_db
 
 
 @pytest.fixture
-def capture():
+def capture(tmp_path):
     external = os.getenv('REGISTRY_MARIADB_QA') == '1'
     if external:
         from app.db.session import engine
     else:
-        engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
+        # A deadline search must have its own physical connection/transaction,
+        # just like MariaDB and the live QA server. StaticPool shares a single
+        # connection and a timed-out reader could roll back the writer's work.
+        engine = create_engine(f'sqlite:///{(tmp_path / "capture.sqlite").as_posix()}',
+                               connect_args={'check_same_thread': False})
         @event.listens_for(engine, 'connect')
         def foreign_keys(connection, _):
             connection.execute('PRAGMA foreign_keys=ON')
@@ -264,7 +267,14 @@ def test_concurrent_numbering_and_month_boundary(tmp_path):
 def test_offline_channels_share_case_queries(capture):
     client, _, _, data, _ = capture
     for channel in ('phone', 'face_to_face'):
-        result = client.post('/api/v1/tickets', json=dict(data, subject='Offline contact', channel=channel))
+        body = dict(data, subject='Offline contact', channel=channel)
+        suggestions = client.get('/api/v1/tickets/similar',params={'q':body['subject'],
+            'organization_id':data['organization_id'],'product_instance_id':data['product_instance_id']}).json()
+        if suggestions.get('decision_required'):
+            fid = suggestions['feedback_id']
+            assert client.post(f'/api/v1/tickets/similarity-feedback/{fid}',json={'decision':'new'}).status_code == 200
+            body['similarity_feedback_id'] = fid
+        result = client.post('/api/v1/tickets', json=body)
         assert result.status_code == 201 and result.json()['channel'] == channel
     base = f"/api/v1/customers/organizations/{data['organization_id']}"
     assert client.get(base + '/case-summary').json()['open_count'] == 2
@@ -285,6 +295,11 @@ def test_product_policy_snapshot_and_isolation(capture):
     symptom = client.post('/api/v1/admin/master-data/symptoms', json={'name': 'Other product symptom', 'product_id': foreign_product}).json()['id']
     assert client.post('/api/v1/tickets', json=body | {'symptom_id': symptom}).status_code == 422
     assert client.patch(f'/api/v1/admin/master-data/sla-policies/{policy}', json={'is_active': False}).status_code == 200
+    suggestions = client.get('/api/v1/tickets/similar',params={'q':body['subject'],
+        'organization_id':data['organization_id'],'product_instance_id':data['product_instance_id']}).json()
+    fid = suggestions['feedback_id']
+    assert client.post(f'/api/v1/tickets/similarity-feedback/{fid}',json={'decision':'new'}).status_code == 200
+    body['similarity_feedback_id'] = fid
     assert client.post('/api/v1/tickets', json=body).json()['sla_policy_id'] is None
     assert client.get(f"/api/v1/tickets/{record['id']}").json()['sla_policy_id'] == policy
 

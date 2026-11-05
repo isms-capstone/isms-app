@@ -102,12 +102,15 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
     for row in db.scalars(select(TicketWorklog).where(TicketWorklog.ticket_id == ticket_id)):
         events.append(worklog_json(row, actors.get(row.actor_id)) | {'id': f'worklog-{row.id}'})
     for row in db.scalars(select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == ticket_id)):
+        if (row.details or {}).get('event') == 'CASE_CREATED':
+            continue  # Already represented by the unified case_created event.
         events.append({'id': f'status-{row.id}', 'kind': 'status_changed', 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id),
             'body': f'{row.from_status} → {row.to_status}', 'details': row.details})
     for row in db.scalars(select(TicketAudit).where(TicketAudit.ticket_id == ticket_id,
                                                    TicketAudit.event != 'worklog_created')):
-        description = {'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
+        description = {'similarity_decision': 'บันทึกการตัดสินใจจากเคสที่คล้ายกัน',
+                       'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
                        'request_confirm': 'ยืนยันและปิดคำขอ'}.get(row.event, 'บันทึกหมวดหมู่')
         events.append({'id': f'audit-{row.id}', 'kind': row.event, 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id), 'body': description, 'changes': row.changes})
@@ -180,7 +183,7 @@ def update_categorization(ticket_id: int, body: CategorizationUpdate,
     before = snapshot(db, ticket)
     changes = body.model_dump(exclude_unset=True)
     data = {field: getattr(ticket, field) for field in TicketCreate.model_fields
-            if field not in ('save_as_draft', 'created_for_user_id', 'tags')}
+            if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')}
     # CAT does not edit intake channel. Older records may contain legacy values
     # such as WEB; do not revalidate those against today's capture-only enum.
     data.update(tags=before['tags'], save_as_draft=True, channel=None,

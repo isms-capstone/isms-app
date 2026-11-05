@@ -43,6 +43,8 @@ jobs:
           done
           exit 1
       - name: Verify frontend browser flows
+        env:
+          WRK_LEGACY_QA: "0"
         run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
@@ -77,6 +79,7 @@ jobs:
       MARIADB_PASSWORD: qa-only-password
       MARIADB_DB: isms_registry_qa
       SECRET_KEY: ci-isolated-registry-test-key-only
+      PYTHAINLP_OFFLINE: "1"
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v5
@@ -95,7 +98,7 @@ jobs:
           python -m alembic upgrade head
           python -m app.db.seed
           python -m app.db.seed
-          python -m pytest tests/test_registry_mariadb.py tests/test_tickets.py tests/test_work_category.py -q
+          python -m pytest tests/test_registry_mariadb.py tests/test_tickets.py tests/test_work_category.py tests/test_worklog.py tests/test_similarity_worklogs.py -q
       - name: Verify actual application image startup on migrated MariaDB
         run: |
           docker build -t isms-integration-qa .

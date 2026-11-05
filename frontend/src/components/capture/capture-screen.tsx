@@ -35,6 +35,10 @@ import {
 import { previewRows } from "@/lib/preview";
 import { CustomerPicker } from "./customer-picker";
 import {
+  SimilarityPanel,
+  type ReuseValues,
+} from "@/components/cases/similarity-panel";
+import {
   CategoryFields,
   emptyCategories,
   type CategoryValues,
@@ -75,9 +79,43 @@ export function CaptureScreen() {
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
     [message, setMessage] = useState("");
+  const [similarFeedbackId, setSimilarFeedbackId] = useState<number | null>(
+    null,
+  );
+  const [similarBlocked, setSimilarBlocked] = useState(false);
+  const [createdFor, setCreatedFor] = useState("");
+  const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  useEffect(() => {
+    if (preview) return;
+    const controller = new AbortController();
+    api<{ id: number; name: string }[]>("/tickets/team-members", {
+      signal: controller.signal,
+    })
+      .then(setMembers)
+      .catch(() => {});
+    return () => controller.abort();
+  }, [preview]);
+  const onSimilarityState = useCallback(
+    (id: number | null, blocked: boolean) => {
+      setSimilarFeedbackId(id);
+      setSimilarBlocked(blocked);
+    },
+    [],
+  );
+  const onReuse = useCallback((values: ReuseValues) => {
+    setInstance(values.product_instance_id);
+    setCategories((current) => ({
+      ...current,
+      ...values,
+      symptom_id: null,
+      service_stage_id: null,
+    }));
+  }, []);
   const onError = useCallback((value: string) => setError(value), []);
   const chooseContext = useCallback((value: SelectionContext | null) => {
     setContext(value);
+    setSimilarFeedbackId(null);
     setExisting([]);
     setInstance(value?.instances.length === 1 ? value.instances[0].id : null);
     setDepartment("");
@@ -108,6 +146,10 @@ export function CaptureScreen() {
       return;
     }
     if (!session?.can_create_cases || saving || optionsLoading) return;
+    if (!draft && similarBlocked) {
+      setError("กรุณายืนยันแนวทางจากเคสที่คล้ายกันก่อนสร้างเคส");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -115,6 +157,8 @@ export function CaptureScreen() {
         method: "POST",
         body: JSON.stringify({
           save_as_draft: draft,
+          similarity_feedback_id: similarFeedbackId,
+          created_for_user_id: createdFor ? Number(createdFor) : null,
           subject,
           description,
           channel: channel || null,
@@ -126,6 +170,14 @@ export function CaptureScreen() {
           ...categories,
         }),
       });
+      for (const file of files) {
+        const body = new FormData();
+        body.append("file", file);
+        await api(`/tickets/${ticket.id}/attachments`, {
+          method: "POST",
+          body,
+        });
+      }
       router.push(href(`/cases/${ticket.id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ");
@@ -297,6 +349,45 @@ export function CaptureScreen() {
                   ))}
                 </section>
               ) : null}
+              {!preview && (
+                <SimilarityPanel
+                  subject={subject}
+                  description={description}
+                  organizationId={context?.organization.id || null}
+                  instanceId={instance}
+                  onState={onSimilarityState}
+                  onReuse={onReuse}
+                />
+              )}
+              <label>
+                สร้างแทนเพื่อนร่วมทีม (ไม่บังคับ)
+                <SelectControl
+                  value={createdFor}
+                  onValueChange={setCreatedFor}
+                  disabled={preview || members.length === 0}
+                >
+                  <option value="">ยังไม่ระบุ</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </SelectControl>
+              </label>
+              <label>
+                แนบไฟล์หลักฐาน
+                <input
+                  type="file"
+                  multiple
+                  disabled={preview || saving}
+                  onChange={(event) =>
+                    setFiles(Array.from(event.target.files || []))
+                  }
+                />
+              </label>
+              {files.length > 0 && (
+                <p>{files.map((file) => file.name).join(", ")}</p>
+              )}
               <fieldset className="channel-field">
                 <legend>
                   ช่องทาง <span className="required">*</span>
@@ -526,6 +617,7 @@ export function CaptureScreen() {
                 saving ||
                 optionsLoading ||
                 !complete ||
+                similarBlocked ||
                 !session?.can_create_cases
               }
             >

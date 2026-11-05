@@ -92,3 +92,4 @@ class Ticket(Base):
     pending_external_reason: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(Text)
     legacy_case_no: Mapped[str | None] = mapped_column(String(100))
+    search_text: Mapped[str | None] = mapped_column(Text, nullable=True)

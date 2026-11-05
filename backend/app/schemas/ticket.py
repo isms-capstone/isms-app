@@ -24,6 +24,7 @@ class TicketCreate(CategoryFields):
     service_stage_id: int | None = Field(default=None, ge=1)
     ticket_type_id: int | None = Field(default=None, ge=1)
     reported_at: datetime | None = None
+    similarity_feedback_id: int | None = Field(default=None, ge=1)
 
     @field_validator('subject', 'description')
     @classmethod
@@ -37,6 +38,46 @@ class TicketCreate(CategoryFields):
             raise ValueError('reported_at must include a timezone offset')
         return value
 
+class TicketDetailsUpdate(BaseModel):
+    """Update editable business details of a NEW ticket."""
+    model_config = ConfigDict(extra='forbid')
+
+    subject: str | None = Field(default=None, max_length=255)
+    description: str | None = Field(default=None, max_length=20000)
+
+    channel: Literal[
+        'line_oa',
+        'line_group',
+        'line_personal',
+        'portal',
+        'email',
+        'phone',
+        'face_to_face',
+        'other',
+    ] | None = None
+
+    organization_id: int | None = Field(default=None, ge=1)
+    contact_id: int | None = Field(default=None, ge=1)
+    department_id: int | None = Field(default=None, ge=1)
+    course_or_exam_id: int | None = Field(default=None, ge=1)
+    product_instance_id: int | None = Field(default=None, ge=1)
+    module_id: int | None = Field(default=None, ge=1)
+    category_id: int | None = Field(default=None, ge=1)
+    symptom_id: int | None = Field(default=None, ge=1)
+    service_stage_id: int | None = Field(default=None, ge=1)
+    ticket_type_id: int | None = Field(default=None, ge=1)
+
+    environment: str | None = Field(default=None, max_length=100)
+    browser_device: str | None = Field(default=None, max_length=255)
+    source_url: str | None = Field(default=None, max_length=2048)
+    exam_or_course_context: str | None = Field(default=None, max_length=20000)
+
+    @field_validator('subject', 'description', 'environment',
+                     'browser_device', 'source_url',
+                     'exam_or_course_context')
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() or None if value is not None else None
 
 class DraftFieldUpdate(BaseModel):
     """Explicit one-field edit for CAP-06; no autosave or status changes."""
