@@ -57,6 +57,9 @@ export type Ticket = {
   created_at: string;
   reported_at: string;
   resolved_at?: string | null;
+  root_cause_code_id?: number | null;
+  resolution_code_id?: number | null;
+  resolution_detail?: string | null;
   sla_policy_id: number | null;
   is_exam_window: boolean;
 };

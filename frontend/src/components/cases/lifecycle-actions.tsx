@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { statusNames, type Ticket } from "@/lib/types";
 import { Button, Input } from "@/components/ui/primitives";
+import { useSession } from "@/components/providers/session-provider";
+import { CustomerSystemEditor } from "./customer-system-editor";
 type Choice = { id: number; name: string };
 type Options = {
   actions: string[];
@@ -21,12 +23,14 @@ export function LifecycleActions({
   ticket: Ticket;
   onUpdated: (ticket: Ticket) => void;
 }) {
+  const { session } = useSession();
   const [options, setOptions] = useState<Options | null>(null);
   const [target, setTarget] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [editingSystems, setEditingSystems] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     api<Options>(`/tickets/${ticket.id}/lifecycle-options`, {
@@ -43,6 +47,7 @@ export function LifecycleActions({
       (instance) => instance.id === ticket.product_instance_id,
     );
   const missingInstance = needsInstance && options.instances.length === 0;
+  const canManageSystems = Boolean(ticket.organization_id && session?.can_edit_customers);
   function choice(field: string, label: string, rows: Choice[]) {
     return (
       <label key={field}>
@@ -104,10 +109,18 @@ export function LifecycleActions({
         {options.actions.map((action) => (
           <Button
             key={action}
+            disabled={busy || editingSystems}
             onClick={() => {
               setTarget(action);
-              setValues({});
+              setValues(action === "RESOLVED" ? {
+                root_cause_code_id: options.causes.some((cause) => cause.id === ticket.root_cause_code_id)
+                  ? String(ticket.root_cause_code_id) : "",
+                resolution_code_id: options.solutions.some((solution) => solution.id === ticket.resolution_code_id)
+                  ? String(ticket.resolution_code_id) : "",
+                resolution_detail: ticket.resolution_detail ?? "",
+              } : {});
               setError("");
+              setMessage("");
             }}
           >
             {action === "CANCELLED"
@@ -116,7 +129,26 @@ export function LifecycleActions({
           </Button>
         ))}
       </div>
-      {target && (
+      {editingSystems && ticket.organization_id && (
+        <CustomerSystemEditor
+          key={ticket.organization_id}
+          organizationId={ticket.organization_id}
+          onCancel={() => setEditingSystems(false)}
+          onSaved={(system) => {
+            setOptions((current) => current && ({
+              ...current,
+              instances: [
+                ...current.instances.filter((item) => item.id !== system.id),
+                { id: system.id, name: system.name },
+              ],
+            }));
+            setValues((current) => ({ ...current, product_instance_id: String(system.id) }));
+            setMessage(`เลือกใช้ระบบ ${system.name} แล้ว`);
+            setEditingSystems(false);
+          }}
+        />
+      )}
+      {target && !editingSystems && (
         <form onSubmit={submit} className="lifecycle-form">
           <strong>
             {target === "CANCELLED"
@@ -133,16 +165,25 @@ export function LifecycleActions({
               {missingInstance ? (
                 <p role="alert" className="form-error">
                   {ticket.organization_id
-                    ? "ลูกค้านี้ยังไม่มีอินสแตนซ์ผลิตภัณฑ์ที่เปิดใช้งาน ให้ผู้ดูแลเพิ่มหรือเปิดใช้งานในทะเบียนลูกค้า แล้วรีเฟรชหน้านี้"
-                    : "เคสนี้ยังไม่ได้ระบุลูกค้า จึงไม่มีอินสแตนซ์ผลิตภัณฑ์ให้เลือก"}
+                    ? canManageSystems
+                      ? "ลูกค้านี้ยังไม่มีระบบที่เปิดใช้งาน เพิ่มหรือเปิดใช้งานระบบได้ด้านล่าง"
+                      : "ลูกค้านี้ยังไม่มีระบบที่เปิดใช้งาน ให้ผู้ที่มีสิทธิ์แก้ข้อมูลลูกค้าเปิดหน้านี้เพื่อเพิ่มระบบ"
+                    : "เคสนี้ยังไม่ได้ระบุลูกค้า จึงไม่มีระบบให้เลือก"}
                 </p>
               ) : needsInstance ? (
                 choice(
                   "product_instance_id",
-                  "อินสแตนซ์ผลิตภัณฑ์",
+                  "ระบบที่ลูกค้าใช้งาน",
                   options.instances,
                 )
               ) : null}
+              {needsInstance && canManageSystems && (
+                <div>
+                  <Button onClick={() => setEditingSystems(true)} disabled={busy}>
+                    เพิ่มหรือเปิดใช้งานระบบของลูกค้า
+                  </Button>
+                </div>
+              )}
               {choice("root_cause_code_id", "สาเหตุปัญหา", options.causes)}
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
               <label>
