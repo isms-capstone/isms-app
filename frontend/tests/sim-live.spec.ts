@@ -1,5 +1,65 @@
 import { test, expect } from "@playwright/test";
 
+test("Master Data manages case choices and customer systems in the frontend", async ({
+  page,
+  baseURL,
+}) => {
+  const headers = { origin: baseURL! };
+  const login = await page.request.post("/api/session", {
+    headers,
+    data: { username: "qa-admin", password: "test-only-password" },
+  });
+  expect(login.ok()).toBe(true);
+  const key = `master-qa-${Date.now()}`;
+  await page.goto("/master-data");
+  await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(page.getByRole("row", { name: new RegExp(key) })).toBeVisible();
+
+  await page.getByRole("link", { name: "องค์กรลูกค้า", exact: true }).click();
+  await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(page.getByRole("row", { name: new RegExp(key) })).toBeVisible();
+
+  await page
+    .getByRole("link", { name: "ระบบที่ลูกค้าใช้งาน", exact: true })
+    .click();
+  await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
+  for (const label of ["องค์กรลูกค้า", "ผลิตภัณฑ์"]) {
+    await page.getByRole("combobox", { name: label, exact: true }).click();
+    await page.getByRole("option", { name: key, exact: true }).click();
+  }
+  await page.getByRole("textbox", { name: "รหัส", exact: true }).fill(key);
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await page.getByRole("textbox", { name: "เวอร์ชัน", exact: true }).fill("1");
+  await page
+    .getByRole("textbox", { name: "Environment", exact: true })
+    .fill("production");
+  await page
+    .getByRole("textbox", { name: "URL", exact: true })
+    .fill("https://example.org");
+  await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+  const row = page.getByRole("row", { name: new RegExp(key) });
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: "แก้ไข", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Environment", exact: true })
+    .fill("staging");
+  await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(row).toContainText("staging");
+  await row.getByRole("button", { name: "ปิดใช้งาน", exact: true }).click();
+  await expect(
+    row.getByRole("button", { name: "เปิดใช้งาน", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await row.getByRole("button", { name: "เปิดใช้งาน", exact: true }).click();
+  await expect(
+    row.getByRole("button", { name: "ปิดใช้งาน", exact: true }),
+  ).toBeVisible();
+});
+
 test("SIM and WRK persist through the current UI, API, CAT and unified timeline", async ({
   page,
   baseURL,

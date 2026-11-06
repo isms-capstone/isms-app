@@ -99,7 +99,12 @@ export function Sidebar({
       title: "ADMINISTRATION",
       items: [
         { label: "Users & Teams", path: "/admin/", icon: UsersRound },
-        { label: "Master Data", path: "/admin/", icon: Database },
+        {
+          label: "Master Data",
+          path: "/master-data",
+          icon: Database,
+          disabled: preview || session?.role !== "Admin",
+        },
         { label: "SLA & Business Hours", path: "/admin/", icon: Clock3 },
         { label: "Automation Rules", path: "/admin/", icon: Zap },
         { label: "Audit Log", icon: History, disabled: true },
@@ -149,6 +154,8 @@ export function Sidebar({
                   !!item.path &&
                   !legacy &&
                   (pathname === destination ||
+                    (item.path === "/master-data" &&
+                      pathname.startsWith("/master-data/")) ||
                     (item.path === "/my-work" &&
                       pathname.endsWith("/cases/new")) ||
                     (destination.endsWith("/cases") &&

@@ -47,9 +47,9 @@ export function CustomerScreen() {
           <h1>ลูกค้า</h1>
           <p>ทะเบียนองค์กรลูกค้าและระบบที่ใช้งาน</p>
         </div>
-        {!preview && (
-          <Link href="/registry" className="button button-secondary">
-            จัดการทะเบียนลูกค้า
+        {!preview && session?.can_edit_customers && (
+          <Link href="/master-data/customer-systems" className="button button-secondary">
+            จัดการองค์กรและระบบที่ใช้งาน
             <ArrowUpRight size={14} />
           </Link>
         )}
