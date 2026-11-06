@@ -97,6 +97,7 @@ export const statusNames: Record<string, string> = {
   NEW: "New",
   IN_PROGRESS: "In Progress",
   PENDING_CUSTOMER: "Pending Customer",
+  PENDING_EXTERNAL: "Pending External",
   RESOLVED: "Resolved",
   CLOSED: "Closed",
   REOPENED: "Reopened",
