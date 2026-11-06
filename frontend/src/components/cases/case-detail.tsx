@@ -278,7 +278,7 @@ export function CaseDetail({ id }: { id: number }) {
             )}
           </section>
           {!preview && session?.can_create_cases && (
-            <details key={ticket.id} className="surface detail-card">
+            <details key={`case-edit-${ticket.id}`} className="surface detail-card">
               <summary>แก้ไขข้อมูลเคส</summary>
               {ticket.status === "NEW" &&
                 (session.role === "Admin" ||
