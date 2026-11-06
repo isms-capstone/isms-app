@@ -78,11 +78,17 @@ test("SIM and WRK persist through the current UI, API, CAT and unified timeline"
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aR1sAAAAASUVORK5CYII=",
     "base64",
   );
-  await page.locator('input[type="file"]').setInputFiles({
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "เลือกไฟล์", exact: true }).click();
+  const chooser = await chooserPromise;
+  await chooser.setFiles({
     name: "case-evidence.png",
     mimeType: "image/png",
     buffer: imageBytes,
   });
+  await expect(page.getByRole("list", { name: "ไฟล์ที่เลือก" })).toContainText(
+    "case-evidence.png",
+  );
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
   await expect(page).toHaveURL(/\/cases\/\d+$/);
   const preview = page.getByRole("img", { name: "case-evidence.png" });

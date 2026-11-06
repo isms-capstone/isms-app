@@ -1,6 +1,6 @@
 "use client";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -86,6 +86,7 @@ export function CaptureScreen() {
   const [createdFor, setCreatedFor] = useState("");
   const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (preview) return;
     const controller = new AbortController();
@@ -374,20 +375,6 @@ export function CaptureScreen() {
                   ))}
                 </SelectControl>
               </label>
-              <label>
-                แนบไฟล์หลักฐาน
-                <input
-                  type="file"
-                  multiple
-                  disabled={preview || saving}
-                  onChange={(event) =>
-                    setFiles(Array.from(event.target.files || []))
-                  }
-                />
-              </label>
-              {files.length > 0 && (
-                <p>{files.map((file) => file.name).join(", ")}</p>
-              )}
               <fieldset className="channel-field">
                 <legend>
                   ช่องทาง <span className="required">*</span>
@@ -497,16 +484,57 @@ export function CaptureScreen() {
                   </label>
                 </div>
               </details>
-              <details className="capture-accordion attachment-accordion">
+              <details className="capture-accordion" open>
                 <summary>
                   <ImagePlus size={15} />
-                  <strong>หลักฐาน</strong>
-                  <span>แนบภาพหรือไฟล์เพื่อช่วยตรวจสอบปัญหา</span>
+                  <strong>ไฟล์แนบหลักฐาน</strong>
+                  <span>ไม่บังคับ</span>
                   <ChevronDown size={15} />
                 </summary>
-                <p className="field-hint">
-                  ส่วนแนบไฟล์ยังไม่เปิดใช้งานใน Backend รอบนี้
-                </p>
+                <div className="capture-attachments">
+                  <p id="capture-attachment-hint" className="field-hint">
+                    รองรับ JPG, PNG, WebP และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+                  </p>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    multiple
+                    hidden
+                    disabled={preview || saving}
+                    onChange={(event) =>
+                      setFiles(Array.from(event.target.files ?? []))
+                    }
+                  />
+                  <div className="capture-attachment-picker">
+                    <Button
+                      type="button"
+                      aria-describedby="capture-attachment-hint"
+                      disabled={preview || saving}
+                      onClick={() => fileInput.current?.click()}
+                    >
+                      เลือกไฟล์
+                    </Button>
+                    <span role="status" className="field-hint">
+                      {files.length
+                        ? `เลือกแล้ว ${files.length} ไฟล์`
+                        : "ยังไม่ได้เลือกไฟล์"}
+                    </span>
+                  </div>
+                  {files.length > 0 && (
+                    <ul
+                      className="capture-attachment-list"
+                      aria-label="ไฟล์ที่เลือก"
+                    >
+                      {files.map((file, index) => (
+                        <li key={`${file.name}-${index}`}>
+                          <FileText size={16} aria-hidden="true" />
+                          <span>{file.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </details>
               {error && (
                 <p className="form-error" role="alert">
