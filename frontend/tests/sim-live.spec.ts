@@ -18,6 +18,9 @@ test("Master Data manages case choices and customer systems in the frontend", as
   await expect(page.getByRole("row", { name: new RegExp(key) })).toBeVisible();
 
   await page.getByRole("link", { name: "องค์กรลูกค้า", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "องค์กรลูกค้า", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
   await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
   await page.getByRole("button", { name: "บันทึก", exact: true }).click();
@@ -26,6 +29,9 @@ test("Master Data manages case choices and customer systems in the frontend", as
   await page
     .getByRole("link", { name: "ระบบที่ลูกค้าใช้งาน", exact: true })
     .click();
+  await expect(
+    page.getByRole("heading", { name: "ระบบที่ลูกค้าใช้งาน", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "เพิ่มรายการ" }).click();
   for (const label of ["องค์กรลูกค้า", "ผลิตภัณฑ์"]) {
     await page.getByRole("combobox", { name: label, exact: true }).click();
