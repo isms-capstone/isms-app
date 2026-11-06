@@ -112,6 +112,13 @@ export function CategoryEditor({
   return (
     <section className="surface detail-card category-editor">
       <h2>หมวดหมู่และการประเมินเคส</h2>
+      {editable && value && (
+        <p className="field-hint">
+          แก้ไขโมดูล อาการ ประเภทปัญหา และช่วงเวลาการสอบได้ที่นี่
+          {!value.product_id &&
+            " เลือกระบบที่ลูกค้าใช้งานก่อนเพื่อเปิดตัวเลือกเหล่านี้"}
+        </p>
+      )}
       {supported === false && (
         <p className="field-hint">
           ยังไม่สามารถแก้หมวดหมู่เพิ่มเติมได้ในระบบที่เชื่อมต่ออยู่

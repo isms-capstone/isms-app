@@ -17,6 +17,7 @@ import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
 import { SimilarityPanel } from "./similarity-panel";
 import { CaseIntakeEditor } from "./case-intake-editor";
+import { CaseAttachments } from "./case-attachments";
 import { LifecycleActions } from "./lifecycle-actions";
 import { PriorityBadge, ChannelLabel, StatusBadge } from "./case-badges";
 import { CategoryEditor } from "./category-editor";
@@ -292,6 +293,12 @@ export function CaseDetail({ id }: { id: number }) {
               />
             )}
           {!preview && session?.can_create_cases && (
+            <CategoryEditor ticket={ticket} onUpdated={setTicket} />
+          )}
+          {!preview && session && (
+            <CaseAttachments key={ticket.id} ticketId={ticket.id} />
+          )}
+          {!preview && session?.can_create_cases && (
             <SimilarityPanel
               subject={ticket.subject || ""}
               description={ticket.description || ""}
@@ -301,9 +308,6 @@ export function CaseDetail({ id }: { id: number }) {
               autoSearch={false}
               onApplied={() => setAttempt((n) => n + 1)}
             />
-          )}
-          {!preview && session?.can_create_cases && (
-            <CategoryEditor ticket={ticket} onUpdated={setTicket} />
           )}
           {!preview && session?.can_create_cases && (
             <RequestWorkflow ticket={ticket} onUpdated={setTicket} />

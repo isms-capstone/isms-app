@@ -74,8 +74,24 @@ test("SIM and WRK persist through the current UI, API, CAT and unified timeline"
   await expect(
     page.getByRole("button", { name: "สร้างเคส", exact: true }),
   ).toBeEnabled();
+  const imageBytes = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aR1sAAAAASUVORK5CYII=",
+    "base64",
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "case-evidence.png",
+    mimeType: "image/png",
+    buffer: imageBytes,
+  });
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
   await expect(page).toHaveURL(/\/cases\/\d+$/);
+  const preview = page.getByRole("img", { name: "case-evidence.png" });
+  await expect(preview).toBeVisible();
+  await expect
+    .poll(() => preview.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(1);
+  const download = await page.request.get((await preview.getAttribute("src"))!);
+  expect(await download.body()).toEqual(imageBytes);
   const targetId = Number(new URL(page.url()).pathname.split("/").at(-1));
   const stored = await (
     await page.request.get(`/api/backend/tickets/${targetId}`)

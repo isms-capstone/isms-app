@@ -41,7 +41,7 @@ export function CaseIntakeEditor({
   }
   return (
     <details className="surface detail-card">
-      <summary>แก้ไขข้อมูลเคส</summary>
+      <summary>แก้ไขหัวข้อ รายละเอียด และช่องทาง</summary>
       <form className="detail-edit" onSubmit={save}>
         <label>
           หัวข้อเคส

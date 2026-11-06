@@ -41,7 +41,7 @@ export default defineConfig({
       timeout: 120000,
       env: {
         BACKEND_URL: "http://127.0.0.1:8878",
-        NEXT_DIST_DIR: ".next-sim-latest-qa",
+        NEXT_DIST_DIR: process.env.NEXT_DIST_DIR || ".next-sim-latest-qa",
         WRK_LEGACY_QA: "0",
       },
     },

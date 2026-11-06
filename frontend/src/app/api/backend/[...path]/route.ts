@@ -146,22 +146,35 @@ async function proxy(
         );
       }
     }
+    const contentType = request.headers.get("content-type");
+    const isAttachmentUpload =
+      request.method === "POST" &&
+      path.length === 3 &&
+      path[0] === "tickets" &&
+      /^\d+$/.test(path[1]) &&
+      path[2] === "attachments" &&
+      contentType?.toLowerCase().startsWith("multipart/form-data;");
     const response = await fetch(
       `${process.env.BACKEND_URL || "http://127.0.0.1:3000"}/api/v1/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`,
       {
         method: request.method,
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+          "Content-Type": isAttachmentUpload
+            ? contentType!
+            : "application/json",
         },
         body: ["GET", "HEAD"].includes(request.method)
           ? undefined
-          : await request.text(),
+          : isAttachmentUpload
+            ? await request.arrayBuffer()
+            : await request.text(),
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
         redirect: "error",
       },
     );
+    const disposition = response.headers.get("content-disposition");
     return new NextResponse(
       response.status === 204 ? null : await response.arrayBuffer(),
       {
@@ -170,6 +183,8 @@ async function proxy(
           "Content-Type":
             response.headers.get("content-type") || "application/json",
           "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          ...(disposition ? { "Content-Disposition": disposition } : {}),
         },
       },
     );
