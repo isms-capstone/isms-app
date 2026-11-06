@@ -154,8 +154,12 @@ async function proxy(
       /^\d+$/.test(path[1]) &&
       path[2] === "attachments" &&
       contentType?.toLowerCase().startsWith("multipart/form-data;");
+    const resourcePath = path.map(encodeURIComponent).join("/");
+    const resource = ["admin/users", "teams", "roles"].includes(resourcePath)
+      ? `${resourcePath}/`
+      : resourcePath;
     const response = await fetch(
-      `${process.env.BACKEND_URL || "http://127.0.0.1:3000"}/api/v1/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`,
+      `${backend}/api/v1/${resource}${request.nextUrl.search}`,
       {
         method: request.method,
         headers: {
@@ -195,4 +199,10 @@ async function proxy(
     );
   }
 }
-export { proxy as GET, proxy as POST, proxy as PATCH, proxy as PUT };
+export {
+  proxy as GET,
+  proxy as POST,
+  proxy as PATCH,
+  proxy as PUT,
+  proxy as DELETE,
+};

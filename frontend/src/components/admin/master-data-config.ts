@@ -1,7 +1,15 @@
-type Field = {
+export type Field = {
   key: string;
   label: string;
-  type?: "number" | "url" | "textarea";
+  type?:
+    | "number"
+    | "url"
+    | "textarea"
+    | "password"
+    | "email"
+    | "date"
+    | "time"
+    | "boolean";
   max?: number;
   optional?: boolean;
   defaultValue?: string;
@@ -9,13 +17,20 @@ type Field = {
   choices?: string[];
   dependsOn?: string;
   createOnly?: boolean;
+  optionalOnEdit?: boolean;
+  sourceBy?: Record<string, { source?: string; choices?: string[] }>;
 };
 
-type Collection = {
+export type Collection = {
   title: string;
   path: string;
   fields: Field[];
   registry?: boolean;
+  titleKey?: string;
+  noStatus?: boolean;
+  removable?: boolean;
+  lockedNames?: string[];
+  child?: Omit<Collection, "path"> & { suffix: string };
 };
 
 const master = "/admin/master-data";

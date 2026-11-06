@@ -98,15 +98,26 @@ export function Sidebar({
     {
       title: "ADMINISTRATION",
       items: [
-        { label: "Users & Teams", path: "/admin/", icon: UsersRound },
+        {
+          label: "Users & Teams",
+          path: "/administration/users",
+          icon: UsersRound,
+        },
         {
           label: "Master Data",
           path: "/master-data",
           icon: Database,
-          disabled: preview || session?.role !== "Admin",
         },
-        { label: "SLA & Business Hours", path: "/admin/", icon: Clock3 },
-        { label: "Automation Rules", path: "/admin/", icon: Zap },
+        {
+          label: "SLA & Business Hours",
+          path: "/administration/sla-policies",
+          icon: Clock3,
+        },
+        {
+          label: "Automation Rules",
+          path: "/administration/automation",
+          icon: Zap,
+        },
         { label: "Audit Log", icon: History, disabled: true },
       ],
     },
@@ -146,14 +157,17 @@ export function Sidebar({
               <h2>{group.title}</h2>
               {group.items.map((item) => {
                 const Icon = item.icon;
-                const legacy = item.path === "/admin/";
-                const destination = legacy
-                  ? "/admin/"
-                  : href(item.path || "/my-work");
+                const destination = href(item.path || "/my-work");
                 const active =
                   !!item.path &&
-                  !legacy &&
                   (pathname === destination ||
+                    (item.path === "/administration/users" &&
+                      [
+                        "/administration/teams",
+                        "/administration/roles",
+                      ].includes(pathname)) ||
+                    (item.path === "/administration/sla-policies" &&
+                      pathname === "/administration/business-calendars") ||
                     (item.path === "/master-data" &&
                       pathname.startsWith("/master-data/")) ||
                     (item.path === "/my-work" &&
@@ -162,7 +176,8 @@ export function Sidebar({
                       !pathname.endsWith("/cases/new") &&
                       pathname.startsWith(`${destination}/`)));
                 return item.disabled ||
-                  (legacy && (preview || !session?.can_edit_products)) ? (
+                  (group.title === "ADMINISTRATION" &&
+                    (preview || session?.role !== "Admin")) ? (
                   <button
                     className="nav-item"
                     disabled

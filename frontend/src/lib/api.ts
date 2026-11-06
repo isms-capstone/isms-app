@@ -40,11 +40,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
   return data;
 }
-export async function all<T>(path: string, signal?: AbortSignal): Promise<T[]> {
+export async function all<T>(
+  path: string,
+  signal?: AbortSignal,
+  offsetKey: "offset" | "skip" = "offset",
+): Promise<T[]> {
   const rows: T[] = [];
   for (let offset = 0; ; offset += 100) {
     const page = await api<T[]>(
-      `${path}${path.includes("?") ? "&" : "?"}offset=${offset}&limit=100`,
+      `${path}${path.includes("?") ? "&" : "?"}${offsetKey}=${offset}&limit=100`,
       { signal },
     );
     rows.push(...page);

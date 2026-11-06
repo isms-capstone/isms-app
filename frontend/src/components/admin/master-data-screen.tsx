@@ -1,21 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { Database, Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { Button, Input } from "@/components/ui/primitives";
 import { all, api } from "@/lib/api";
-import { masterCollections } from "./master-data-config";
+import { masterCollections, type Collection } from "./master-data-config";
 
 type Row = {
   id: number;
   name: string;
   is_active: boolean;
 } & Record<string, string | number | boolean | null>;
-type Collection = (typeof masterCollections)[string];
 
 export function MasterDataScreen({ section }: { section: string }) {
   const { session } = useSession();
@@ -62,7 +61,7 @@ export function MasterDataScreen({ section }: { section: string }) {
   );
 }
 
-function MasterDataCollection({
+export function MasterDataCollection({
   section,
   config,
 }: {
@@ -81,17 +80,35 @@ function MasterDataCollection({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [child, setChild] = useState<Row | null>(null);
+  const titleId = useId();
   const systems = section === "customer-systems";
+  const users = section === "users";
+  const title = (row: Row) => String(row[config.titleKey ?? "name"]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const read = (path: string) =>
-      path.startsWith("/admin/")
-        ? api<Row[]>(path, { signal: controller.signal })
-        : all<Row>(path, controller.signal);
+    const read = (path: string) => {
+      if (path === "/admin/users")
+        return all<Row>(path, controller.signal, "skip");
+      if (
+        [
+          "/customers/organizations",
+          "/product-instances",
+          "/products",
+        ].includes(path)
+      )
+        return all<Row>(path, controller.signal);
+      return api<Row[]>(path, { signal: controller.signal });
+    };
     const sources = [
       ...new Set(
-        config.fields.flatMap((field) => (field.source ? [field.source] : [])),
+        config.fields.flatMap((field) => [
+          ...(field.source ? [field.source] : []),
+          ...Object.values(field.sourceBy ?? {}).flatMap((option) =>
+            option.source ? [option.source] : [],
+          ),
+        ]),
       ),
     ];
     Promise.all([
@@ -131,15 +148,16 @@ function MasterDataCollection({
   async function mutate(
     path: string,
     method: string,
-    body: object,
+    body: object | undefined,
     message: string,
+    removedId?: number,
   ) {
     if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const saved = await api<Row>(path, {
+      const saved = await api<Row | null>(path, {
         method,
         body: JSON.stringify(body),
       });
@@ -147,9 +165,11 @@ function MasterDataCollection({
         (current) =>
           current && {
             ...current,
-            rows: current.rows.some((row) => row.id === saved.id)
-              ? current.rows.map((row) => (row.id === saved.id ? saved : row))
-              : [...current.rows, saved],
+            rows: !saved
+              ? current.rows.filter((row) => row.id !== removedId)
+              : current.rows.some((row) => row.id === saved.id)
+                ? current.rows.map((row) => (row.id === saved.id ? saved : row))
+                : [...current.rows, saved],
           },
       );
       setEditor(null);
@@ -161,21 +181,43 @@ function MasterDataCollection({
     }
   }
 
-  const fields = config.fields.filter(
-    (field) => editor === "new" || !field.createOnly,
-  );
+  const fields = config.fields
+    .filter((field) => editor === "new" || !field.createOnly)
+    .map((field) => ({
+      ...field,
+      optional: field.optional || (editor !== "new" && field.optionalOnEdit),
+    }));
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editor) return;
     const body = Object.fromEntries(
-      fields.map((field) => [
-        field.key,
-        field.source || field.type === "number"
-          ? Number(values[field.key])
-          : values[field.key].trim(),
-      ]),
+      fields
+        .filter((field) => !field.optionalOnEdit || values[field.key])
+        .map((field) => [
+          field.key,
+          field.type === "boolean"
+            ? values[field.key] === "true"
+            : field.source || field.type === "number"
+              ? values[field.key]
+                ? Number(values[field.key])
+                : null
+              : field.type === "password"
+                ? values[field.key]
+                : values[field.key].trim(),
+        ]),
     );
+    if (users) {
+      const role = data?.references["/roles"]?.find(
+        (role) => role.id === body.role_id,
+      )?.name;
+      if (!role) {
+        setError("กรุณาเลือกบทบาทของผู้ใช้");
+        return;
+      }
+      body.role = role;
+      delete body.role_id;
+    }
     if (editor === "new") {
       if (systems) {
         const { organization_id, product_id, ...instance } = body;
@@ -200,6 +242,15 @@ function MasterDataCollection({
 
   function toggle(row: Row) {
     const is_active = !row.is_active;
+    if (users) {
+      void mutate(
+        `${config.path}/${row.id}/${is_active ? "activate" : "suspend"}`,
+        "POST",
+        undefined,
+        is_active ? "เปิดใช้งานแล้ว" : "ระงับบัญชีแล้ว",
+      );
+      return;
+    }
     const body = config.registry
       ? Object.fromEntries(
           fields
@@ -235,7 +286,7 @@ function MasterDataCollection({
     (row) =>
       (!status || row.is_active === (status === "active")) &&
       [
-        row.name,
+        title(row),
         row.code,
         row.description,
         row.environment,
@@ -250,13 +301,10 @@ function MasterDataCollection({
   );
 
   return (
-    <section
-      className="surface master-data-card"
-      aria-labelledby="master-data-title"
-    >
+    <section className="surface master-data-card" aria-labelledby={titleId}>
       <div className="master-data-toolbar">
         <div>
-          <h2 id="master-data-title">{config.title}</h2>
+          <h2 id={titleId}>{config.title}</h2>
           {data && <p className="field-hint">{data.rows.length} รายการ</p>}
         </div>
         <Button
@@ -292,63 +340,78 @@ function MasterDataCollection({
         ))}
       {editor && (
         <form className="master-data-editor" onSubmit={save}>
-          <h3>{editor === "new" ? "เพิ่มรายการ" : `แก้ไข ${editor.name}`}</h3>
+          <h3>{editor === "new" ? "เพิ่มรายการ" : `แก้ไข ${title(editor)}`}</h3>
           <div className="detail-grid">
-            {fields.map((field) => (
-              <label key={field.key}>
-                {field.label}
-                {field.optional ? " (ไม่บังคับ)" : ""}
-                {field.source || field.choices ? (
-                  <SelectControl
-                    value={values[field.key]}
-                    onValueChange={(value) => change(field.key, value)}
-                    required
-                    disabled={
-                      busy ||
-                      Boolean(field.dependsOn && !values[field.dependsOn])
-                    }
-                  >
-                    <option value="">เลือก{field.label}</option>
-                    {field.source
-                      ? data?.references[field.source]
-                          ?.filter(
-                            (row) =>
-                              (!field.dependsOn ||
-                                String(row[field.dependsOn]) ===
-                                  values[field.dependsOn]) &&
-                              (row.is_active ||
-                                String(row.id) === values[field.key]),
-                          )
-                          .map((row) => (
-                            <option key={row.id} value={row.id}>
-                              {row.name}
-                            </option>
-                          ))
-                      : field.choices?.map((choice) => (
-                          <option key={choice}>{choice}</option>
-                        ))}
-                  </SelectControl>
-                ) : field.type === "textarea" ? (
-                  <TextArea
-                    value={values[field.key]}
-                    onValueChange={(value) => change(field.key, value)}
-                    required={!field.optional}
-                    maxLength={field.max}
-                    rows={3}
-                    disabled={busy}
-                  />
-                ) : (
-                  <Input
-                    value={values[field.key]}
-                    onChange={(value) => change(field.key, value)}
-                    required={!field.optional}
-                    maxLength={field.max}
-                    type={field.type}
-                    disabled={busy}
-                  />
-                )}
-              </label>
-            ))}
+            {fields.map((field) => {
+              const dynamic = field.sourceBy?.[values[field.dependsOn ?? ""]];
+              const source = field.source ?? dynamic?.source;
+              const choices = field.choices ?? dynamic?.choices;
+              return (
+                <label key={field.key}>
+                  {field.label}
+                  {field.optional ? " (ไม่บังคับ)" : ""}
+                  {field.type === "boolean" ? (
+                    <SelectControl
+                      value={values[field.key]}
+                      onValueChange={(value) => change(field.key, value)}
+                      disabled={busy}
+                    >
+                      <option value="true">ใช่</option>
+                      <option value="false">ไม่ใช่</option>
+                    </SelectControl>
+                  ) : source || choices || field.sourceBy ? (
+                    <SelectControl
+                      value={values[field.key]}
+                      onValueChange={(value) => change(field.key, value)}
+                      required={!field.optional}
+                      disabled={
+                        busy ||
+                        Boolean(field.dependsOn && !values[field.dependsOn])
+                      }
+                    >
+                      <option value="">เลือก{field.label}</option>
+                      {source
+                        ? data?.references[source]
+                            ?.filter(
+                              (row) =>
+                                (!field.dependsOn ||
+                                  field.sourceBy ||
+                                  String(row[field.dependsOn]) ===
+                                    values[field.dependsOn]) &&
+                                (row.is_active !== false ||
+                                  String(row.id) === values[field.key]),
+                            )
+                            .map((row) => (
+                              <option key={row.id} value={row.id}>
+                                {row.name}
+                              </option>
+                            ))
+                        : choices?.map((choice) => (
+                            <option key={choice}>{choice}</option>
+                          ))}
+                    </SelectControl>
+                  ) : field.type === "textarea" ? (
+                    <TextArea
+                      value={values[field.key]}
+                      onValueChange={(value) => change(field.key, value)}
+                      required={!field.optional}
+                      maxLength={field.max}
+                      rows={3}
+                      disabled={busy}
+                    />
+                  ) : (
+                    <Input
+                      value={values[field.key]}
+                      onChange={(value) => change(field.key, value)}
+                      required={!field.optional}
+                      maxLength={field.max}
+                      type={field.type}
+                      disabled={busy}
+                    />
+                  )}
+                </label>
+              );
+            })}
           </div>
           <div className="master-data-actions">
             <Button
@@ -385,15 +448,17 @@ function MasterDataCollection({
               value={query}
               onChange={setQuery}
             />
-            <SelectControl
-              aria-label="กรองสถานะ"
-              value={status}
-              onValueChange={setStatus}
-            >
-              <option value="">ทุกสถานะ</option>
-              <option value="active">ใช้งาน</option>
-              <option value="inactive">ปิดใช้งาน</option>
-            </SelectControl>
+            {!config.noStatus && (
+              <SelectControl
+                aria-label="กรองสถานะ"
+                value={status}
+                onValueChange={setStatus}
+              >
+                <option value="">ทุกสถานะ</option>
+                <option value="active">ใช้งาน</option>
+                <option value="inactive">ปิดใช้งาน</option>
+              </SelectControl>
+            )}
           </div>
           {rows?.length ? (
             <div className="case-table-scroll">
@@ -401,56 +466,99 @@ function MasterDataCollection({
                 <thead>
                   <tr>
                     <th>ชื่อ / รายละเอียด</th>
-                    <th>สถานะ</th>
+                    {!config.noStatus && <th>สถานะ</th>}
                     <th>จัดการ</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <strong>{row.name}</strong>
-                        <small>
-                          {[
-                            row.code,
-                            ...referenceFields.map((field) =>
-                              referenceName(field.key, field.source!, row),
-                            ),
-                            row.environment,
-                            row.description,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </small>
-                      </td>
-                      <td>
-                        <span
-                          className={`master-data-status ${row.is_active ? "active" : ""}`}
-                        >
-                          {row.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="master-data-actions">
-                          <Button
-                            size="sm"
-                            disabled={busy || editor !== null}
-                            onClick={() => start(row)}
-                          >
-                            แก้ไข
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={busy || editor !== null}
-                            onClick={() => toggle(row)}
-                          >
-                            {row.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {rows.map((row) => {
+                    const locked = config.lockedNames?.includes(row.name);
+                    return (
+                      <tr key={row.id}>
+                        <td>
+                          <strong>{title(row)}</strong>
+                          <small>
+                            {[
+                              row.code,
+                              row.email,
+                              row.full_name,
+                              row.condition_field &&
+                                `${row.condition_field} = ${row.condition_value}`,
+                              row.timezone,
+                              row.holiday_date,
+                              ...referenceFields.map((field) =>
+                                referenceName(field.key, field.source!, row),
+                              ),
+                              row.environment,
+                              row.description,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </td>
+                        {!config.noStatus && (
+                          <td>
+                            <span
+                              className={`master-data-status ${row.is_active ? "active" : ""}`}
+                            >
+                              {row.is_active ? "ใช้งาน" : "ปิดใช้งาน"}
+                            </span>
+                          </td>
+                        )}
+                        <td>
+                          <div className="master-data-actions">
+                            {locked ? (
+                              <span className="field-hint">บทบาทระบบ</span>
+                            ) : (
+                              <Button
+                                size="sm"
+                                disabled={busy || editor !== null}
+                                onClick={() => start(row)}
+                              >
+                                แก้ไข
+                              </Button>
+                            )}
+                            {!config.noStatus && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={busy || editor !== null}
+                                onClick={() => toggle(row)}
+                              >
+                                {row.is_active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                              </Button>
+                            )}
+                            {config.removable && !locked && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={busy || editor !== null}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(`ลบ ${title(row)} หรือไม่?`)
+                                  )
+                                    void mutate(
+                                      `${config.path}/${row.id}`,
+                                      "DELETE",
+                                      undefined,
+                                      "ลบรายการแล้ว",
+                                      row.id,
+                                    );
+                                }}
+                              >
+                                ลบ
+                              </Button>
+                            )}
+                            {config.child && (
+                              <Button size="sm" onClick={() => setChild(row)}>
+                                {config.child.title}
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -458,6 +566,21 @@ function MasterDataCollection({
             <p className="field-hint">ไม่พบรายการ</p>
           )}
         </>
+      )}
+      {child && config.child && (
+        <details className="capture-accordion" open key={child.id}>
+          <summary>
+            จัดการ{config.child.title} · {title(child)}
+          </summary>
+          <MasterDataCollection
+            section={config.child.suffix}
+            config={{
+              ...config.child,
+              title: `${config.child.title} · ${title(child)}`,
+              path: `${config.path}/${child.id}/${config.child.suffix}`,
+            }}
+          />
+        </details>
       )}
     </section>
   );

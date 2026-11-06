@@ -1,5 +1,72 @@
 import { test, expect } from "@playwright/test";
 
+test("Administration links open native pages and save settings through the frontend", async ({
+  page,
+  baseURL,
+}) => {
+  const login = await page.request.post("/api/session", {
+    headers: { origin: baseURL! },
+    data: { username: "qa-admin", password: "test-only-password" },
+  });
+  expect(login.ok()).toBe(true);
+  const key = `admin-qa-${Date.now()}`;
+  async function select(label: string, option: string) {
+    await page.getByRole("combobox", { name: label, exact: true }).click();
+    await page.getByRole("option", { name: option, exact: true }).click();
+  }
+  async function add() {
+    await page
+      .getByRole("button", { name: "เพิ่มรายการ", exact: true })
+      .click();
+  }
+  async function save() {
+    await page.getByRole("button", { name: "บันทึก", exact: true }).click();
+  }
+  await page.goto("/master-data");
+  await page.getByRole("link", { name: "Users & Teams" }).click();
+  await expect(page).toHaveURL(`${baseURL}/administration/users`);
+  await expect(page.getByRole("row", { name: /qa-admin/ })).toBeVisible();
+  await page.getByRole("link", { name: "ทีม", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "ทีม", exact: true }),
+  ).toBeVisible();
+  await add();
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await save();
+  await expect(page.getByRole("row", { name: new RegExp(key) })).toBeVisible();
+
+  await page.getByRole("link", { name: "SLA & Business Hours" }).click();
+  await expect(page).toHaveURL(`${baseURL}/administration/sla-policies`);
+  await expect(
+    page.getByRole("heading", { name: "นโยบาย SLA", exact: true }),
+  ).toBeVisible();
+  await add();
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await save();
+  await page
+    .getByRole("row", { name: new RegExp(key) })
+    .getByRole("button", { name: "กฎ SLA" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: `กฎ SLA · ${key}`, exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Automation Rules" }).click();
+  await expect(page).toHaveURL(`${baseURL}/administration/automation`);
+  await expect(
+    page.getByRole("heading", { name: "กฎอัตโนมัติ", exact: true }),
+  ).toBeVisible();
+  await add();
+  await page.getByRole("textbox", { name: "ชื่อ", exact: true }).fill(key);
+  await select("เงื่อนไข", "severity");
+  await select("ค่าที่ต้องตรงกัน", "S2");
+  await select("ทีมที่รับเคส", key);
+  await save();
+  await expect(page.getByRole("row", { name: new RegExp(key) })).toContainText(
+    "severity = S2",
+  );
+});
+
 test("Master Data manages case choices and customer systems in the frontend", async ({
   page,
   baseURL,
