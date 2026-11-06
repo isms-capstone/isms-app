@@ -56,6 +56,7 @@ export type Ticket = {
   current_tier: number | null;
   created_at: string;
   reported_at: string;
+  resolved_at?: string | null;
   sla_policy_id: number | null;
   is_exam_window: boolean;
 };

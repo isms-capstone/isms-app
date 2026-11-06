@@ -142,6 +142,18 @@ export function CaseDetail({ id }: { id: number }) {
                   <dd>{text}</dd>
                 </div>
               ))}
+              {ticket.resolved_at && (
+                <div>
+                  <dt>เวลาแก้ไขเสร็จล่าสุด (Resolved)</dt>
+                  <dd>
+                    {new Date(
+                      /(?:Z|[+-]\d{2}:\d{2})$/i.test(ticket.resolved_at)
+                        ? ticket.resolved_at
+                        : `${ticket.resolved_at}Z`,
+                    ).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>ช่องทาง</dt>
                 <dd>

@@ -37,6 +37,12 @@ export function LifecycleActions({
     return () => controller.abort();
   }, [ticket.id, ticket.status]);
   if (!options?.actions.length) return null;
+  const needsInstance =
+    target === "RESOLVED" &&
+    !options.instances.some(
+      (instance) => instance.id === ticket.product_instance_id,
+    );
+  const missingInstance = needsInstance && options.instances.length === 0;
   function choice(field: string, label: string, rows: Choice[]) {
     return (
       <label key={field}>
@@ -124,12 +130,19 @@ export function LifecycleActions({
             <>
               {!ticket.category_id &&
                 choice("category_id", "ประเภทปัญหา", options.categories)}
-              {!ticket.product_instance_id &&
+              {missingInstance ? (
+                <p role="alert" className="form-error">
+                  {ticket.organization_id
+                    ? "ลูกค้านี้ยังไม่มีอินสแตนซ์ผลิตภัณฑ์ที่เปิดใช้งาน ให้ผู้ดูแลเพิ่มหรือเปิดใช้งานในทะเบียนลูกค้า แล้วรีเฟรชหน้านี้"
+                    : "เคสนี้ยังไม่ได้ระบุลูกค้า จึงไม่มีอินสแตนซ์ผลิตภัณฑ์ให้เลือก"}
+                </p>
+              ) : needsInstance ? (
                 choice(
                   "product_instance_id",
                   "อินสแตนซ์ผลิตภัณฑ์",
                   options.instances,
-                )}
+                )
+              ) : null}
               {choice("root_cause_code_id", "สาเหตุปัญหา", options.causes)}
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
               <label>
@@ -173,7 +186,11 @@ export function LifecycleActions({
           )}
           <div className="lifecycle-buttons">
             <Button onClick={() => setTarget("")}>ยกเลิก</Button>
-            <Button type="submit" variant="primary" disabled={busy}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={busy || missingInstance}
+            >
               ยืนยันเปลี่ยนสถานะ
             </Button>
           </div>
