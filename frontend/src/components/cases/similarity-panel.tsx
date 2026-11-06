@@ -39,6 +39,10 @@ type SearchResult = {
   decision_required: boolean;
   available: boolean;
 };
+type ProductOptions = {
+  modules: { id: number; name: string }[];
+  problem_types: { id: number; name: string; module_id: number }[];
+};
 type Props = {
   subject: string;
   description: string;
@@ -75,16 +79,47 @@ export function SimilarityPanel(props: Props) {
   const [chosen, setChosen] = useState<number | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [reuse, setReuse] = useState<ReuseValues | null>(null);
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [options, setOptions] = useState<{
-    modules: { id: number; name: string }[];
-    problem_types: { id: number; name: string; module_id: number }[];
+  const [instanceResult, setInstanceResult] = useState<{
+    organizationId: number;
+    rows: Instance[] | null;
+  } | null>(null);
+  const [optionResult, setOptionResult] = useState<{
+    productId: number;
+    data: ProductOptions | null;
   } | null>(null);
   const [solutions, setSolutions] = useState<{ id: number; name: string }[]>(
     [],
   );
   const skipInstance = useRef<number | null>(null);
   const query = `${subject} ${description}`.trim();
+  const currentInstances =
+    instanceResult?.organizationId === organizationId ? instanceResult : null;
+  const instances = currentInstances?.rows ?? [];
+  const productId = instances.find(
+    (item) => item.id === reuse?.product_instance_id,
+  )?.product_id;
+  const currentOptions =
+    optionResult?.productId === productId ? optionResult : null;
+  const options = currentOptions?.data;
+  const categories = options?.problem_types.filter(
+    (item) => !reuse?.module_id || item.module_id === reuse.module_id,
+  );
+  const instancePlaceholder = !organizationId
+    ? "เลือกลูกค้า / ผู้แจ้งก่อน"
+    : !currentInstances
+      ? "กำลังโหลดผลิตภัณฑ์"
+      : !currentInstances.rows
+        ? "โหลดผลิตภัณฑ์ไม่สำเร็จ"
+        : !instances.length
+          ? "ลูกค้านี้ไม่มีผลิตภัณฑ์ที่เปิดใช้งาน"
+          : "เลือกผลิตภัณฑ์";
+  const optionPlaceholder = !productId
+    ? "เลือกผลิตภัณฑ์ก่อน"
+    : !currentOptions
+      ? "กำลังโหลดตัวเลือก"
+      : !options
+        ? "โหลดตัวเลือกไม่สำเร็จ"
+        : null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,25 +128,32 @@ export function SimilarityPanel(props: Props) {
         `/product-instances?organization_id=${organizationId}&is_active=true`,
         controller.signal,
       )
-        .then(setInstances)
-        .catch(() => {});
+        .then((rows) => {
+          if (!controller.signal.aborted)
+            setInstanceResult({ organizationId, rows });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted)
+            setInstanceResult({ organizationId, rows: null });
+        });
     return () => controller.abort();
   }, [organizationId]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const product = instances.find(
-      (item) => item.id === reuse?.product_instance_id,
-    );
-    if (product)
-      api<NonNullable<typeof options>>(
-        `/products/${product.product_id}/case-options`,
-        { signal: controller.signal },
-      )
-        .then(setOptions)
-        .catch(() => {});
+    if (productId)
+      api<ProductOptions>(`/products/${productId}/case-options`, {
+        signal: controller.signal,
+      })
+        .then((data) => {
+          if (!controller.signal.aborted) setOptionResult({ productId, data });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted)
+            setOptionResult({ productId, data: null });
+        });
     return () => controller.abort();
-  }, [instances, reuse?.product_instance_id]);
+  }, [productId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -254,7 +296,10 @@ export function SimilarityPanel(props: Props) {
   }
 
   return (
-    <section className="related-cases similarity-panel" aria-label="เคสที่คล้ายกัน">
+    <section
+      className="related-cases similarity-panel"
+      aria-label="เคสที่คล้ายกัน"
+    >
       <div className="related-heading">
         <h3>เคสที่คล้ายกัน</h3>
         <Button
@@ -304,7 +349,10 @@ export function SimilarityPanel(props: Props) {
         </div>
       ))}
       {result?.feedback_id && (
-        <fieldset className="similarity-decision" disabled={confirmed || saving}>
+        <fieldset
+          className="similarity-decision"
+          disabled={confirmed || saving}
+        >
           <legend>
             {result.decision_required
               ? "กรุณาเลือกแนวทางก่อนบันทึกเคส"
@@ -333,6 +381,7 @@ export function SimilarityPanel(props: Props) {
                 ผลิตภัณฑ์ของลูกค้าปัจจุบัน
                 <SelectControl
                   value={reuse.product_instance_id || ""}
+                  disabled={!instances.length}
                   onValueChange={(value) =>
                     setReuse({
                       ...reuse,
@@ -342,7 +391,7 @@ export function SimilarityPanel(props: Props) {
                     })
                   }
                 >
-                  <option value="">เลือกผลิตภัณฑ์</option>
+                  <option value="">{instancePlaceholder}</option>
                   {instances.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name} · {item.environment}
@@ -354,6 +403,7 @@ export function SimilarityPanel(props: Props) {
                 โมดูล
                 <SelectControl
                   value={reuse.module_id || ""}
+                  disabled={!options?.modules.length}
                   onValueChange={(value) =>
                     setReuse({
                       ...reuse,
@@ -362,7 +412,12 @@ export function SimilarityPanel(props: Props) {
                     })
                   }
                 >
-                  <option value="">ยังไม่ระบุ</option>
+                  <option value="">
+                    {optionPlaceholder ??
+                      (options?.modules.length
+                        ? "ยังไม่ระบุ"
+                        : "ผลิตภัณฑ์นี้ไม่มีโมดูล")}
+                  </option>
                   {options?.modules.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -374,6 +429,7 @@ export function SimilarityPanel(props: Props) {
                 หมวดหมู่
                 <SelectControl
                   value={reuse.category_id || ""}
+                  disabled={!categories?.length}
                   onValueChange={(value) =>
                     setReuse({
                       ...reuse,
@@ -381,17 +437,17 @@ export function SimilarityPanel(props: Props) {
                     })
                   }
                 >
-                  <option value="">ยังไม่ระบุ</option>
-                  {options?.problem_types
-                    .filter(
-                      (item) =>
-                        !reuse.module_id || item.module_id === reuse.module_id,
-                    )
-                    .map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
+                  <option value="">
+                    {optionPlaceholder ??
+                      (categories?.length
+                        ? "ยังไม่ระบุ"
+                        : "ไม่มีหมวดหมู่ให้เลือก")}
+                  </option>
+                  {categories?.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
                 </SelectControl>
               </label>
               <label>

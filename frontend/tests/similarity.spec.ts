@@ -163,6 +163,12 @@ test("SIM reuse fills editable fields and submits the edited solution", async ({
   await page
     .getByRole("radio", { name: "ใช้วิธีแก้เดิม", exact: true })
     .check();
+  const panel = page.getByRole("region", { name: "เคสที่คล้ายกัน" });
+  await panel.getByRole("combobox", { name: "โมดูล", exact: true }).click();
+  await expect(
+    page.getByRole("option", { name: "Login", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(
     page.getByRole("textbox", { name: "ขั้นตอนการแก้", exact: true }),
   ).toHaveValue("Sign in again");
