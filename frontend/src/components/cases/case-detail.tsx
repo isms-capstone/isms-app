@@ -277,23 +277,24 @@ export function CaseDetail({ id }: { id: number }) {
               </p>
             )}
           </section>
-          {!preview &&
-            session?.can_create_cases &&
-            ticket.status === "NEW" &&
-            (session.role === "Admin" ||
-              [
-                ticket.created_by_id,
-                ticket.owner_id,
-                ticket.assignee_id,
-              ].includes(session.id)) && (
-              <CaseIntakeEditor
-                key={`${ticket.id}-${ticket.subject}-${ticket.description}-${ticket.channel}`}
-                ticket={ticket}
-                onUpdated={setTicket}
-              />
-            )}
           {!preview && session?.can_create_cases && (
-            <CategoryEditor ticket={ticket} onUpdated={setTicket} />
+            <details key={ticket.id} className="surface detail-card">
+              <summary>แก้ไขข้อมูลเคส</summary>
+              {ticket.status === "NEW" &&
+                (session.role === "Admin" ||
+                  [
+                    ticket.created_by_id,
+                    ticket.owner_id,
+                    ticket.assignee_id,
+                  ].includes(session.id)) && (
+                  <CaseIntakeEditor
+                    key={`${ticket.id}-${ticket.subject}-${ticket.description}-${ticket.channel}`}
+                    ticket={ticket}
+                    onUpdated={setTicket}
+                  />
+                )}
+              <CategoryEditor ticket={ticket} onUpdated={setTicket} />
+            </details>
           )}
           {!preview && session && (
             <CaseAttachments key={ticket.id} ticketId={ticket.id} />

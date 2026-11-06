@@ -245,6 +245,7 @@ for (const width of [1440, 390]) {
     await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
     await expect(page).toHaveURL(/\/cases\/\d+$/);
     const id = Number(page.url().split("/").at(-1));
+    await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
     const original = await (
       await page.request.get(`/api/backend/tickets/${id}`)
     ).json();
@@ -283,6 +284,7 @@ for (const width of [1440, 390]) {
     await choose(page, "ประเภทปัญหา", "Clinic access");
     await saveCategories(page);
     await page.reload();
+    await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
     await expect(
       page.getByLabel("โมดูล (Module)", { exact: true }),
     ).toContainText("Clinic");
@@ -346,6 +348,7 @@ for (const width of [1440, 390]) {
       page.getByRole("row").filter({ hasText: f.key }),
     ).toContainText("1");
     await page.goto(`/cases/${id}`);
+    await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
     await page
       .getByRole("button", { name: `ลบแท็ก ${f.key}`, exact: true })
       .click();
@@ -377,6 +380,7 @@ test("CAT master choices remain usable if product options fail", async ({
       }),
   );
   await page.goto(`/cases/${ticket.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "Product options unavailable" }),
   ).toBeVisible();
@@ -427,6 +431,7 @@ test("CAT-03: all eight SRS severity combinations and mandatory override reason 
   const f = await setup(page, baseURL!);
   const ticket = await f.create();
   await page.goto(`/cases/${ticket.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   const matrix = [
     ["ทั้งองค์กร / ทั้งห้องสอบ", "ระหว่างสอบจริง", "S1"],
     ["ทั้งองค์กร / ทั้งห้องสอบ", "นอกช่วงสอบ", "S2"],
@@ -486,6 +491,7 @@ test("CAT-02: Request uses its fulfilment workflow and existing CORE guards", as
     resolution_code_id: f.solution.id,
   });
   await page.goto(`/cases/${ticket.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   await choose(page, "ประเภทเคส", "Request");
   await saveCategories(page);
   const request = page.locator(".request-workflow");
@@ -530,6 +536,7 @@ test("CAT-07: saved frequency is personal, product-scoped, and no-op saves do no
   const ticket = await f.create();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/cases/${ticket.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   await expect(
     page.getByLabel("โมดูล (Module)", { exact: true }),
   ).not.toHaveAttribute("aria-disabled", "true");
@@ -557,6 +564,7 @@ test("CAT-07: saved frequency is personal, product-scoped, and no-op saves do no
   await login(page, baseURL!, "qa-agent");
   const own = await f.create();
   await page.goto(`/cases/${own.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   await expect(
     page.getByLabel("โมดูล (Module)", { exact: true }),
   ).not.toHaveAttribute("aria-disabled", "true");

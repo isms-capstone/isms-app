@@ -68,6 +68,7 @@ test("WRK/CAT real persistence, mobile two-tap categories, audit and tag report"
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/cases/${ticket.id}`);
+  await page.getByText("แก้ไขข้อมูลเคส", { exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "หมวดหมู่และการประเมินเคส" }),
   ).toBeVisible();

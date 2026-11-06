@@ -40,8 +40,8 @@ export function CaseIntakeEditor({
     }
   }
   return (
-    <details className="surface detail-card">
-      <summary>แก้ไขหัวข้อ รายละเอียด และช่องทาง</summary>
+    <section className="mt-4">
+      <h2>หัวข้อ รายละเอียด และช่องทาง</h2>
       <form className="detail-edit" onSubmit={save}>
         <label>
           หัวข้อเคส
@@ -76,6 +76,6 @@ export function CaseIntakeEditor({
         </Button>
         {error && <p role="alert">{error}</p>}
       </form>
-    </details>
+    </section>
   );
 }

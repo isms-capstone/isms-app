@@ -110,7 +110,7 @@ export function CategoryEditor({
     }
   }
   return (
-    <section className="surface detail-card category-editor">
+    <section className="category-editor">
       <h2>หมวดหมู่และการประเมินเคส</h2>
       {editable && value && (
         <p className="field-hint">
