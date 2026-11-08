@@ -7,11 +7,17 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from typing import Literal
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+from app.db.models.similarity_feedback import SimilarityFeedback
+from app.services.similarity import search_with_deadline, DECISION_THRESHOLD
+from app.services.similarity_decisions import feedback_for_user, validate_choice, attach_choice
 
 from app.api.deps import RoleChecker, get_current_user
 from app.api.v1.endpoints.customers import get_record
@@ -25,12 +31,22 @@ from app.db.models.master_data import (
     SolutionCode,
     TicketType,
 )
+import logging
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket, TicketNumberSequence
 from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.user import User
 from app.db.session import get_db
-from app.schemas.ticket import DraftFieldUpdate, ReportedTimeUpdate, TicketCreate, TicketOut, TicketResolve, TicketFollowUp
+from app.schemas.ticket import (
+    DraftFieldUpdate,
+    ReportedTimeUpdate,
+    TicketCreate,
+    TicketDetailsUpdate,
+    TicketOut,
+    TicketResolve,
+    TicketFollowUp,
+)
+from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket import TicketStatus
 from app.services.auto_close import run_auto_close_resolved_tickets
 
@@ -55,6 +71,28 @@ class TicketStatusUpdatePayload(BaseModel):
     reopen_reason: str | None = None
     master_ticket_id: int | None = None
     cancel_reason: str | None = None
+
+
+class ReuseValues(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    product_instance_id: int = Field(ge=1)
+    module_id: int | None = Field(default=None, ge=1)
+    category_id: int | None = Field(default=None, ge=1)
+    impact_scope: Literal['organization','group','single_user','non_disruptive'] | None = None
+    is_exam_window: bool | None = None
+    severity_overridden_reason: str | None = Field(default=None, max_length=2000)
+    severity: Literal['S1', 'S2', 'S3', 'S4'] | None = None
+    resolution_code_id: int | None = Field(default=None, ge=1)
+    resolution_detail: str | None = Field(default=None, max_length=20000)
+
+
+class SimilarityDecisionPayload(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    decision: Literal['reuse', 'link', 'new']
+    chosen_ticket_id: int | None = None
+    ticket_id: int | None = None
+    reuse_values: ReuseValues | None = None
 
 
 def next_ticket_number(db: Session, now: datetime):
@@ -86,10 +124,12 @@ def active_record(db, model, record_id):
     return record
 
 
-def capture_values(body: TicketCreate, db: Session, validate_reported=True):
+def capture_values(body: TicketCreate, db: Session, validate_reported=True, allow_legacy_assessment=False):
     values = body.model_dump()
     values.pop('save_as_draft')
+    values.pop('similarity_feedback_id', None)
     values.pop('created_for_user_id', None)
+    values.pop('tags', None)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
@@ -135,13 +175,52 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True):
                 and body.subject is not None and body.channel is not None)
     values.update(organization_id=organization_id, reported_at=reported, created_at=now,
                   status='NEW' if complete else 'DRAFT',
-                  sla_policy_id=policy_id, is_exam_window=exam)
+                  sla_policy_id=policy_id, is_exam_window=exam if body.is_exam_window is None else body.is_exam_window)
+    from app.services.categorization import validate_assessment
+    validate_assessment(values, db, allow_legacy=allow_legacy_assessment)
     return values, complete, now
 
+@router.get('/tickets/{ticket_id}/history')
+def ticket_history(ticket_id: int, db: Session = Depends(get_db),
+                   user: User = Depends(require_capture)):
+    from app.services.lifecycle import authorize_view
+    row = get_record(db, Ticket, ticket_id)
+    authorize_view(row, user)
+    rows = db.scalars(select(TicketStatusHistory)
+                      .where(TicketStatusHistory.ticket_id == ticket_id)
+                      .order_by(TicketStatusHistory.created_at, TicketStatusHistory.id)).all()
+    ids = {r.actor_id for r in rows}
+    for r in rows:
+        ids |= {v for k, v in (r.details or {}).items()
+                if k in ('owner_id', 'created_for_user_id', 'assignee_id') and isinstance(v, int)}
+    # ไม่กรอง is_active เพื่อให้แสดงชื่อคนที่ถูกปิดบัญชีไปแล้วด้วย
+    names = {u.id: getattr(u, 'name', None) or u.username
+             for u in db.scalars(select(User).where(User.id.in_(ids))).all()}
+    return [{'id': r.id, 'actor_id': r.actor_id,
+             'actor_name': names.get(r.actor_id, f'ผู้ใช้ #{r.actor_id}'),
+             'from_status': r.from_status, 'to_status': r.to_status,
+             'created_at': r.created_at.isoformat(),
+             'details': r.details or {},
+             'owner_name': names.get((r.details or {}).get('owner_id'))}
+            for r in rows]
 
 @router.post('/tickets', response_model=TicketOut, status_code=201)
 def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
     values, complete, now = capture_values(body, db)
+    query = f'{body.subject or ""} {body.description or ""}'.strip()
+    feedback = None
+    if body.similarity_feedback_id is not None:
+        feedback = feedback_for_user(db, body.similarity_feedback_id, user)
+        if (feedback.query != query or feedback.organization_id != values['organization_id']
+                or feedback.product_instance_id != body.product_instance_id):
+            raise HTTPException(409, 'Case details changed; search similar cases again')
+        validate_choice(db, feedback, feedback.decision, feedback.chosen_ticket_id)
+    elif complete and len(query) >= 10:
+        # Enforce even when a caller bypasses the UI. Search failure remains fail-open.
+        items = search_with_deadline(db.get_bind(), q=query,
+            organization_id=values['organization_id'], product_instance_id=body.product_instance_id)
+        if items and any(item['score'] >= DECISION_THRESHOLD for item in items):
+            raise HTTPException(409, 'Search similar cases and confirm a decision before creating the case')
     owner_id = user.id
     if body.created_for_user_id is not None:
         target = db.get(User, body.created_for_user_id)
@@ -153,16 +232,34 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
+    if body.created_for_user_id is not None:
+        values['assignee_id'] = owner_id  # สร้างแทน: ระบุผู้รับผิดชอบจริงตั้งแต่ต้น
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        from app.services.categorization import record_categories
+        record_categories(db, ticket, user, body.tags)
+        if feedback is not None:
+            attach_choice(db, feedback, ticket, user)
+        db.add(TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=ticket.status,  # ไม่ใช้ None เพื่อกันคอลัมน์ที่ห้าม null; แยกแยะด้วย details.event
+            to_status=ticket.status,
+            actor_id=user.id, created_at=now,
+            details={'event': 'CASE_CREATED',
+                     'recorded_by_id': user.id,
+                     'owner_id': owner_id,
+                     'assignee_id': values.get('assignee_id'),
+                     'created_for_user_id': body.created_for_user_id}))
         db.commit()
     except HTTPException:
         db.rollback()
         raise
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
+        logging.getLogger(__name__).error('create_ticket IntegrityError: %s', exc.orig)
         raise HTTPException(409, 'Case data changed; reload and try again') from None
     db.refresh(ticket)
     return ticket
@@ -195,6 +292,12 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
     try:
         ticket = Ticket(**values)
         db.add(ticket)
+        db.flush()
+        db.add(TicketStatusHistory(
+            ticket_id=ticket.id, from_status=None, to_status=ticket.status,
+            actor_id=user.id, created_at=now,
+            details={'event': 'CASE_CREATED', 'recorded_by_id': user.id,
+                     'owner_id': user.id, 'source_ticket_id': source.id}))
         db.commit()
     except HTTPException:
         db.rollback()
@@ -240,7 +343,7 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
     data = {
     field: getattr(ticket, field)
     for field in TicketCreate.model_fields
-    if field not in ('save_as_draft', 'created_for_user_id')
+    if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
 }
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
@@ -256,20 +359,189 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
             data[field] = None
     elif body.field == 'module_id' and body.value != ticket.module_id:
         data['category_id'] = None
+    if body.field in ('organization_id', 'department_id'):
+        data['is_exam_window'] = None
+        if not ticket.severity_overridden_reason:
+            data['severity'] = None
     from pydantic import ValidationError
     try:
         selection = TicketCreate.model_validate(data)
     except ValidationError as exc:
         raise HTTPException(422, [{'loc': error['loc'], 'msg': error['msg']} for error in exc.errors()]) from None
-    values, _, _ = capture_values(selection, db, validate_reported=False)
+    values, _, _ = capture_values(selection, db, validate_reported=False, allow_legacy_assessment=True)
+    from app.services.categorization import snapshot, record_categories
+    before = snapshot(db, ticket)
     product_changed = data['product_instance_id'] != ticket.product_instance_id
     for field, value in values.items():
         if field not in ('created_at', 'reported_at', 'status') and (
             field != 'sla_policy_id' or product_changed
         ):
             setattr(ticket, field, value)
+    record_categories(db, ticket, user, before['tags'], before)
     return commit_edit(db, ticket)
 
+@router.patch('/tickets/{ticket_id}/details', response_model=TicketOut)
+def edit_ticket_details(
+    ticket_id: int,
+    body: TicketDetailsUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    """
+    Update business details of a NEW ticket.
+    Lifecycle and system-managed fields cannot be changed here.
+    """
+
+    # 1. Check permission and lock the ticket
+    ticket = editable_ticket(db, ticket_id, user)
+
+    # 2. Only NEW tickets can use this endpoint
+    if ticket.status != 'NEW':
+        raise HTTPException(
+            409,
+            'Only NEW tickets support detail editing',
+        )
+
+    from app.services.categorization import snapshot, record_categories
+    before = snapshot(db, ticket)
+    changes = body.model_dump(exclude_unset=True)
+    changed_fields = body.model_fields_set
+
+    # 3. Start from existing ticket data
+    data = {
+        field: getattr(ticket, field)
+        for field in TicketCreate.model_fields
+        if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
+    }
+
+    data.update({
+        key: value
+        for key, value in changes.items()
+        if key in TicketCreate.model_fields
+    })
+
+    # 4. Clear dependent selections when parent changes.
+    # Keep a dependent value if the request explicitly supplies it.
+    if (
+        'organization_id' in changed_fields
+        and data['organization_id'] != ticket.organization_id
+    ):
+        dependent_fields = (
+            'contact_id',
+            'department_id',
+            'course_or_exam_id',
+            'product_instance_id',
+            'module_id',
+            'category_id',
+            'symptom_id',
+            'service_stage_id',
+        )
+
+        for field in dependent_fields:
+            if field not in changed_fields:
+                data[field] = None
+
+    elif (
+        'product_instance_id' in changed_fields
+        and data['product_instance_id'] != ticket.product_instance_id
+    ):
+        dependent_fields = (
+            'module_id',
+            'category_id',
+            'symptom_id',
+            'service_stage_id',
+        )
+
+        for field in dependent_fields:
+            if field not in changed_fields:
+                data[field] = None
+
+    elif (
+        'module_id' in changed_fields
+        and data['module_id'] != ticket.module_id
+        and 'category_id' not in changed_fields
+    ):
+        data['category_id'] = None
+
+    # 5. Keep the original reported time.
+    # Reported At has its own endpoint and validation.
+    if data.get('reported_at') and data['reported_at'].tzinfo is None:
+        data['reported_at'] = data['reported_at'].replace(
+            tzinfo=timezone.utc
+        )
+
+    data['save_as_draft'] = False
+
+    # 6. Validate all customer/product/category relationships
+    from pydantic import ValidationError
+
+    try:
+        selection = TicketCreate.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(
+            422,
+            [
+                {
+                    'loc': error['loc'],
+                    'msg': error['msg'],
+                }
+                for error in exc.errors()
+            ],
+        ) from None
+
+    values, complete, _ = capture_values(
+        selection,
+        db,
+        validate_reported=False,
+        allow_legacy_assessment=True,
+    )
+
+    # A NEW ticket must remain complete
+    if not complete:
+        raise HTTPException(
+            422,
+            'A NEW ticket must have Organization, Subject and Channel',
+        )
+
+    # 7. Update business fields only.
+    # Never overwrite status, ticket number or creation time.
+    product_changed = (
+        data['product_instance_id'] != ticket.product_instance_id
+    )
+
+    for field, value in values.items():
+        if field in (
+            'status',
+            'created_at',
+            'reported_at',
+            'created_by_id',
+            'ticket_no',
+            'reopen_count',
+            'resolved_at',
+            'closed_at',
+        ):
+            continue
+
+        if field == 'sla_policy_id' and not product_changed:
+            continue
+
+        setattr(ticket, field, value)
+
+    # 8. Update additional context fields
+    extra_fields = (
+        'environment',
+        'browser_device',
+        'source_url',
+        'exam_or_course_context',
+    )
+
+    for field in extra_fields:
+        if field in changes:
+            setattr(ticket, field, changes[field])
+
+    # 9. Commit once
+    record_categories(db, ticket, user, before['tags'], before)
+    return commit_edit(db, ticket)
 
 @router.patch('/tickets/{ticket_id}/reported-at', response_model=TicketOut)
 def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = Depends(get_db),
@@ -359,6 +631,159 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
     return db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
 
 
+@router.get('/tickets/team-members')
+def team_members(db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    role = user.role.name if user.role else None
+    filters = [User.is_active.is_(True), User.id != user.id]
+    if role != 'Admin':
+        if user.team_id is None:
+            return []
+        filters.append(User.team_id == user.team_id)
+    return [{'id': u.id, 'name': getattr(u, 'name', None) or u.username}
+            for u in db.scalars(select(User).where(*filters)).all()]
+
+
+@router.get("/tickets/similar")
+def search_similar_tickets(
+    q: str = Query(..., min_length=10, max_length=20256),
+    organization_id: int | None = Query(default=None, ge=1),
+    product_instance_id: int | None = Query(default=None, ge=1),
+    ticket_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+
+
+    """
+    Search similar tickets.
+    SIM-01, SIM-02, SIM-03, SIM-07, SIM-09
+    """
+
+    # ตรวจสอบความยาวข้อความหลังตัดช่องว่าง
+    query = q.strip()
+
+    if len(query) < 10:
+        raise HTTPException(
+            status_code=422,
+            detail="Search query must contain at least 10 characters",
+        )
+
+    if ticket_id is not None:
+        from app.services.lifecycle import authorize_view
+        authorize_view(get_record(db, Ticket, ticket_id), user)
+    try:
+        # ค้นหาเคสที่คล้ายกัน โดยแสดงสูงสุด 5 รายการ
+        items = search_with_deadline(
+            db.get_bind(),
+            q=query,
+            organization_id=organization_id,
+            product_instance_id=product_instance_id,
+            limit=5,
+            exclude_ticket_id=ticket_id,
+        )
+
+        feedback_id = None
+
+        # บันทึกข้อเสนอทุกครั้งที่มีผลการค้นหาแสดงให้ผู้ใช้เลือก
+        if items:
+            feedback = SimilarityFeedback(
+                ticket_id=None,
+                suggested=[
+                    {
+                        "ticket_id": item["id"],
+                        "score": item["score"],
+                    }
+                    for item in items
+                ],
+                decision=None,
+                chosen_ticket_id=None,
+                created_by_id=user.id,
+                query=query,
+                organization_id=organization_id,
+                product_instance_id=product_instance_id,
+            )
+
+            db.add(feedback)
+            db.commit()
+            db.refresh(feedback)
+
+            feedback_id = feedback.id
+
+        return {
+            "feedback_id": feedback_id,
+            "count": len(items or []),
+            "items": items or [],
+            "decision_required": any(item['score'] >= DECISION_THRESHOLD for item in (items or [])),
+            "available": items is not None,
+        }
+
+    except Exception:
+        db.rollback()
+        logging.exception("Similar ticket search failed")
+
+        # Search ล้มเหลวต้องไม่ทำให้การสร้าง Ticket หลักหยุดทำงาน
+        return {
+            "feedback_id": None,
+            "count": 0,
+            "items": [],
+            "decision_required": False,
+            "available": False,
+        }
+
+@router.post('/tickets/similarity-feedback/{feedback_id}')
+def save_similarity_feedback(
+    feedback_id: int,
+    body: SimilarityDecisionPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_capture),
+):
+    """
+    Record the user's decision for a SIM suggestion.
+    SIM-09 / KPI-10
+    """
+
+    feedback = feedback_for_user(db, feedback_id, user)
+    if feedback.ticket_id is not None:
+        raise HTTPException(409, 'This decision has already been applied; search again')
+    validate_choice(db, feedback, body.decision, body.chosen_ticket_id, body.ticket_id)
+    feedback.decision = body.decision
+    feedback.chosen_ticket_id = body.chosen_ticket_id
+    reuse = None
+    if body.decision == 'reuse':
+        if body.reuse_values is None:
+            raise HTTPException(422, 'Review the reusable fields first')
+        reuse = body.reuse_values.model_dump()
+        # Reuse follows the destination customer and normal product/category validation.
+        assessed, _, _ = capture_values(TicketCreate(organization_id=feedback.organization_id, **reuse), db)
+        for field in ('severity', 'is_exam_window', 'severity_overridden_reason'):
+            reuse[field] = assessed[field]
+    elif body.reuse_values is not None:
+        raise HTTPException(422, 'Reusable fields are only valid for reuse')
+    if body.ticket_id is not None:
+        from app.services.lifecycle import authorize_case
+        row = get_record(db, Ticket, body.ticket_id)
+        authorize_case(row, user)
+        query = f'{row.subject or chr(32)} {row.description or chr(32)}'.strip()
+        if (feedback.query != query or feedback.organization_id != row.organization_id
+                or feedback.product_instance_id != row.product_instance_id):
+            raise HTTPException(409, 'Case details changed; search again')
+        if reuse is not None:
+            from app.services.categorization import snapshot, record_categories
+            before = snapshot(db, row)
+            for field, value in reuse.items():
+                setattr(row, field, value)
+            row.symptom_id = None
+            row.service_stage_id = None
+            record_categories(db, row, user, before['tags'], before)
+            feedback.product_instance_id = row.product_instance_id
+        attach_choice(db, feedback, row, user)
+    elif reuse is not None:
+        feedback.product_instance_id = reuse['product_instance_id']
+    db.commit()
+    return {'feedback_id': feedback.id, 'decision': feedback.decision, 'reuse_values': reuse,
+            'chosen_ticket_id': feedback.chosen_ticket_id}
+
+
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
     return get_record(db, Ticket, ticket_id)
@@ -366,11 +791,15 @@ def ticket(ticket_id: int, db: Session = Depends(get_db)):
 
 @router.get('/tickets/{ticket_id}/lifecycle-options')
 def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(require_capture)):
-    from app.services.lifecycle import authorize_case
+    from app.services.lifecycle import authorize_view
     from app.core.state_machine import TRANSITION_RULES
     from app.db.models.master_data import ProblemType
     row = get_record(db, Ticket, ticket_id)
-    authorize_case(row, user)
+    # แก้: เดิมเรียก authorize_case ซึ่งบังคับว่าต้องเป็น participant ของเคสนั้น
+    # ทำให้คนที่แค่ "ดู" เคส (ไม่ใช่เจ้าของ/assignee) โดน 403 ทั้งที่แค่จะขอ
+    # รายชื่อตัวเลือก (assignee list ฯลฯ) ไปแสดงผล ไม่ได้ขอแก้ไขอะไร
+    # เปลี่ยนมาเช็คแค่ว่ามี support role ก็พอ — endpoint นี้เป็น read-only
+    authorize_view(row, user)
     role = user.role.name if user.role else None
     policy_role = 'Agent' if role in {'Specialist', 'Developer', 'Team Lead'} else role
     actions = [str(rule['to'].value) for rule in TRANSITION_RULES

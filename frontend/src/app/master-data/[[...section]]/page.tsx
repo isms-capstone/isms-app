@@ -1,0 +1,10 @@
+import { MasterDataScreen } from "@/components/admin/master-data-screen";
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ section?: string[] }>;
+}) {
+  const { section } = await params;
+  return <MasterDataScreen section={section?.[0] ?? "products"} />;
+}

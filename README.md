@@ -17,6 +17,11 @@ Design previews are explicitly separated at `/preview/my-work`, `/preview/cases`
 and `/preview/cases/new`. Live pages require existing ISMS login and use real data.
 The frontend uses the company's `@DeverhoodHT/get-design` components with an ISMS CI theme.
 
+## Work Log and Categorization
+
+WRK-01/02 and CAT-01..07 implementation, API contracts, migration and current QA
+status: [docs/WRK-CAT.md](docs/WRK-CAT.md).
+
 ## Environments Setup
 - Refer to .env.example for environment variables configuration.
 - Do NOT commit .env files with sensitive secrets to this repository.

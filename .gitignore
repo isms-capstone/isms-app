@@ -10,16 +10,19 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+.pythainlp-data/
 backend/tests/ui-output/
 
 # Build outputs
 dist/
 build/
 .next/
+.next-*/
 *.tsbuildinfo
 frontend/playwright-report/
 frontend/test-results/
 *.egg-info/
+tmp/
 
 # IDE & OS
 .vscode/

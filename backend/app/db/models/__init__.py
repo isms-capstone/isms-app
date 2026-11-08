@@ -15,8 +15,10 @@ from app.db.models.master_data import (
     BusinessCalendar,
     BusinessHoliday,
 )
-# backend/app/db/models/__init__.py
 from app.db.models.automation_rule import AutomationRule
+from app.db.models.ticket_history import TicketStatusHistory
+from app.db.models.ticket_attachment import TicketAttachment
+from app.db.models.similarity_feedback import SimilarityFeedback
 __all__ = [
     "User",
     "Role",
@@ -38,9 +40,19 @@ __all__ = [
     "AutomationRule",
     "Ticket",
     "TicketNumberSequence",
+    "TicketWorklog",
+    "TicketAudit",
+    "TicketTag",
+    "CategoryUsage",
+    "TicketStatusHistory",
+    "TicketAttachment",
+    "SimilarityFeedback",
 ]
 
 from app.db.models.ticket import Ticket, TicketNumberSequence
 
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket_attachment import TicketAttachment
+from app.db.models.work_category import TicketWorklog, TicketAudit, TicketTag, CategoryUsage
+
+from app.db.models.ticket_link import TicketLink

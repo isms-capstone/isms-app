@@ -15,8 +15,14 @@ import { api } from "@/lib/api";
 import type { Ticket, Organization } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
+import { SimilarityPanel } from "./similarity-panel";
+import { CaseIntakeEditor } from "./case-intake-editor";
+import { CaseAttachments } from "./case-attachments";
 import { LifecycleActions } from "./lifecycle-actions";
 import { PriorityBadge, ChannelLabel, StatusBadge } from "./case-badges";
+import { CategoryEditor } from "./category-editor";
+import { WorklogPanel } from "./worklog-panel";
+import { RequestWorkflow } from "./request-workflow";
 
 export function CaseDetail({ id }: { id: number }) {
   const { session, preview, href } = useSession();
@@ -104,168 +110,225 @@ export function CaseDetail({ id }: { id: number }) {
       {!ticket ? (
         !error && <TableSkeleton />
       ) : (
-        <section className="surface detail-card">
-          {!preview && session?.can_create_cases && (
-            <LifecycleActions ticket={ticket} onUpdated={setTicket} />
-          )}
+        <>
+          <section className="surface detail-card">
+            {!preview && session?.can_create_cases && (
+              <LifecycleActions ticket={ticket} onUpdated={setTicket} />
+            )}
 
-          <h2>ข้อมูลเคส</h2>
-          <dl className="detail-grid">
-            {[
-              [
-                "ลูกค้า",
-                preview
-                  ? previewData.rows.find((row) => row.id === id)?.customer ||
-                    "TU · คณะแพทยศาสตร์"
-                  : customer || "ยังไม่ระบุ",
-              ],
-              ["สถานะ", statusNames[ticket.status] || ticket.status],
-              [
-                "เวลาที่ลูกค้าแจ้ง",
-                new Date(ticket.reported_at).toLocaleString("th-TH"),
-              ],
-              [
-                "เวลาที่ระบบสร้าง",
-                new Date(ticket.created_at).toLocaleString("th-TH"),
-              ],
-              ["รายละเอียด", ticket.description || "ยังไม่มีรายละเอียด"],
-            ].map(([label, text]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{text}</dd>
+            <h2>ข้อมูลเคส</h2>
+            <dl className="detail-grid">
+              {[
+                [
+                  "ลูกค้า",
+                  preview
+                    ? previewData.rows.find((row) => row.id === id)?.customer ||
+                      "TU · คณะแพทยศาสตร์"
+                    : customer || "ยังไม่ระบุ",
+                ],
+                ["สถานะ", statusNames[ticket.status] || ticket.status],
+                [
+                  "เวลาที่ลูกค้าแจ้ง",
+                  new Date(ticket.reported_at).toLocaleString("th-TH"),
+                ],
+                [
+                  "เวลาที่ระบบสร้าง",
+                  new Date(ticket.created_at).toLocaleString("th-TH"),
+                ],
+                ["รายละเอียด", ticket.description || "ยังไม่มีรายละเอียด"],
+              ].map(([label, text]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{text}</dd>
+                </div>
+              ))}
+              {ticket.resolved_at && (
+                <div>
+                  <dt>เวลาแก้ไขเสร็จล่าสุด (Resolved)</dt>
+                  <dd>
+                    {new Date(
+                      /(?:Z|[+-]\d{2}:\d{2})$/i.test(ticket.resolved_at)
+                        ? ticket.resolved_at
+                        : `${ticket.resolved_at}Z`,
+                    ).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
+                  </dd>
+                </div>
+              )}
+              <div>
+                <dt>ช่องทาง</dt>
+                <dd>
+                  <ChannelLabel channel={ticket.channel} />
+                </dd>
               </div>
-            ))}
-            <div>
-              <dt>ช่องทาง</dt>
-              <dd>
-                <ChannelLabel channel={ticket.channel} />
-              </dd>
-            </div>
-            <div>
-              <dt>Priority</dt>
-              <dd>
-                <PriorityBadge value={ticket.severity} />
-              </dd>
-            </div>
-            <div>
-              <dt>SLA</dt>
-              <dd className="text-muted">ยังไม่มีการคำนวณจาก Backend</dd>
-            </div>
-          </dl>
+              <div>
+                <dt>Priority</dt>
+                <dd>
+                  <PriorityBadge value={ticket.severity} />
+                </dd>
+              </div>
+              <div>
+                <dt>SLA</dt>
+                <dd className="text-muted">ยังไม่มีการคำนวณจาก Backend</dd>
+              </div>
+            </dl>
 
-          {editable &&
-            ticket.status === "DRAFT" &&
-            ticket.created_by_id === session?.id && (
-              <form
-                className="detail-edit"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  save("draft-field", { field, value: value || null });
-                }}
-              >
-                <h3>เติมข้อมูลร่างทีละช่อง</h3>
-                <label>
-                  ช่องที่ต้องการแก้ไข
-                  <SelectControl
-                    className="input"
-                    value={field}
-                    onValueChange={(next) => {
-                      setField(next);
-                      setValue(
-                        String(
-                          ticket[
-                            next as "subject" | "description" | "channel"
-                          ] || "",
-                        ),
-                      );
-                    }}
-                  >
-                    <option value="subject">หัวข้อ</option>
-                    <option value="description">รายละเอียด</option>
-                    <option value="channel">ช่องทาง</option>
-                  </SelectControl>
-                </label>
-                <label>
-                  ข้อมูล
-                  {field === "channel" ? (
+            {editable &&
+              ticket.status === "DRAFT" &&
+              ticket.created_by_id === session?.id && (
+                <form
+                  className="detail-edit"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    save("draft-field", { field, value: value || null });
+                  }}
+                >
+                  <h3>เติมข้อมูลร่างทีละช่อง</h3>
+                  <label>
+                    ช่องที่ต้องการแก้ไข
                     <SelectControl
                       className="input"
-                      value={value}
-                      onValueChange={setValue}
+                      value={field}
+                      onValueChange={(next) => {
+                        setField(next);
+                        setValue(
+                          String(
+                            ticket[
+                              next as "subject" | "description" | "channel"
+                            ] || "",
+                          ),
+                        );
+                      }}
                     >
-                      <option value="">ยังไม่ระบุ</option>
-                      {Object.entries(channelNames).map(([id, label]) => (
-                        <option key={id} value={id}>
-                          {label}
-                        </option>
-                      ))}
+                      <option value="subject">หัวข้อ</option>
+                      <option value="description">รายละเอียด</option>
+                      <option value="channel">ช่องทาง</option>
                     </SelectControl>
-                  ) : field === "description" ? (
-                    <TextArea
-                      maxLength={20000}
-                      value={value}
-                      onValueChange={setValue}
+                  </label>
+                  <label>
+                    ข้อมูล
+                    {field === "channel" ? (
+                      <SelectControl
+                        className="input"
+                        value={value}
+                        onValueChange={setValue}
+                      >
+                        <option value="">ยังไม่ระบุ</option>
+                        {Object.entries(channelNames).map(([id, label]) => (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        ))}
+                      </SelectControl>
+                    ) : field === "description" ? (
+                      <TextArea
+                        maxLength={20000}
+                        value={value}
+                        onValueChange={setValue}
+                      />
+                    ) : (
+                      <Input
+                        maxLength={255}
+                        value={value}
+                        onChange={setValue}
+                      />
+                    )}
+                  </label>
+                  <div>
+                    <Button variant="primary" type="submit" disabled={saving}>
+                      บันทึกช่องนี้
+                    </Button>
+                    <span className="text-muted text-xs">
+                      เคสยังคงเป็น Draft หลังบันทึก
+                    </span>
+                  </div>
+                </form>
+              )}
+
+            {editable &&
+              (session?.role === "Admin" ||
+                [
+                  ticket.created_by_id,
+                  ticket.owner_id,
+                  ticket.assignee_id,
+                ].includes(session?.id ?? -1)) && (
+                <form
+                  className="detail-edit"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (reported)
+                      save("reported-at", {
+                        reported_at: new Date(reported).toISOString(),
+                      });
+                  }}
+                >
+                  <h3 className="flex items-center gap-2">
+                    <Clock3 size={14} />
+                    เวลาที่ลูกค้าแจ้ง
+                  </h3>
+                  <label>
+                    แก้เวลารับแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
+                    <Input
+                      type="datetime-local"
+                      value={reported}
+                      required
+                      onChange={setReported}
                     />
-                  ) : (
-                    <Input maxLength={255} value={value} onChange={setValue} />
-                  )}
-                </label>
-                <div>
-                  <Button variant="primary" type="submit" disabled={saving}>
-                    บันทึกช่องนี้
-                  </Button>
-                  <span className="text-muted text-xs">
-                    เคสยังคงเป็น Draft หลังบันทึก
-                  </span>
-                </div>
-              </form>
-            )}
+                  </label>
+                  <div>
+                    <Button type="submit" disabled={saving}>
+                      บันทึกเวลารับแจ้ง
+                    </Button>
+                  </div>
+                </form>
+              )}
 
-          {editable &&
-            (session?.role === "Admin" ||
-              [
-                ticket.created_by_id,
-                ticket.owner_id,
-                ticket.assignee_id,
-              ].includes(session?.id ?? -1)) && (
-              <form
-                className="detail-edit"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (reported)
-                    save("reported-at", {
-                      reported_at: new Date(reported).toISOString(),
-                    });
-                }}
-              >
-                <h3 className="flex items-center gap-2">
-                  <Clock3 size={14} />
-                  เวลาที่ลูกค้าแจ้ง
-                </h3>
-                <label>
-                  แก้เวลารับแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
-                  <Input
-                    type="datetime-local"
-                    value={reported}
-                    required
-                    onChange={setReported}
+            {message && (
+              <p role="status" className="form-message flex items-center gap-2">
+                <CheckCircle2 size={15} />
+                {message}
+              </p>
+            )}
+          </section>
+          {!preview && session?.can_create_cases && (
+            <details key={`case-edit-${ticket.id}`} className="surface detail-card">
+              <summary>แก้ไขข้อมูลเคส</summary>
+              {ticket.status === "NEW" &&
+                (session.role === "Admin" ||
+                  [
+                    ticket.created_by_id,
+                    ticket.owner_id,
+                    ticket.assignee_id,
+                  ].includes(session.id)) && (
+                  <CaseIntakeEditor
+                    key={`${ticket.id}-${ticket.subject}-${ticket.description}-${ticket.channel}`}
+                    ticket={ticket}
+                    onUpdated={setTicket}
                   />
-                </label>
-                <div>
-                  <Button type="submit" disabled={saving}>
-                    บันทึกเวลารับแจ้ง
-                  </Button>
-                </div>
-              </form>
-            )}
-
-          {message && (
-            <p role="status" className="form-message flex items-center gap-2">
-              <CheckCircle2 size={15} />
-              {message}
-            </p>
+                )}
+              <CategoryEditor ticket={ticket} onUpdated={setTicket} />
+            </details>
           )}
-        </section>
+          {!preview && session && (
+            <CaseAttachments key={ticket.id} ticketId={ticket.id} />
+          )}
+          {!preview && session?.can_create_cases && (
+            <SimilarityPanel
+              subject={ticket.subject || ""}
+              description={ticket.description || ""}
+              organizationId={ticket.organization_id}
+              instanceId={ticket.product_instance_id}
+              ticketId={ticket.id}
+              autoSearch={false}
+              onApplied={() => setAttempt((n) => n + 1)}
+            />
+          )}
+          {!preview && session?.can_create_cases && (
+            <RequestWorkflow ticket={ticket} onUpdated={setTicket} />
+          )}
+          {!preview && session?.can_create_cases && (
+            <WorklogPanel ticket={ticket} />
+          )}
+        </>
       )}
     </AppShell>
   );

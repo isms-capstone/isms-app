@@ -78,6 +78,7 @@ class Ticket(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime)
     root_cause_code_id: Mapped[int | None] = mapped_column(ForeignKey('cause_codes.id'))
+    root_cause_detail: Mapped[str | None] = mapped_column(Text)
     resolution_code_id: Mapped[int | None] = mapped_column(ForeignKey('solution_codes.id'))
     resolution_detail: Mapped[str | None] = mapped_column(Text)
     # KB is Phase 5: reserve the reference, add its FK when that table exists.
@@ -91,3 +92,4 @@ class Ticket(Base):
     pending_external_reason: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(Text)
     legacy_case_no: Mapped[str | None] = mapped_column(String(100))
+    search_text: Mapped[str | None] = mapped_column(Text, nullable=True)

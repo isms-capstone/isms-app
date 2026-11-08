@@ -1,6 +1,6 @@
 "use client";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -34,6 +34,15 @@ import {
 } from "@/lib/types";
 import { previewRows } from "@/lib/preview";
 import { CustomerPicker } from "./customer-picker";
+import {
+  SimilarityPanel,
+  type ReuseValues,
+} from "@/components/cases/similarity-panel";
+import {
+  CategoryFields,
+  emptyCategories,
+  type CategoryValues,
+} from "@/components/cases/category-fields";
 const previewContext: SelectionContext = {
   organization: { id: 2, name: "Fammed · เวชศาสตร์ครอบครัว", is_active: true },
   contact: { id: 2, name: "อ.นนท์" },
@@ -50,12 +59,6 @@ const previewContext: SelectionContext = {
   courses: [],
 };
 type Option = { id: number; name: string; module_id?: number };
-type CaseOptions = {
-  modules: Option[];
-  problem_types: Option[];
-  symptoms: Option[];
-  service_stages: Option[];
-};
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -69,29 +72,56 @@ export function CaptureScreen() {
     [description, setDescription] = useState(""),
     [instance, setInstance] = useState<number | null>(preview ? 1 : null);
   const [department, setDepartment] = useState(""),
-    [course, setCourse] = useState(""),
-    [moduleId, setModuleId] = useState(""),
-    [category, setCategory] = useState(""),
-    [symptom, setSymptom] = useState(""),
-    [stage, setStage] = useState("");
-  const [options, setOptions] = useState<CaseOptions | null>(null),
-    [optionsLoading, setOptionsLoading] = useState(false),
+    [course, setCourse] = useState("");
+  const [categories, setCategories] = useState<CategoryValues>(emptyCategories);
+  const [optionsLoading, setOptionsLoading] = useState(false),
     [existing, setExisting] = useState<TicketType[]>([]),
     [error, setError] = useState(""),
     [saving, setSaving] = useState(false),
     [message, setMessage] = useState("");
+  const [similarFeedbackId, setSimilarFeedbackId] = useState<number | null>(
+    null,
+  );
+  const [similarBlocked, setSimilarBlocked] = useState(false);
+  const [createdFor, setCreatedFor] = useState("");
+  const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (preview) return;
+    const controller = new AbortController();
+    api<{ id: number; name: string }[]>("/tickets/team-members", {
+      signal: controller.signal,
+    })
+      .then(setMembers)
+      .catch(() => {});
+    return () => controller.abort();
+  }, [preview]);
+  const onSimilarityState = useCallback(
+    (id: number | null, blocked: boolean) => {
+      setSimilarFeedbackId(id);
+      setSimilarBlocked(blocked);
+    },
+    [],
+  );
+  const onReuse = useCallback((values: ReuseValues) => {
+    setInstance(values.product_instance_id);
+    setCategories((current) => ({
+      ...current,
+      ...values,
+      symptom_id: null,
+      service_stage_id: null,
+    }));
+  }, []);
   const onError = useCallback((value: string) => setError(value), []);
   const chooseContext = useCallback((value: SelectionContext | null) => {
     setContext(value);
+    setSimilarFeedbackId(null);
     setExisting([]);
     setInstance(value?.instances.length === 1 ? value.instances[0].id : null);
     setDepartment("");
     setCourse("");
-    setModuleId("");
-    setCategory("");
-    setSymptom("");
-    setStage("");
-    setOptions(null);
+    setCategories(emptyCategories);
     setError("");
   }, []);
   useEffect(() => {
@@ -107,29 +137,6 @@ export function CaptureScreen() {
       });
     return () => controller.abort();
   }, [context, preview]);
-  useEffect(() => {
-    if (!instance || !context || preview) return;
-    const selected = context.instances.find((item) => item.id === instance);
-    if (!selected) return;
-    const controller = new AbortController();
-    const load = async () => {
-      setOptionsLoading(true);
-      try {
-        const result = await api<CaseOptions>(
-          `/products/${selected.product_id}/case-options`,
-          { signal: controller.signal },
-        );
-        setOptions(result);
-      } catch (e) {
-        if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : "โหลดหมวดหมู่ไม่สำเร็จ");
-      } finally {
-        if (!controller.signal.aborted) setOptionsLoading(false);
-      }
-    };
-    load();
-    return () => controller.abort();
-  }, [instance, context, preview]);
   const complete = !!context && !!subject.trim() && !!channel;
   const selectedProduct = context?.instances.find(
     (item) => item.id === instance,
@@ -140,6 +147,10 @@ export function CaptureScreen() {
       return;
     }
     if (!session?.can_create_cases || saving || optionsLoading) return;
+    if (!draft && similarBlocked) {
+      setError("กรุณายืนยันแนวทางจากเคสที่คล้ายกันก่อนสร้างเคส");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -147,6 +158,8 @@ export function CaptureScreen() {
         method: "POST",
         body: JSON.stringify({
           save_as_draft: draft,
+          similarity_feedback_id: similarFeedbackId,
+          created_for_user_id: createdFor ? Number(createdFor) : null,
           subject,
           description,
           channel: channel || null,
@@ -155,12 +168,17 @@ export function CaptureScreen() {
           product_instance_id: instance,
           department_id: department ? Number(department) : null,
           course_or_exam_id: course ? Number(course) : null,
-          module_id: moduleId ? Number(moduleId) : null,
-          category_id: category ? Number(category) : null,
-          symptom_id: symptom ? Number(symptom) : null,
-          service_stage_id: stage ? Number(stage) : null,
+          ...categories,
         }),
       });
+      for (const file of files) {
+        const body = new FormData();
+        body.append("file", file);
+        await api(`/tickets/${ticket.id}/attachments`, {
+          method: "POST",
+          body,
+        });
+      }
       router.push(href(`/cases/${ticket.id}`));
     } catch (e) {
       setError(e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ");
@@ -332,6 +350,31 @@ export function CaptureScreen() {
                   ))}
                 </section>
               ) : null}
+              {!preview && (
+                <SimilarityPanel
+                  subject={subject}
+                  description={description}
+                  organizationId={context?.organization.id || null}
+                  instanceId={instance}
+                  onState={onSimilarityState}
+                  onReuse={onReuse}
+                />
+              )}
+              <label>
+                สร้างแทนเพื่อนร่วมทีม (ไม่บังคับ)
+                <SelectControl
+                  value={createdFor}
+                  onValueChange={setCreatedFor}
+                  disabled={preview || members.length === 0}
+                >
+                  <option value="">ยังไม่ระบุ</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </SelectControl>
+              </label>
               <fieldset className="channel-field">
                 <legend>
                   ช่องทาง <span className="required">*</span>
@@ -380,11 +423,13 @@ export function CaptureScreen() {
                     String(instance || ""),
                     (value) => {
                       setInstance(value ? Number(value) : null);
-                      setModuleId("");
-                      setCategory("");
-                      setSymptom("");
-                      setStage("");
-                      setOptions(null);
+                      setCategories((current) => ({
+                        ...current,
+                        module_id: null,
+                        category_id: null,
+                        symptom_id: null,
+                        service_stage_id: null,
+                      }));
                     },
                     context?.instances.map((item) => ({
                       id: item.id,
@@ -392,15 +437,14 @@ export function CaptureScreen() {
                     })) || [],
                     !context,
                   )}
-                  {select(
-                    "โมดูล (Module)",
-                    moduleId,
-                    (value) => {
-                      setModuleId(value);
-                      setCategory("");
-                    },
-                    options?.modules || [],
-                    !options,
+                  {!preview && (
+                    <p className="field-hint full-width">
+                      {!context
+                        ? "เลือกลูกค้า / ผู้แจ้งก่อน จึงจะเลือกระบบที่ลูกค้าใช้งานได้"
+                        : !context.instances.length
+                          ? "ลูกค้านี้ยังไม่มีผลิตภัณฑ์ / ระบบที่ผูกไว้ ให้ผู้ดูแลระบบเพิ่มระบบของลูกค้าก่อน"
+                          : "เลือกระบบที่ต้องการจัดหมวดหมู่จากรายการของลูกค้า"}
+                    </p>
                   )}
                   {select(
                     "หน่วยงาน / ภาควิชา",
@@ -416,29 +460,18 @@ export function CaptureScreen() {
                     context?.courses || [],
                     !context,
                   )}
-                  {select(
-                    "ประเภทปัญหา",
-                    category,
-                    setCategory,
-                    options?.problem_types.filter(
-                      (item) => item.module_id === Number(moduleId),
-                    ) || [],
-                    !moduleId,
-                  )}
-                  {select(
-                    "อาการ",
-                    symptom,
-                    setSymptom,
-                    options?.symptoms || [],
-                    !options,
-                  )}
-                  {select(
-                    "ช่วงบริการ",
-                    stage,
-                    setStage,
-                    options?.service_stages || [],
-                    !options,
-                  )}
+                  <div className="full-width">
+                    <CategoryFields
+                      key={`${instance}-${context?.organization.id}`}
+                      productId={selectedProduct?.product_id || null}
+                      organizationId={context?.organization.id}
+                      departmentId={department ? Number(department) : null}
+                      value={categories}
+                      onChange={setCategories}
+                      preview={preview}
+                      onLoading={setOptionsLoading}
+                    />
+                  </div>
                   <label className="full-width">
                     รายละเอียดปัญหา
                     <TextArea
@@ -451,16 +484,57 @@ export function CaptureScreen() {
                   </label>
                 </div>
               </details>
-              <details className="capture-accordion attachment-accordion">
+              <details className="capture-accordion" open>
                 <summary>
                   <ImagePlus size={15} />
-                  <strong>หลักฐาน</strong>
-                  <span>แนบภาพหรือไฟล์เพื่อช่วยตรวจสอบปัญหา</span>
+                  <strong>ไฟล์แนบหลักฐาน</strong>
+                  <span>ไม่บังคับ</span>
                   <ChevronDown size={15} />
                 </summary>
-                <p className="field-hint">
-                  ส่วนแนบไฟล์ยังไม่เปิดใช้งานใน Backend รอบนี้
-                </p>
+                <div className="capture-attachments">
+                  <p id="capture-attachment-hint" className="field-hint">
+                    รองรับ JPG, PNG, WebP และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+                  </p>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    multiple
+                    hidden
+                    disabled={preview || saving}
+                    onChange={(event) =>
+                      setFiles(Array.from(event.target.files ?? []))
+                    }
+                  />
+                  <div className="capture-attachment-picker">
+                    <Button
+                      type="button"
+                      aria-describedby="capture-attachment-hint"
+                      disabled={preview || saving}
+                      onClick={() => fileInput.current?.click()}
+                    >
+                      เลือกไฟล์
+                    </Button>
+                    <span role="status" className="field-hint">
+                      {files.length
+                        ? `เลือกแล้ว ${files.length} ไฟล์`
+                        : "ยังไม่ได้เลือกไฟล์"}
+                    </span>
+                  </div>
+                  {files.length > 0 && (
+                    <ul
+                      className="capture-attachment-list"
+                      aria-label="ไฟล์ที่เลือก"
+                    >
+                      {files.map((file, index) => (
+                        <li key={`${file.name}-${index}`}>
+                          <FileText size={16} aria-hidden="true" />
+                          <span>{file.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </details>
               {error && (
                 <p className="form-error" role="alert">
@@ -571,6 +645,7 @@ export function CaptureScreen() {
                 saving ||
                 optionsLoading ||
                 !complete ||
+                similarBlocked ||
                 !session?.can_create_cases
               }
             >

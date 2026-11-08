@@ -127,7 +127,9 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
       writes++;
   });
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Design Preview");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Design Preview" }),
+  ).toBeVisible();
   expect(writes).toBe(0);
   for (const width of [768, 375]) {
     await page.setViewportSize({ width, height: 812 });
