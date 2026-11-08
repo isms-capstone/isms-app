@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { statusNames, type Ticket } from "@/lib/types";
@@ -40,10 +41,12 @@ export function LifecycleActions({
     return (
       <label key={field}>
         {label}
-        <select
+        <SelectControl
           required
           value={values[field] || ""}
-          onChange={(e) => setValues({ ...values, [field]: e.target.value })}
+          onValueChange={(nextValue) =>
+            setValues({ ...values, [field]: nextValue })
+          }
         >
           <option value="">เลือก{label}</option>
           {rows.map((row) => (
@@ -51,7 +54,7 @@ export function LifecycleActions({
               {row.name}
             </option>
           ))}
-        </select>
+        </SelectControl>
       </label>
     );
   }
@@ -125,12 +128,12 @@ export function LifecycleActions({
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
               <label>
                 รายละเอียดการแก้ไข
-                <textarea
+                <TextArea
                   required
                   maxLength={20000}
                   value={values.resolution_detail || ""}
-                  onChange={(e) =>
-                    setValues({ ...values, resolution_detail: e.target.value })
+                  onValueChange={(nextValue) =>
+                    setValues({ ...values, resolution_detail: nextValue })
                   }
                 />
               </label>

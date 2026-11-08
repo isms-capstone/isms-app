@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import "@DeverhoodHT/get-design/css";
 import "@/styles/company-theme.css";
-import "@fontsource/sarabun/400.css";
-import "@fontsource/sarabun/500.css";
-import "@fontsource/sarabun/600.css";
-import "@fontsource/sarabun/700.css";
 import "./globals.css";
 import "@/styles/operations-ui.css";
+import "@/styles/company-layout.css";
 import "@/styles/routing.css";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { CompanyProvider } from "@/components/providers/company-provider";

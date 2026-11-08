@@ -1,23 +1,23 @@
 @import "tailwindcss";
 @theme {
-  --color-ink: #060b0f;
-  --color-brand: #33454e;
-  --color-muted: #76949f;
-  --color-healthy: #73e8af;
-  --color-critical: #9e2a2b;
-  --color-canvas: #fbf5f3;
-  --font-sans: "Sarabun", "Segoe UI", sans-serif;
+  --color-ink: var(--label-primary);
+  --color-brand: var(--label-brand);
+  --color-muted: var(--label-tertiary);
+  --color-healthy: var(--label-success);
+  --color-critical: var(--label-danger);
+  --color-canvas: var(--fill-container-subtle);
+  --font-sans: "Noto Sans Thai", "Noto Sans", sans-serif;
   --radius-panel: 8px;
 }
 :root {
   --sidebar-width: 240px;
-  --line: color-mix(in srgb, #76949f 24%, white);
-  --muted: #76949f;
-  --brand: #33454e;
-  --ink: #060b0f;
-  --soft: #fbf5f3;
-  --healthy: #73e8af;
-  --critical: #9e2a2b;
+  --line: color-mix(in srgb, var(--label-tertiary) 24%, white);
+  --muted: var(--label-tertiary);
+  --brand: var(--label-brand);
+  --ink: var(--label-primary);
+  --soft: var(--fill-container-subtle);
+  --healthy: var(--label-success);
+  --critical: var(--label-danger);
 }
 * {
   box-sizing: border-box;
@@ -153,7 +153,7 @@ textarea::placeholder {
 .surface {
   @apply rounded-panel bg-white;
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px #33454e06;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--label-brand) 2.4%, transparent);
 }
 .button {
   @apply inline-flex items-center justify-center gap-2 rounded-sm;
@@ -168,7 +168,7 @@ textarea::placeholder {
 .button-secondary {
   background: white;
   color: var(--brand);
-  box-shadow: 0 1px 2px #33454e08;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--label-brand) 3.1%, transparent);
 }
 .button-secondary:hover:not(:disabled) {
   background: #f8f9f9;
@@ -178,7 +178,8 @@ textarea::placeholder {
   background: var(--brand);
   border-color: var(--brand);
   color: white;
-  box-shadow: 0 1px 2px #060b0f15;
+  box-shadow: 0 1px 2px
+    color-mix(in srgb, var(--label-primary) 8.2%, transparent);
 }
 .button-primary:hover:not(:disabled) {
   background: #263b46;
@@ -190,7 +191,7 @@ textarea::placeholder {
   box-shadow: none;
 }
 .button-ghost:hover:not(:disabled) {
-  background: #76949f12;
+  background: var(--fill-element-neutral-subtle);
 }
 .button-sm {
   min-height: 29px;
@@ -225,7 +226,7 @@ textarea:focus {
   padding: 3px 7px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #76949f08;
+  background: var(--fill-element-neutral-subtle);
   color: var(--brand);
 }
 /* Application shell */
@@ -301,7 +302,8 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 1px solid #76949f36;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 21.2%, transparent);
   flex-shrink: 0;
 }
 .brand-link {
@@ -349,7 +351,8 @@ textarea:focus {
   overflow-y: auto;
   flex: 1;
   scrollbar-width: thin;
-  scrollbar-color: #76949f55 transparent;
+  scrollbar-color: color-mix(in srgb, var(--label-primary) 33.3%, transparent)
+    transparent;
 }
 .nav-group {
   margin-top: 22px;
@@ -408,7 +411,7 @@ textarea:focus {
   font-size: 10px;
   padding: 2px 6px;
   border-radius: 3px;
-  background: #76949f33;
+  background: color-mix(in srgb, var(--label-primary) 20%, transparent);
 }
 .settings-link {
   margin-top: 12px;
@@ -417,10 +420,11 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 9px;
-  border-top: 1px solid #76949f33;
+  border-top: 1px solid
+    color-mix(in srgb, var(--label-primary) 20%, transparent);
   padding: 14px 18px;
   min-height: 64px;
-  background: #060b0f13;
+  background: color-mix(in srgb, var(--label-primary) 7.5%, transparent);
 }
 .sidebar-account > div {
   flex: 1;
@@ -451,7 +455,7 @@ textarea:focus {
   font-weight: 600;
 }
 .avatar-outline {
-  border: 1px solid #76949f70;
+  border: 1px solid color-mix(in srgb, var(--label-primary) 43.9%, transparent);
   background: transparent;
 }
 .avatar-square {
@@ -599,7 +603,7 @@ textarea:focus {
   border-radius: 50%;
 }
 .preview-banner {
-  background: #76949f12;
+  background: var(--fill-element-neutral-subtle);
   border-bottom: 1px solid var(--line);
   text-align: center;
   color: var(--muted);
@@ -653,7 +657,7 @@ textarea:focus {
   border-radius: 8px;
   padding: 16px;
   min-height: 84px;
-  box-shadow: 0 1px 2px #33454e05;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--label-brand) 2%, transparent);
 }
 .action-count:hover:not(:disabled),
 .action-count.is-selected {
@@ -686,20 +690,20 @@ textarea:focus {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #76949f20;
+  background: var(--border-secondary);
   color: var(--brand);
   flex-shrink: 0;
 }
 .action-unassigned {
-  background: #9e2a2b10;
+  background: color-mix(in srgb, var(--label-danger) 6.3%, transparent);
   color: var(--critical);
 }
 .action-risk {
-  background: #76949f17;
+  background: color-mix(in srgb, var(--label-primary) 9%, transparent);
   color: var(--brand);
 }
 .action-incoming {
-  background: #73e8af35;
+  background: color-mix(in srgb, var(--label-success) 20.8%, transparent);
 }
 .queue-surface {
   overflow: hidden;
@@ -736,7 +740,8 @@ textarea:focus {
 .segmented-tabs button.active {
   background: var(--brand);
   color: white;
-  box-shadow: 0 1px 2px #060b0f18;
+  box-shadow: 0 1px 2px
+    color-mix(in srgb, var(--label-primary) 9.4%, transparent);
 }
 .queue-heading-actions {
   display: flex;
@@ -794,7 +799,7 @@ textarea:focus {
 }
 .small-count {
   font-size: 10px;
-  background: #76949f20;
+  background: var(--border-secondary);
   border-radius: 3px;
   padding: 0 4px;
 }
@@ -825,7 +830,8 @@ textarea:focus {
 }
 .search-field:focus-within {
   border-color: var(--muted);
-  box-shadow: 0 0 0 2px #76949f15;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--label-primary) 8.2%, transparent);
 }
 .search-field > button {
   display: grid;
@@ -851,7 +857,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #76949f0a;
+  background: color-mix(in srgb, var(--label-primary) 3.9%, transparent);
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 2px 6px;
@@ -891,7 +897,7 @@ textarea:focus {
 }
 .case-table td {
   padding: 14px 10px;
-  border-bottom: 1px solid #76949f20;
+  border-bottom: 1px solid var(--border-secondary);
   vertical-align: middle;
   font-size: 12px;
   line-height: 1.5;
@@ -900,10 +906,10 @@ textarea:focus {
   transition: background-color 0.15s;
 }
 .case-table tbody tr:hover {
-  background: #76949f06;
+  background: color-mix(in srgb, var(--label-primary) 2.4%, transparent);
 }
 .case-table tbody tr.selected-row {
-  background: #76949f07;
+  background: color-mix(in srgb, var(--label-primary) 2.7%, transparent);
 }
 .case-table .selection-col {
   width: 36px;
@@ -954,29 +960,29 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   white-space: nowrap;
-  border: 1px solid #76949f90;
+  border: 1px solid color-mix(in srgb, var(--label-primary) 56.5%, transparent);
   color: var(--muted);
   border-radius: 20px;
   padding: 5px 12px;
   font-size: 10px;
   font-weight: 600;
-  background: #76949f08;
+  background: var(--fill-element-neutral-subtle);
   min-width: 80px;
 }
 .priority-S1 {
-  background: #9e2a2b12;
+  background: var(--fill-tint-danger-bg);
   color: var(--critical);
-  border-color: #9e2a2b80;
+  border-color: color-mix(in srgb, var(--label-danger) 50.2%, transparent);
 }
 .priority-S2 {
   color: var(--brand);
-  background: #33454e10;
-  border-color: #33454e70;
+  background: var(--fill-tint-brand-bg);
+  border-color: color-mix(in srgb, var(--label-brand) 43.9%, transparent);
 }
 .priority-S3 {
-  background: #73e8af30;
+  background: color-mix(in srgb, var(--label-success) 18.8%, transparent);
   color: var(--brand);
-  border-color: #73e8af;
+  border-color: var(--label-success);
 }
 .priority-unknown {
   min-width: 60px;
@@ -1115,7 +1121,7 @@ textarea:focus {
   gap: 12px;
   min-height: 55px;
   padding: 12px 14px;
-  background: #fbf5f36b;
+  background: color-mix(in srgb, var(--fill-container-subtle) 42%, transparent);
   color: var(--muted);
   font-size: 11px;
 }
@@ -1373,13 +1379,13 @@ textarea:focus {
   font-size: 9px;
   color: var(--brand);
   border: 1px solid var(--line);
-  background: #76949f0b;
+  background: color-mix(in srgb, var(--label-primary) 4.3%, transparent);
   border-radius: 3px;
   padding: 3px 5px;
 }
 .status-RESOLVED,
 .status-CLOSED {
-  background: #73e8af25;
+  background: color-mix(in srgb, var(--label-success) 14.5%, transparent);
 }
 .muted-cell {
   color: var(--muted);
@@ -1398,7 +1404,8 @@ textarea:focus {
   padding: 0;
   background: #fff;
   color: var(--brand);
-  box-shadow: -6px 0 24px #060b0f0b;
+  box-shadow: -6px 0 24px
+    color-mix(in srgb, var(--label-primary) 4.3%, transparent);
 }
 .filter-drawer[open] {
   display: flex;
@@ -1495,7 +1502,8 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 18px;
-  border-bottom: 1px solid #76949f19;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 9.8%, transparent);
   margin-bottom: 18px;
   gap: 10px;
 }
@@ -1512,7 +1520,7 @@ textarea:focus {
   margin-left: 8px;
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: #76949f09;
+  background: color-mix(in srgb, var(--label-primary) 3.5%, transparent);
   color: var(--muted);
   font-size: 9px;
   font-weight: 400;
@@ -1561,7 +1569,8 @@ textarea:focus {
   background: white;
   border: 1px solid var(--line);
   border-radius: 6px;
-  box-shadow: 0 8px 20px #33454e15;
+  box-shadow: 0 8px 20px
+    color-mix(in srgb, var(--label-brand) 8.2%, transparent);
   z-index: 20;
 }
 .customer-options button {
@@ -1572,13 +1581,14 @@ textarea:focus {
   text-align: left;
   padding: 11px 12px;
   border: 0;
-  border-bottom: 1px solid #76949f19;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 9.8%, transparent);
   background: none;
   color: var(--brand);
 }
 .customer-options button:hover,
 .customer-options button[aria-selected="true"] {
-  background: #76949f0c;
+  background: var(--fill-element-neutral-subtle);
 }
 .customer-options strong {
   display: block;
@@ -1602,7 +1612,7 @@ textarea:focus {
   align-items: center;
   flex: 0 1 250px;
   min-width: 0;
-  background: #76949f06;
+  background: color-mix(in srgb, var(--label-primary) 2.4%, transparent);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 9px 10px;
@@ -1647,7 +1657,7 @@ textarea:focus {
   font-size: 12px;
 }
 .related-cases {
-  background: #76949f05;
+  background: color-mix(in srgb, var(--label-primary) 2%, transparent);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 14px;
@@ -1686,9 +1696,9 @@ textarea:focus {
   margin-top: 8px;
 }
 .match-score {
-  background: #73e8af1c;
+  background: color-mix(in srgb, var(--label-success) 11%, transparent);
   color: var(--brand);
-  border: 1px solid #73e8af80;
+  border: 1px solid color-mix(in srgb, var(--label-success) 50.2%, transparent);
   border-radius: 4px;
   padding: 4px 6px;
   font-weight: 600;
@@ -1856,7 +1866,8 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   padding-bottom: 15px;
-  border-bottom: 1px solid #76949f19;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 9.8%, transparent);
 }
 .case-preview-heading h2 {
   font-size: 12px;
@@ -1877,7 +1888,7 @@ textarea:focus {
   border: 1px solid var(--line);
   padding: 3px 6px;
   border-radius: 3px;
-  background: #76949f09;
+  background: color-mix(in srgb, var(--label-primary) 3.5%, transparent);
   color: var(--brand);
 }
 .case-preview dl {
@@ -1913,7 +1924,8 @@ textarea:focus {
   color: var(--muted);
   font-style: italic;
   margin-top: 5px;
-  border-bottom: 1px solid #76949f19;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--label-primary) 9.8%, transparent);
   padding-bottom: 18px;
 }
 .case-preview .preview-customer {
@@ -1922,7 +1934,7 @@ textarea:focus {
 .automatic-fields {
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #76949f05;
+  background: color-mix(in srgb, var(--label-primary) 2%, transparent);
   padding: 13px 12px;
   display: grid;
   gap: 5px;
@@ -1981,7 +1993,8 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  box-shadow: 0 -2px 8px #33454e03;
+  box-shadow: 0 -2px 8px
+    color-mix(in srgb, var(--label-brand) 1.2%, transparent);
 }
 .capture-bottom-bar > span {
   font-size: 11px;
@@ -2007,8 +2020,8 @@ textarea:focus {
 }
 .form-error {
   color: var(--critical);
-  background: #9e2a2b08;
-  border: 1px solid #9e2a2b30;
+  background: color-mix(in srgb, var(--label-danger) 3.1%, transparent);
+  border: 1px solid color-mix(in srgb, var(--label-danger) 18.8%, transparent);
   padding: 10px 12px;
   border-radius: 5px;
   font-size: 12px;
@@ -2016,7 +2029,7 @@ textarea:focus {
 }
 .form-message {
   color: var(--brand);
-  background: #73e8af18;
+  background: color-mix(in srgb, var(--label-success) 9.4%, transparent);
   padding: 10px 12px;
   border-radius: 5px;
   font-size: 12px;
@@ -2040,7 +2053,7 @@ textarea:focus {
 .error-state {
   margin: 20px;
   padding: 18px;
-  border: 1px solid #9e2a2b50;
+  border: 1px solid color-mix(in srgb, var(--label-danger) 31.4%, transparent);
   border-radius: 6px;
   color: var(--critical);
   font-size: 12px;
@@ -2058,7 +2071,7 @@ textarea:focus {
 .table-skeleton span {
   height: 12px;
   border-radius: 3px;
-  background: #76949f15;
+  background: color-mix(in srgb, var(--label-primary) 8.2%, transparent);
   animation: pulse 1.3s infinite;
 }
 .login-screen {
@@ -2384,7 +2397,7 @@ textarea:focus {
     position: fixed;
     inset: 0;
     border: 0;
-    background: #060b0f55;
+    background: color-mix(in srgb, var(--label-primary) 33.3%, transparent);
     z-index: 39;
   }
   .app-main {

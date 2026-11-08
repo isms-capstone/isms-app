@@ -1,7 +1,8 @@
 "use client";
 import { Notifications } from "@/components/routing/notifications";
 import { useState } from "react";
-import { PanelLeftClose, ChevronRight, Search, LogOut } from "lucide-react";
+import { Search as GetSearch } from "@DeverhoodHT/get-design";
+import { PanelLeftClose, ChevronRight, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/providers/session-provider";
 import { Button } from "@/components/ui/primitives";
@@ -38,12 +39,11 @@ export function TopBar({
             router.push(`${href("/cases")}?q=${encodeURIComponent(query)}`);
           }}
         >
-          <Search size={15} />
-          <input
+          <GetSearch
             aria-label="ค้นหาเคสจากทุกหน้า"
             placeholder="ค้นหาเคส..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
           />
         </form>
         <Notifications />

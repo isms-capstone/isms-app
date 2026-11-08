@@ -1,4 +1,5 @@
 "use client";
+import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock3, CheckCircle2 } from "lucide-react";
@@ -162,117 +163,114 @@ export function CaseDetail({ id }: { id: number }) {
             </dl>
 
             {editable &&
-              ticket.status === "DRAFT" &&
-              ticket.created_by_id === session?.id && (
-                <form
-                  className="detail-edit"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    save("draft-field", { field, value: value || null });
-                  }}
-                >
-                  <h3>เติมข้อมูลร่างทีละช่อง</h3>
-                  <label>
-                    ช่องที่ต้องการแก้ไข
-                    <select
+            ticket.status === "DRAFT" &&
+            ticket.created_by_id === session?.id && (
+              <form
+                className="detail-edit"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  save("draft-field", { field, value: value || null });
+                }}
+              >
+                <h3>เติมข้อมูลร่างทีละช่อง</h3>
+                <label>
+                  ช่องที่ต้องการแก้ไข
+                  <SelectControl
+                    className="input"
+                    value={field}
+                    onValueChange={(next) => {
+                      setField(next);
+                      setValue(
+                        String(
+                          ticket[
+                            next as "subject" | "description" | "channel"
+                          ] || "",
+                        ),
+                      );
+                    }}
+                  >
+                    <option value="subject">หัวข้อ</option>
+                    <option value="description">รายละเอียด</option>
+                    <option value="channel">ช่องทาง</option>
+                  </SelectControl>
+                </label>
+                <label>
+                  ข้อมูล
+                  {field === "channel" ? (
+                    <SelectControl
                       className="input"
-                      value={field}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setField(next);
-                        setValue(
-                          String(
-                            ticket[
-                              next as "subject" | "description" | "channel"
-                            ] || "",
-                          ),
-                        );
-                      }}
+                      value={value}
+                      onValueChange={setValue}
                     >
-                      <option value="subject">หัวข้อ</option>
-                      <option value="description">รายละเอียด</option>
-                      <option value="channel">ช่องทาง</option>
-                    </select>
-                  </label>
-                  <label>
-                    ข้อมูล
-                    {field === "channel" ? (
-                      <select
-                        className="input"
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                      >
-                        <option value="">ยังไม่ระบุ</option>
-                        {Object.entries(channelNames).map(([id, label]) => (
-                          <option key={id} value={id}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : field === "description" ? (
-                      <textarea
-                        maxLength={20000}
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                      />
-                    ) : (
-                      <Input
-                        maxLength={255}
-                        value={value}
-                        onChange={setValue}
-                      />
-                    )}
-                  </label>
-                  <div>
-                    <Button variant="primary" type="submit" disabled={saving}>
-                      บันทึกช่องนี้
-                    </Button>
-                    <span className="text-muted text-xs">
-                      เคสยังคงเป็น Draft หลังบันทึก
-                    </span>
-                  </div>
-                </form>
-              )}
-
-            {editable &&
-              (session?.role === "Admin" ||
-                [
-                  ticket.created_by_id,
-                  ticket.owner_id,
-                  ticket.assignee_id,
-                ].includes(session?.id ?? -1)) && (
-                <form
-                  className="detail-edit"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (reported)
-                      save("reported-at", {
-                        reported_at: new Date(reported).toISOString(),
-                      });
-                  }}
-                >
-                  <h3 className="flex items-center gap-2">
-                    <Clock3 size={14} />
-                    เวลาที่ลูกค้าแจ้ง
-                  </h3>
-                  <label>
-                    แก้เวลารับแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
-                    <Input
-                      type="datetime-local"
-                      value={reported}
-                      required
-                      onChange={setReported}
+                      <option value="">ยังไม่ระบุ</option>
+                      {Object.entries(channelNames).map(([id, label]) => (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      ))}
+                    </SelectControl>
+                  ) : field === "description" ? (
+                    <TextArea
+                      maxLength={20000}
+                      value={value}
+                      onValueChange={setValue}
                     />
-                  </label>
-                  <div>
-                    <Button type="submit" disabled={saving}>
-                      บันทึกเวลารับแจ้ง
-                    </Button>
-                  </div>
-                </form>
-              )}
+                  ) : (
+                    <Input maxLength={255} value={value} onChange={setValue} />
+                  )}
+                </label>
+                <div>
+                  <Button variant="primary" type="submit" disabled={saving}>
+                    บันทึกช่องนี้
+                  </Button>
+                  <span className="text-muted text-xs">
+                    เคสยังคงเป็น Draft หลังบันทึก
+                  </span>
+                </div>
+              </form>
+            )}
 
-            {message && (
+          {editable &&
+            (session?.role === "Admin" ||
+              [
+                ticket.created_by_id,
+                ticket.owner_id,
+                ticket.assignee_id,
+              ].includes(session?.id ?? -1)) && (
+              <form
+                className="detail-edit"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (reported)
+                    save("reported-at", {
+                      reported_at: new Date(reported).toISOString(),
+                    });
+                }}
+              >
+                <h3 className="flex items-center gap-2">
+                  <Clock3 size={14} />
+                  เวลาที่ลูกค้าแจ้ง
+                </h3>
+                <label>
+                  แก้เวลารับแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
+                  <Input
+                    type="datetime-local"
+                    value={reported}
+                    required
+                    onChange={setReported}
+                  />
+                </label>
+                <div>
+                  <Button type="submit" disabled={saving}>
+                    บันทึกเวลารับแจ้ง
+                  </Button>
+                </div>
+              </form>
+            )}
+
+          {
+
+            message && (
               <p role="status" className="form-message flex items-center gap-2">
                 <CheckCircle2 size={15} />
                 {message}

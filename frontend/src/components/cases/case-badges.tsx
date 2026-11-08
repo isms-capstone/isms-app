@@ -1,7 +1,6 @@
 "use client";
 import { Tag } from "@DeverhoodHT/get-design";
 import {
-  type LucideIcon,
   AlarmClock,
   Clock3,
   CheckCircle2,
@@ -13,11 +12,6 @@ import {
   Mail,
   MessageCircle,
   Users,
-  AlertTriangle,
-  XCircle,
-  Check,
-  PlayCircle,
-  FileEdit,
 } from "lucide-react";
 import type { CaseRow } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
@@ -34,107 +28,24 @@ export function StatusBadge({
 
   const currentStatus = status.toUpperCase();
 
-  // กำหนดสไตล์ สี และไอคอนตาม Requirement BR-01..13
-  const statusConfig: Record<
-    string,
-    {
-      label: string;
-      color: string;
-      bg: string;
-      border: string;
-      icon: LucideIcon;
-    }
-  > = {
-    DRAFT: {
-      label: statusNames.DRAFT || "ร่าง",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: FileEdit,
-    },
-    NEW: {
-      label: statusNames.NEW || "ใหม่",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: Clock3,
-    },
-    OPEN: {
-      label: statusNames.OPEN || "เปิด",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: Clock3,
-    },
-    IN_PROGRESS: {
-      label: statusNames.IN_PROGRESS || "กำลังดำเนินการ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: PlayCircle,
-    },
-    PENDING: {
-      label: statusNames.PENDING || "รอดำเนินการ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: Clock3,
-    },
-    ESCALATED: {
-      label: statusNames.ESCALATED || "ส่งต่อผู้เชี่ยวชาญ",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: AlertTriangle,
-    },
-    RESOLVED: {
-      label: statusNames.RESOLVED || "แก้ไขแล้ว",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: CheckCircle2,
-    },
-    CLOSED: {
-      label: statusNames.CLOSED || "ปิดเคส",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: Check,
-    },
-    CANCELLED: {
-      label: statusNames.CANCELLED || "ยกเลิก",
-      color: "#33454e",
-      bg: "#76949f12",
-      border: "#76949f40",
-      icon: XCircle,
-    },
-  };
-
-  const config = statusConfig[currentStatus] || {
-    label: statusNames[status] || status,
-    color: "#33454e",
-    bg: "#76949f12",
-    border: "#76949f40",
-    icon: Clock3,
-  };
-
-  const Icon = config.icon;
-
+  const tone =
+    currentStatus === "RESOLVED"
+      ? "success"
+      : ["CANCELLED", "DUPLICATE"].includes(currentStatus)
+        ? "danger"
+        : currentStatus.startsWith("PENDING")
+          ? "warning"
+          : ["IN_PROGRESS", "REOPENED"].includes(currentStatus)
+            ? "brand"
+            : "neutral";
   return (
-    <span
-      className={cx(
-        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors",
-        compact && "px-2 py-0.5 text-[11px]",
-      )}
-      style={{
-        color: config.color,
-        backgroundColor: config.bg,
-        borderColor: config.border,
-      }}
-    >
-      <Icon size={compact ? 12 : 14} />
-      <span>{config.label}</span>
-    </span>
+    <Tag
+      variant="soft"
+      className={cx("case-status", compact && "case-status-compact")}
+      data-status={currentStatus}
+      data-tone={tone}
+      label={statusNames[currentStatus] || currentStatus}
+    />
   );
 }
 
@@ -160,11 +71,6 @@ export function PriorityBadge({
         value
           ? `${value}${compact ? "" : ` ${label[value] || ""}`}`
           : "ยังไม่ระบุ"
-      }
-      style={
-        value === "S1"
-          ? { color: "#33454e", borderColor: "#9e2a2b" }
-          : undefined
       }
     />
   );

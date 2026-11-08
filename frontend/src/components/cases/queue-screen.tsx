@@ -1,11 +1,15 @@
 "use client";
+import { SelectControl } from "@/components/ui/company-fields";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { StatCard, Segment } from "@DeverhoodHT/get-design";
+import {
+  StatCard,
+  Segment,
+  Search as GetSearch,
+} from "@DeverhoodHT/get-design";
 import {
   Plus,
   Clock3,
-  Search,
   SlidersHorizontal,
   RefreshCw,
   Download,
@@ -241,14 +245,14 @@ export function QueueScreen({
   );
   const quickFilters = (
     <>
-      <select
+      <SelectControl
         aria-label="กรองผลิตภัณฑ์"
         className="filter-select"
         value={filters.products[0] || ""}
-        onChange={(e) =>
+        onValueChange={(nextValue) =>
           apply({
             ...filters,
-            products: e.target.value ? [e.target.value] : [],
+            products: nextValue ? [nextValue] : [],
           })
         }
       >
@@ -256,15 +260,15 @@ export function QueueScreen({
         {data?.products.map((p) => (
           <option key={p.id}>{p.name}</option>
         ))}
-      </select>
-      <select
+      </SelectControl>
+      <SelectControl
         aria-label="กรอง Priority"
         className="filter-select"
         value={filters.priorities[0] || ""}
-        onChange={(e) =>
+        onValueChange={(nextValue) =>
           apply({
             ...filters,
-            priorities: e.target.value ? [e.target.value] : [],
+            priorities: nextValue ? [nextValue] : [],
           })
         }
       >
@@ -272,13 +276,13 @@ export function QueueScreen({
         {["S1", "S2", "S3", "S4"].map((s) => (
           <option key={s}>{s}</option>
         ))}
-      </select>
-      <select
+      </SelectControl>
+      <SelectControl
         aria-label="กรอง Tier"
         className="filter-select"
         value={filters.tiers[0] || ""}
-        onChange={(e) =>
-          apply({ ...filters, tiers: e.target.value ? [e.target.value] : [] })
+        onValueChange={(nextValue) =>
+          apply({ ...filters, tiers: nextValue ? [nextValue] : [] })
         }
       >
         <option value="">Tier</option>
@@ -287,15 +291,15 @@ export function QueueScreen({
             Tier {s}
           </option>
         ))}
-      </select>
-      <select
+      </SelectControl>
+      <SelectControl
         aria-label="กรองช่องทาง"
         className="filter-select"
         value={filters.channels[0] || ""}
-        onChange={(e) =>
+        onValueChange={(nextValue) =>
           apply({
             ...filters,
-            channels: e.target.value ? [e.target.value] : [],
+            channels: nextValue ? [nextValue] : [],
           })
         }
       >
@@ -305,22 +309,22 @@ export function QueueScreen({
             {label}
           </option>
         ))}
-      </select>
-      <select
+      </SelectControl>
+      <SelectControl
         aria-label="กรอง SLA"
         className="filter-select"
         disabled={!slaAvailable}
         title={!slaAvailable ? "รอข้อมูลจากระบบ SLA" : undefined}
         value={filters.sla[0] || ""}
-        onChange={(e) =>
-          apply({ ...filters, sla: e.target.value ? [e.target.value] : [] })
+        onValueChange={(nextValue) =>
+          apply({ ...filters, sla: nextValue ? [nextValue] : [] })
         }
       >
         <option value="">SLA</option>
         <option value="breached">Breached</option>
         <option value="risk">At risk</option>
         <option value="safe">On track</option>
-      </select>
+      </SelectControl>
       <Button onClick={openDrawer} className="more-filters">
         <SlidersHorizontal size={15} />
         ตัวกรองเพิ่มเติม
@@ -329,27 +333,20 @@ export function QueueScreen({
     </>
   );
   const search = (
-    <div className="search-field">
-      <Search size={17} />
-      <input
-        aria-label="ค้นหาเคส"
-        placeholder={
-          view === "all"
-            ? "ค้นหาเลขเคส, หัวข้อ, ลูกค้า, ผู้รับผิดชอบ..."
-            : "ค้นหาเคส ลูกค้า หรือผู้รับผิดชอบ..."
-        }
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setPage(1);
-        }}
-      />
-      {query && (
-        <button onClick={() => setQuery("")} aria-label="ล้างคำค้น">
-          <X size={14} />
-        </button>
-      )}
-    </div>
+    <GetSearch
+      className="company-search"
+      aria-label="ค้นหาเคส"
+      placeholder={
+        view === "all"
+          ? "ค้นหาเลขเคส, หัวข้อ, ลูกค้า, ผู้รับผิดชอบ..."
+          : "ค้นหาเคส ลูกค้า หรือผู้รับผิดชอบ..."
+      }
+      value={query}
+      onChange={(nextValue) => {
+        setQuery(nextValue);
+        setPage(1);
+      }}
+    />
   );
   function exportCsv() {
     const selectedRows = selected.size
@@ -590,16 +587,16 @@ export function QueueScreen({
                 <div className="queue-heading-actions">
                   <label className="sort-control">
                     เรียงตาม:
-                    <select
+                    <SelectControl
                       aria-label="เรียงคิวเคส"
                       value={slaAvailable ? sort : "recent"}
-                      onChange={(e) => setSort(e.target.value)}
+                      onValueChange={(nextValue) => setSort(nextValue)}
                     >
                       <option value="sla" disabled={!slaAvailable}>
                         SLA เหลือน้อยที่สุด ↓
                       </option>
                       <option value="recent">บันทึกล่าสุด ↓</option>
-                    </select>
+                    </SelectControl>
                   </label>
                   {session?.can_create_cases && (
                     <Link
