@@ -205,7 +205,6 @@ export function Sidebar({
                   <Link
                     key={item.label}
                     href={destination}
-                    prefetch={legacy ? false : undefined}
                     onClick={onClose}
                     className={cx("nav-item", active && "active")}
                     aria-current={active ? "page" : undefined}

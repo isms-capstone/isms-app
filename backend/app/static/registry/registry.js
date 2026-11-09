@@ -495,8 +495,23 @@ async function showCapture() {
     saving = true;
     submit.disabled = true; draftButton.disabled = true;
     try {
-      const ticket = await request('/tickets', {method: 'POST', body: {...selected, ...caseSelection,
-        subject: subject.value, channel: channel.value || null, description: description.value, created_for_user_id: owner.value ? Number(owner.value) : null, save_as_draft: draftRequested}});
+      const body = {...selected, ...caseSelection,
+        subject: subject.value, channel: channel.value || null, description: description.value, created_for_user_id: owner.value ? Number(owner.value) : null, save_as_draft: draftRequested};
+      const query = `${body.subject} ${body.description}`.trim();
+      if (!draftRequested && query.length >= 10) {
+        const params = new URLSearchParams({q: query});
+        if (body.organization_id) params.set('organization_id', body.organization_id);
+        if (body.product_instance_id) params.set('product_instance_id', body.product_instance_id);
+        const suggestions = await request(`/tickets/similar?${params}`, {signal: AbortSignal.timeout(1500)}).catch(() => null);
+        if (!form.isConnected || !user) return;
+        if (suggestions?.decision_required) {
+          const titles = suggestions.items.map(item => item.subject || item.ticket_no).join('\n');
+          if (!window.confirm(`พบเคสที่คล้ายกัน:\n${titles}\n\nยืนยันเปิดสอบสวนใหม่หรือไม่?`)) return;
+          await request(`/tickets/similarity-feedback/${suggestions.feedback_id}`, {method: 'POST', body: {decision: 'new'}});
+          body.similarity_feedback_id = suggestions.feedback_id;
+        }
+      }
+      const ticket = await request('/tickets', {method: 'POST', body});
       if (!form.isConnected) return;
       const uploadErrors = [], failedAttachments = [], requestedAttachmentCount = pendingAttachments.length;
       for (const file of pendingAttachments) {

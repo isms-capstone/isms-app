@@ -100,9 +100,26 @@ def routing(request):
     login("owner")
 
     def create(**changes):
+        body = context | {"subject": "ESC acceptance", "channel": "phone"}
+        suggestions = client.get(
+            "/api/v1/tickets/similar",
+            params={
+                "q": body["subject"],
+                "organization_id": body["organization_id"],
+                "product_instance_id": body["product_instance_id"],
+            },
+        ).json()
+        if suggestions["decision_required"]:
+            feedback_id = suggestions["feedback_id"]
+            decision = client.post(
+                f"/api/v1/tickets/similarity-feedback/{feedback_id}",
+                json={"decision": "new"},
+            )
+            assert decision.status_code == 200, decision.text
+            body["similarity_feedback_id"] = feedback_id
         r = client.post(
             "/api/v1/tickets",
-            json=context | {"subject": "ESC acceptance", "channel": "phone"},
+            json=body,
         )
         assert r.status_code == 201, r.text
         with factory() as db:
@@ -249,6 +266,7 @@ def test_esc_handoff_required_context_owner_timing_and_return(routing):
                 select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == case)
             ).all()
             if h.details.get("operation") != "tier_entry"
+            and h.details.get("event") != "CASE_CREATED"
         ]
         assert (
             len(histories) == 2
