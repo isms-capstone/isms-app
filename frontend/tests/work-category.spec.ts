@@ -92,12 +92,18 @@ test("WRK/CAT real persistence, mobile two-tap categories, audit and tag report"
     page.getByRole("status").filter({ hasText: "บันทึกหมวดหมู่" }),
   ).toBeVisible();
   await choose(page, "โมดูล (Module)", "Student QA");
+  const categoryPath = `/api/backend/tickets/${ticket.id}/categorization`;
+  const secondSave = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === categoryPath &&
+      response.request().method() === "PATCH",
+  );
   await page
     .getByRole("button", { name: "บันทึกหมวดหมู่", exact: true })
     .click();
-  const fields = await (
-    await page.request.get(`/api/backend/tickets/${ticket.id}/categorization`)
-  ).json();
+  const savedCategory = await secondSave;
+  expect(savedCategory.ok(), await savedCategory.text()).toBe(true);
+  const fields = await (await page.request.get(categoryPath)).json();
   expect(fields.module_id).toBe(module2.id);
   expect(fields.symptom_id).toBe(symptom.id);
   expect(fields.service_stage_id).toBe(stage.id);
