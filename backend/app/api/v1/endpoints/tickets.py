@@ -232,27 +232,41 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
+    if values.get("current_tier") is None:
+        owner = db.get(User, owner_id)
+        values["current_tier"] = owner.default_tier if owner else 2
+
     if body.created_for_user_id is not None:
-        values['assignee_id'] = owner_id  # สร้างแทน: ระบุผู้รับผิดชอบจริงตั้งแต่ต้น
+        values["assignee_id"] = owner_idp
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
         db.add(ticket)
         db.flush()
         from app.services.categorization import record_categories
+        from app.services.routing import initialize_interval
+
         record_categories(db, ticket, user, body.tags)
         if feedback is not None:
             attach_choice(db, feedback, ticket, user)
-        db.add(TicketStatusHistory(
+
+        history = TicketStatusHistory(
             ticket_id=ticket.id,
-            from_status=ticket.status,  # ไม่ใช้ None เพื่อกันคอลัมน์ที่ห้าม null; แยกแยะด้วย details.event
+            from_status=ticket.status,
             to_status=ticket.status,
-            actor_id=user.id, created_at=now,
-            details={'event': 'CASE_CREATED',
-                     'recorded_by_id': user.id,
-                     'owner_id': owner_id,
-                     'assignee_id': values.get('assignee_id'),
-                     'created_for_user_id': body.created_for_user_id}))
+            actor_id=user.id,
+            created_at=now,
+            details={
+                "event": "CASE_CREATED",
+                "recorded_by_id": user.id,
+                "owner_id": owner_id,
+                "assignee_id": values.get("assignee_id"),
+                "created_for_user_id": body.created_for_user_id,
+            },
+        )
+        db.add(history)
+        db.flush()
+        initialize_interval(db, ticket, now, history_id=history.id)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -293,11 +307,24 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         ticket = Ticket(**values)
         db.add(ticket)
         db.flush()
-        db.add(TicketStatusHistory(
-            ticket_id=ticket.id, from_status=None, to_status=ticket.status,
-            actor_id=user.id, created_at=now,
-            details={'event': 'CASE_CREATED', 'recorded_by_id': user.id,
-                     'owner_id': user.id, 'source_ticket_id': source.id}))
+        from app.services.routing import initialize_interval
+
+        history = TicketStatusHistory(
+            ticket_id=ticket.id,
+            from_status=ticket.status,
+            to_status=ticket.status,
+            actor_id=user.id,
+            created_at=now,
+            details={
+                "event": "CASE_CREATED",
+                "recorded_by_id": user.id,
+                "owner_id": user.id,
+                "source_ticket_id": source.id,
+            },
+        )
+        db.add(history)
+        db.flush()
+        initialize_interval(db, ticket, now, history_id=history.id)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -578,7 +605,10 @@ def update_ticket_status(ticket_id: int, payload: TicketStatusUpdatePayload,
                          db: Session = Depends(get_db), user: User = Depends(require_capture)):
     ticket = editable_ticket(db, ticket_id, user)
     from app.services.lifecycle import transition
+    was_draft = ticket.status == "DRAFT"
     transition(db, ticket, payload.model_dump(exclude_unset=True), user)
+    if was_draft and ticket.status == "NEW":
+        ticket.ticket_no = next_ticket_number(db, datetime.now(timezone.utc).replace(tzinfo=None))
     return commit_edit(db, ticket)
 
 

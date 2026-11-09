@@ -1,0 +1,19 @@
+# Explicit local ESC worker; uses the same migrated database as app.
+# Add this overlay after docker-compose.frontend.yml when starting the worker.
+services:
+  routing-worker:
+    build: .
+    command: ["python", "-m", "app.jobs.routing_worker"]
+    restart: unless-stopped
+    environment:
+      MARIADB_SERVER: db
+      MARIADB_PORT: "3306"
+      MARIADB_USER: ${MARIADB_USER:-isms_user}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
+      MARIADB_DB: ${MARIADB_DB:-isms_db}
+      SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
+    depends_on:
+      app:
+        condition: service_healthy
+      db:
+        condition: service_healthy

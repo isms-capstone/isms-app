@@ -18,7 +18,7 @@ def test_merged_adm_cap_migration_graph_roundtrip():
     config = Config()
     config.set_main_option('script_location', str(directory))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ['simwrk02_latest']
+    assert script.get_heads() == ["escsim01_merge"]
 
     engine = create_engine('sqlite://')
 

@@ -53,6 +53,8 @@ from app.db.models.ticket import Ticket, TicketNumberSequence
 
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket_attachment import TicketAttachment
+
+from app.db.models.routing import TeamRouting, ProductTierRoute, RoutingPolicy, RoutingEvent, TierInterval, RoutingNotification, RoutingJobLease
 from app.db.models.work_category import TicketWorklog, TicketAudit, TicketTag, CategoryUsage
 
 from app.db.models.ticket_link import TicketLink

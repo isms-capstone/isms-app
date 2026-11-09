@@ -12,4 +12,6 @@ email-validator
 pytest
 httpx
 ruff
+
+tzdata
 pythainlp

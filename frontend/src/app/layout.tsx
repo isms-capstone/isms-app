@@ -4,6 +4,7 @@ import "@/styles/company-theme.css";
 import "./globals.css";
 import "@/styles/operations-ui.css";
 import "@/styles/company-layout.css";
+import "@/styles/routing.css";
 import "@/styles/work-category.css";
 import "@/styles/similarity.css";
 import { SessionProvider } from "@/components/providers/session-provider";

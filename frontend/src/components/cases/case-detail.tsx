@@ -15,6 +15,7 @@ import { api } from "@/lib/api";
 import type { Ticket, Organization } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
+import { RoutingPanel } from "@/components/routing/routing-panel";
 import { SimilarityPanel } from "./similarity-panel";
 import { CaseIntakeEditor } from "./case-intake-editor";
 import { CaseAttachments } from "./case-attachments";
@@ -111,6 +112,13 @@ export function CaseDetail({ id }: { id: number }) {
         !error && <TableSkeleton />
       ) : (
         <>
+          {!preview && ticket && (
+            <RoutingPanel
+              ticketId={ticket.id}
+              revision={`${ticket.status}:${ticket.assignee_id}:${attempt}`}
+              onChanged={() => setAttempt((x) => x + 1)}
+            />
+          )}
           <section className="surface detail-card">
             {!preview && session?.can_create_cases && (
               <LifecycleActions ticket={ticket} onUpdated={setTicket} />

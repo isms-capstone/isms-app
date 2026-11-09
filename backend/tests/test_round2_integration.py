@@ -7,7 +7,9 @@ from sqlalchemy import select
 from app.api.deps import get_current_user
 from app.db.models.ticket import Ticket
 from app.db.models.ticket_history import TicketStatusHistory
-from app.db.models.user import Role, User
+from app.db.models.user import Role, User, Team
+from app.db.models.master_data import Product
+from app.db.models.product import ProductInstance
 from app.core.state_machine import validate_status_transition
 from test_tickets import capture
 
@@ -17,6 +19,11 @@ def test_status_acl_persistence_and_no_auditor_side_effects(capture):
     row = client.post('/api/v1/tickets', json=context | {'subject': 'Lifecycle QA', 'channel': 'phone'}).json()
     with factory() as db:
         admin_id = db.scalar(select(User.id).limit(1))
+        team = Team(name='Lifecycle support'); db.add(team); db.flush()
+        db.get(User, admin_id).team_id = team.id
+        instance = db.get(ProductInstance, context['product_instance_id'])
+        db.get(Product, instance.product_id).default_team_id = team.id
+        db.commit()
     result = client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'IN_PROGRESS', 'assignee_id': admin_id})
     assert result.status_code == 200, result.text
     result = client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'PENDING_EXTERNAL', 'pending_external_reason': 'Waiting for vendor'})
