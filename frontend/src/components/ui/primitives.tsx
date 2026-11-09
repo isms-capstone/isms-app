@@ -159,7 +159,7 @@ export function EmptyState({
   return (
     <div className="empty-state">
       <GetEmptyState
-        title={<h3>{title}</h3>}
+        title={<span role="heading" aria-level={3}>{title}</span>}
         description={description}
         variant="neutral"
       />

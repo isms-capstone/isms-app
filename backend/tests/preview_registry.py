@@ -7,15 +7,20 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+
+from fastapi import FastAPI
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
+from app.api.v1.endpoints import tickets
 from app.api.v1.router import api_router
 from app.core.security import get_password_hash
 from app.db.base_class import Base
 from app.db.models.user import Role, Team, User
 from app.db.session import get_db
 from app.registry_ui import mount_registry_ui
-from fastapi import FastAPI
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+
+temporary_db = TemporaryDirectory(prefix="isms-registry-qa-")
+tickets.ATTACHMENT_DIR = Path(temporary_db.name) / "attachments"
 
 external_qa = os.getenv("REGISTRY_BROWSER_MARIADB_QA") == "1"
 if external_qa:
@@ -30,7 +35,6 @@ if external_qa:
     with engine.connect() as connection:
         require_current_schema(connection)
 else:
-    temporary_db = TemporaryDirectory(prefix="isms-registry-qa-")
     database_path = (Path(temporary_db.name) / "registry.sqlite").as_posix()
     engine = create_engine(
         f"sqlite:///{database_path}", connect_args={"check_same_thread": False}

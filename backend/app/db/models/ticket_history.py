@@ -14,3 +14,7 @@ class TicketStatusHistory(Base):
     actor_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+# Existing WRK integrations import this name here; keep one mapper/storage table.
+from app.db.models.work_category import TicketWorklog

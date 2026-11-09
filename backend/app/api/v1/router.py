@@ -69,3 +69,7 @@ api_router.include_router(automation_rules_router)
 
 from app.api.v1.endpoints.routing import router as routing_router
 api_router.include_router(routing_router, tags=["Escalation & Routing"])
+from app.api.v1.endpoints.sim_support import router as sim_support_router
+api_router.include_router(sim_support_router, tags=['Similarity Integration'])
+from app.api.v1.endpoints.work_category import router as work_category_router
+api_router.include_router(work_category_router, tags=['Work Log and Categorization'])

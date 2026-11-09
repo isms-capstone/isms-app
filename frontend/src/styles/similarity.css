@@ -1,0 +1,67 @@
+.similarity-panel {
+  margin-block: 20px;
+  padding: 16px;
+  border: 1px solid var(--separator-opaque, #dce2e5);
+  border-radius: 10px;
+  background: var(--background-card, #fff);
+}
+.similarity-panel .related-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.similarity-panel .related-case {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+}
+.similarity-panel .related-subject {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.similarity-panel .related-subject small {
+  display: block;
+  margin-top: 4px;
+}
+.similarity-panel .related-case > label,
+.similarity-decision > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+.similarity-decision {
+  border: 0;
+  padding: 12px 0 0;
+  min-width: 0;
+}
+.similarity-decision > label {
+  margin: 8px 16px 12px 0;
+}
+.similarity-decision > .ui-button {
+  display: flex;
+  margin-top: 12px;
+}
+.similarity-decision input[type="radio"] {
+  flex-shrink: 0;
+  accent-color: var(--fill-element-brand, #33454e);
+}
+.similarity-panel .detail-grid {
+  margin-block: 12px;
+}
+@media (max-width: 640px) {
+  .similarity-panel .related-case {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  .similarity-panel .related-case > label,
+  .similarity-panel .related-case > a {
+    grid-column: 2;
+  }
+  .similarity-decision > label {
+    display: flex;
+    margin-right: 0;
+  }
+  .similarity-panel .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

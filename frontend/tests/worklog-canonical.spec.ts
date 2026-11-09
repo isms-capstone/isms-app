@@ -1,0 +1,36 @@
+import { test, expect } from "@playwright/test";
+
+test("canonical backend: persist notes and LINE OA replies without a page reload", async ({ page, baseURL }) => {
+  test.skip(process.env.WRK_LEGACY_QA !== "0", "Requires the disposable canonical QA backend");
+  const headers = { origin: baseURL! };
+  const login = await page.request.post("/api/session", { headers, data: { username: "qa-admin", password: "test-only-password" } });
+  expect(login.ok()).toBe(true);
+  const orgResponse = await page.request.post("/api/backend/customers/organizations", { headers, data: { name: `WRK regression ${Date.now()}` } });
+  expect(orgResponse.ok()).toBe(true);
+  const org = await orgResponse.json();
+  const ticketResponse = await page.request.post("/api/backend/tickets", { headers, data: { organization_id: org.id, subject: "WRK canonical regression", channel: "phone" } });
+  expect(ticketResponse.ok()).toBe(true);
+  const ticket = await ticketResponse.json();
+  await page.goto(`/cases/${ticket.id}`);
+  const composer = page.locator(".worklog-panel .worklog-composer");
+  await composer.getByLabel("ข้อความ *", { exact: true }).fill("Canonical Internal Note QA");
+  await composer.getByRole("button", { name: "บันทึกข้อความ", exact: true }).click();
+  await expect(page.locator(".timeline-event.internal_note")).toContainText("Canonical Internal Note QA");
+  await composer.getByRole("button", { name: "Public Reply", exact: true }).click();
+  await composer.getByLabel("ช่องทางที่ส่งจริง *", { exact: true }).selectOption("line_oa");
+  await composer.getByLabel("ข้อความ *", { exact: true }).fill("Canonical LINE OA QA");
+  await composer.getByRole("button", { name: "บันทึกข้อความ", exact: true }).click();
+  const reply = page.locator(".timeline-event.public_reply");
+  await expect(reply).toContainText("ส่งจริงผ่าน LINE OA");
+  await expect(reply).toHaveCSS("border-left-color", "rgb(115, 232, 175)");
+  await page.reload();
+  await expect(page.locator(".timeline-event.internal_note")).toContainText("Canonical Internal Note QA");
+  await expect(page.locator(".timeline-event.public_reply")).toContainText("Canonical LINE OA QA");
+  const records = await (await page.request.get(`/api/backend/tickets/${ticket.id}/worklogs`)).json();
+  expect(records).toHaveLength(2);
+  expect(records[1]).toMatchObject({ kind: "public_reply", channel: "line_oa", body: "Canonical LINE OA QA" });
+  const invalid = await page.request.post(`/api/backend/tickets/${ticket.id}/worklogs`, { headers, data: { kind: "public_reply", body: "missing channel" } });
+  expect(invalid.status()).toBe(422);
+  const unchanged = await (await page.request.get(`/api/backend/tickets/${ticket.id}/worklogs`)).json();
+  expect(unchanged).toHaveLength(2);
+});

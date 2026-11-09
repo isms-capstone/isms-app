@@ -30,7 +30,8 @@ def test_status_acl_persistence_and_no_auditor_side_effects(capture):
     assert result.status_code == 200, result.text
     with factory() as db:
         assert db.get(Ticket, row['id']).pending_external_reason == 'Waiting for vendor'
-        assert len(db.scalars(select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == row['id'])).all()) == 3
+        assert len(db.scalars(select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == row['id'],
+                   TicketStatusHistory.from_status != TicketStatusHistory.to_status)).all()) == 2
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=admin_id, role=SimpleNamespace(name='Auditor'))
     assert client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'CANCELLED', 'cancel_reason': 'forbidden'}).status_code == 403
     with factory() as db:
