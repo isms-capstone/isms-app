@@ -33,6 +33,5 @@ def downgrade():
     bind = op.get_bind()
     if bind.dialect.name == 'mysql':
         op.execute('ALTER TABLE ticket DROP INDEX ft_ticket_search_text')
-    op.drop_index('ix_similarity_feedback_ticket_id', table_name='similarity_feedback')
     op.drop_table('similarity_feedback')
     op.drop_column('ticket', 'search_text')

@@ -47,7 +47,6 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_index("ix_ticket_link_ticket_id", table_name="ticket_link")
     op.drop_table("ticket_link")
     with op.batch_alter_table("similarity_feedback") as batch:
         batch.drop_constraint("fk_sim_feedback_instance", type_="foreignkey")

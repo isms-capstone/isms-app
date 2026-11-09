@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from app.api.deps import get_current_user
 from app.db.models.ticket import Ticket
+from app.db.models.user import Team, User
 from app.db.models.work_category import (
     CategoryUsage,
     TicketAudit,
@@ -28,6 +29,15 @@ def create(client, context, **extra):
     response = client.post('/api/v1/tickets', json=body)
     assert response.status_code == 201, response.text
     return response.json()
+
+
+def configure_assignee_team(factory, user_id):
+    with factory() as db:
+        team = Team(name=f"CAT support {user_id}")
+        db.add(team)
+        db.flush()
+        db.get(User, user_id).team_id = team.id
+        db.commit()
 
 
 def post(client, path, body):
@@ -194,6 +204,7 @@ def test_request_fulfilment_uses_shared_core_guards(capture):
     cause = post(client, '/admin/master-data/cause-codes', {'code': 'REQ', 'name': 'Service request'})['id']
     solution = post(client, '/admin/master-data/solution-codes', {'code': 'REQ', 'name': 'Delivered'})['id']
     ticket = create(client, context, ticket_type_id=request_type)
+    configure_assignee_team(factory, ticket['created_by_id'])
     path = f"/tickets/{ticket['id']}/request-workflow"
     assert client.get(f"/api/v1/tickets/{ticket['id']}/categorization").json()['workflow'] == 'request'
     started = post(client, path, {'action': 'start', 'assignee_id': ticket['created_by_id']})
@@ -238,6 +249,7 @@ def test_legacy_assessment_and_core_category_audit(capture):
     assert tags.status_code == 200, tags.text
     assert tags.json()['severity'] == 'S2'
     active = create(client, context)
+    configure_assignee_team(factory, active['created_by_id'])
     with factory() as db:
         from app.db.models.master_data import ProblemType
         category = ProblemType(module_id=context['module_id'], name='Other valid category')

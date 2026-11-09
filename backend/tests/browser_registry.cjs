@@ -161,8 +161,13 @@ fs.mkdirSync(output, {recursive: true});
       await page.getByLabel('หัวข้อเคส', {exact: true}).fill(`Login QA ${index}`);
       await page.locator('.channel-options').getByRole('button', {name: index === 0 ? 'โทรศัพท์' : 'พบหน้า', exact: true}).click();
       if (index === 0) { await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({path: path.join(output, 'capture-desktop.png')}); }
+      const decision = index === 1 ? page.waitForEvent('dialog').then(async dialog => {
+        assert.match(dialog.message(), /เปิดสอบสวนใหม่/);
+        await dialog.accept();
+      }) : null;
       const created = page.waitForResponse(response => response.url().endsWith('/tickets') && response.request().method() === 'POST');
       await page.locator('.capture-footer').getByRole('button', {name: 'สร้างเคส', exact: true}).click();
+      if (decision) await decision;
       const ticket = await (await created).json();
       assert.equal(ticket.status, 'NEW');
       assert.equal(ticket.department_id, 1);

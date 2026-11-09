@@ -237,7 +237,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         values["current_tier"] = owner.default_tier if owner else 2
 
     if body.created_for_user_id is not None:
-        values["assignee_id"] = owner_idp
+        values["assignee_id"] = owner_id
     try:
         values['ticket_no'] = next_ticket_number(db, now) if complete else None
         ticket = Ticket(**values)
