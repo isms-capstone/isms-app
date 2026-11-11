@@ -1,4 +1,4 @@
-﻿name: ISMS Continuous Integration
+name: ISMS Continuous Integration
 
 on:
   push:
@@ -40,9 +40,10 @@ jobs:
           MINIO_ACCESS_KEY: qa-attachment
           MINIO_SECRET_KEY: qa-attachment-storage
         run: |
+          docker build -f ../Dockerfile.minio -t isms-minio-qa ..
           docker run -d --rm --name isms-attachment-qa -p 127.0.0.1:9000:9000 \
             -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            isms-minio-qa server /data
           python -m uvicorn preview_registry:app --app-dir ../backend/tests --host 127.0.0.1 --port 8767 > ../frontend-api-qa.log 2>&1 &
           BACKEND_URL=http://127.0.0.1:8767 PORT=3101 HOSTNAME=127.0.0.1 npm start > ../frontend-next-qa.log 2>&1 &
           for attempt in $(seq 1 30); do
