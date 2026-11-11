@@ -493,12 +493,12 @@ export function CaptureScreen() {
                 </summary>
                 <div className="capture-attachments">
                   <p id="capture-attachment-hint" className="field-hint">
-                    รองรับ JPG, PNG, WebP และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+                    รองรับภาพ, MP4, WebM, PDF และไฟล์ log แบบ ZIP/GZIP ขนาดไม่เกิน 25 MB ต่อไฟล์
                   </p>
                   <input
                     ref={fileInput}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                      accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.mp4,.webm,.zip,.gz"
                     multiple
                     hidden
                     disabled={preview || saving}

@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -863,81 +863,153 @@ def auto_close_resolved_tickets(
 
 
 
-# CAP-05: private, persistent attachment storage. Never expose this directory as StaticFiles.
+# # CAP-05 attachment paths are retained. New objects are private in MinIO.
 ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", "/app/uploads/ticket-attachments"))
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-ALLOWED_ATTACHMENT_TYPES = {
-    "image/jpeg": ".jpg", "image/png": ".png",
-    "image/webp": ".webp", "application/pdf": ".pdf"
-    # "text/plain": ".txt", "image/gif": ".gif",
-}
 
-def _can_access_ticket(ticket, user):
+
+def _attachment_ticket(db, ticket_id, user):
+    ticket = get_record(db, Ticket, ticket_id)
     role = user.role.name if user.role else None
-    return role == "Admin" or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id)
+    if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
+        raise HTTPException(403, 'You cannot access attachments for this case')
+    return ticket
 
-def _attachment_json(row):
-    return {"id": row.id, "ticket_id": row.ticket_id, "filename": row.original_name,
-            "content_type": row.content_type, "size_bytes": row.size_bytes,
-            "uploaded_by_id": row.uploaded_by_id, "created_at": row.created_at.isoformat(),
-            "download_url": f"/api/v1/tickets/{row.ticket_id}/attachments/{row.id}/download"}
 
-@router.get("/tickets/{ticket_id}/attachments")
+def _attachment_record(db, ticket_id, attachment_id):
+    row = db.scalar(select(TicketAttachment).where(
+        TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
+    if row is None:
+        raise HTTPException(404, 'Attachment not found')
+    return row
+
+
+def _attachment_json(row, user):
+    from datetime import timedelta
+    from jose import jwt
+    from app.core.config import settings
+
+    access = jwt.encode({
+        'type': 'attachment', 'sub': str(user.id), 'ticket': row.ticket_id,
+        'file': row.id, 'exp': datetime.now(timezone.utc) + timedelta(hours=1),
+    }, settings.SECRET_KEY, algorithm='HS256')
+    url = f'/api/v1/tickets/{row.ticket_id}/attachments/{row.id}/download?access={access}'
+    return {'id': row.id, 'ticket_id': row.ticket_id, 'filename': row.original_name,
+            'content_type': row.content_type, 'size_bytes': row.size_bytes,
+            'uploaded_by_id': row.uploaded_by_id, 'created_at': row.created_at.isoformat(),
+            'download_url': url,
+            'thumbnail_url': url + '&mode=thumbnail' if row.content_type.startswith('image/') else None,
+            'preview_url': url + '&mode=inline' if row.content_type.startswith('image/') else None}
+
+
+@router.get('/tickets/{ticket_id}/attachments')
 def list_ticket_attachments(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "You cannot access attachments for this case")
-    rows = db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id).order_by(TicketAttachment.created_at, TicketAttachment.id)).all()
-    return [_attachment_json(row) for row in rows]
+    _attachment_ticket(db, ticket_id, user)
+    rows = db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)
+                     .order_by(TicketAttachment.created_at, TicketAttachment.id))
+    return [_attachment_json(row, user) for row in rows]
 
-@router.post("/tickets/{ticket_id}/attachments", status_code=201)
-async def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(require_capture)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "Only the case creator, owner, assignee or Admin can attach files")
-    content_type = (file.content_type or "application/octet-stream").lower().split(";")[0].strip()
-    if content_type not in ALLOWED_ATTACHMENT_TYPES:
-        raise HTTPException(415, "Only JPG, PNG, WEBP and PDF are supported")
-    original_name = Path(file.filename or "attachment").name.replace("\\", "_")[:255] or "attachment"
-    suffix = ALLOWED_ATTACHMENT_TYPES[content_type]
-    stored_name = f"{uuid4().hex}{suffix}"
-    ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-    target = ATTACHMENT_DIR / stored_name
-    size = 0
+
+@router.get('/tickets/{ticket_id}/attachments/{attachment_id}/access')
+def attachment_access(ticket_id: int, attachment_id: int, db: Session = Depends(get_db),
+                      user: User = Depends(get_current_user)):
+    _attachment_ticket(db, ticket_id, user)
+    return _attachment_json(_attachment_record(db, ticket_id, attachment_id), user)
+
+
+@router.post('/tickets/{ticket_id}/attachments', status_code=201)
+def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...),
+                             db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    from io import BytesIO
+    from app.services import attachment_storage as objects
+
+    _attachment_ticket(db, ticket_id, user)
+    original_name = Path((file.filename or 'attachment').replace('\\', '/')).name[:255]
+    size, mime, thumbnail = objects.inspect_file(file.file, original_name)
+    key = f'{ticket_id}/{uuid4().hex}'
+    written = []
     try:
-        with target.open("wb") as output:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > MAX_ATTACHMENT_BYTES:
-                    raise HTTPException(413, "ไฟล์ต้องมีขนาดไม่เกิน 10 MB")
-                output.write(chunk)
-        if size == 0:
-            raise HTTPException(422, "ไฟล์ว่างเปล่า")
-        row = TicketAttachment(ticket_id=ticket_id, original_name=original_name, stored_name=stored_name,
-                               content_type=content_type, size_bytes=size, uploaded_by_id=user.id)
+        objects.put_object(key, file.file, size, mime)
+        written.append(key)
+        if thumbnail:
+            objects.put_object(key + '.thumb.webp', BytesIO(thumbnail), len(thumbnail), 'image/webp')
+            written.append(key + '.thumb.webp')
+        row = TicketAttachment(ticket_id=ticket_id, original_name=original_name,
+                               stored_name='minio/' + key, content_type=mime,
+                               size_bytes=size, uploaded_by_id=user.id)
         db.add(row)
         db.commit()
-        db.refresh(row)
-        return _attachment_json(row)
-    except Exception:
-        target.unlink(missing_ok=True)
+    except Exception as exc:
         db.rollback()
-        raise
-    finally:
-        await file.close()
+        for object_key in written:
+            try:
+                objects.storage().remove_object(objects.BUCKET, object_key)
+            except Exception:
+                logging.exception('Could not remove incomplete attachment object')
+        if isinstance(exc, HTTPException):
+            raise
+        logging.exception('Attachment upload failed')
+        raise HTTPException(503, 'Unable to store attachment') from None
+    db.refresh(row)
+    return _attachment_json(row, user)
 
-@router.get("/tickets/{ticket_id}/attachments/{attachment_id}/download")
-def download_ticket_attachment(ticket_id: int, attachment_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "You cannot access attachments for this case")
-    row = db.scalar(select(TicketAttachment).where(TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
-    if row is None:
-        raise HTTPException(404, "Attachment not found")
-    target = ATTACHMENT_DIR / row.stored_name
-    if not target.is_file():
-        raise HTTPException(404, "Attachment file is missing from storage")
-    return FileResponse(target, media_type=row.content_type, filename=row.original_name, content_disposition_type="inline" if row.content_type.startswith("image/") else "attachment")
+
+@router.get('/tickets/{ticket_id}/attachments/{attachment_id}/download')
+def download_ticket_attachment(
+    ticket_id: int, attachment_id: int, access: str = '',
+    mode: Literal['download', 'inline', 'thumbnail'] = 'download',
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+):
+    from urllib.parse import quote
+    from jose import JWTError, jwt
+    from minio.error import S3Error
+    from app.core.config import settings
+    from app.services import attachment_storage as objects
+
+    _attachment_ticket(db, ticket_id, user)
+    try:
+        claims = jwt.decode(access, settings.SECRET_KEY, algorithms=['HS256'],
+                            options={'require_exp': True})
+        if (claims.get('type'), claims.get('sub'), claims.get('ticket'), claims.get('file')) != (
+            'attachment', str(user.id), ticket_id, attachment_id,
+        ):
+            raise JWTError('Invalid attachment scope')
+    except JWTError:
+        raise HTTPException(403, 'Attachment link is invalid or expired') from None
+    row = _attachment_record(db, ticket_id, attachment_id)
+    if mode != 'download' and row.content_type not in objects.IMAGE_TYPES.values():
+        raise HTTPException(415, 'Preview is available for images')
+    mime = 'image/webp' if mode == 'thumbnail' else row.content_type
+    disposition = 'attachment' if mode == 'download' else 'inline'
+    headers = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}
+    if not row.stored_name.startswith('minio/'):
+        target = ATTACHMENT_DIR / Path(row.stored_name).name
+        if not target.is_file():
+            raise HTTPException(404, 'Attachment file is missing from storage')
+        if mode == 'thumbnail':
+            with target.open('rb') as stream:
+                _, thumbnail = objects.image_thumbnail(stream)
+            return Response(thumbnail, media_type=mime, headers=headers)
+        return FileResponse(target, media_type=mime, filename=row.original_name,
+                            content_disposition_type=disposition, headers=headers)
+    key = row.stored_name.removeprefix('minio/')
+    if mode == 'thumbnail':
+        key += '.thumb.webp'
+    try:
+        result = objects.storage().get_object(objects.BUCKET, key)
+    except S3Error as exc:
+        if exc.code == 'NoSuchKey':
+            raise HTTPException(404, 'Attachment file is missing from storage') from None
+        logging.exception('Attachment read failed')
+        raise HTTPException(503, 'Attachment storage is unavailable') from None
+    except OSError:
+        raise HTTPException(503, 'Attachment storage is unavailable') from None
+
+    def chunks():
+        try:
+            yield from result.stream(64 * 1024)
+        finally:
+            result.close()
+            result.release_conn()
+
+    headers['Content-Disposition'] = f"{disposition}; filename*=UTF-8''{quote(row.original_name, safe='')}"
+    return StreamingResponse(chunks(), media_type=mime, headers=headers)

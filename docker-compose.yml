@@ -13,6 +13,10 @@ services:
       MARIADB_DB: ${MARIADB_DB:-isms_db}
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
       ATTACHMENT_DIR: /app/uploads/ticket-attachments
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-isms-local}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-isms-local-storage-dev}
     depends_on:
       db:
         condition: service_healthy
@@ -24,6 +28,16 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: always
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-isms-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-isms-local-storage-dev}
+    volumes:
+      - attachment_objects:/data
 
   db:
     image: mariadb:11
@@ -45,3 +59,4 @@ services:
 volumes:
   mariadb_data:
   ticket_attachments:
+  attachment_objects:

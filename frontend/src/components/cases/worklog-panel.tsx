@@ -5,6 +5,7 @@ import { channelNames, type Ticket } from "@/lib/types";
 import { Button } from "@/components/ui/primitives";
 import { useSession } from "@/components/providers/session-provider";
 import type { WorklogRecord } from "@/lib/worklog-contract";
+import { TimelineAttachment } from "./case-attachments";
 
 type TimelineEvent = {
   id: string;
@@ -24,6 +25,7 @@ const labels: Record<string, string> = {
   categorization_updated: "เปลี่ยนหมวดหมู่",
   categorization_created: "จัดหมวดหมู่",
   attachment: "แนบไฟล์",
+  ticket_fields_updated: "เปลี่ยนข้อมูลสำคัญของเคส",
   request_start: "เริ่มดำเนินคำขอ",
   request_fulfil: "ส่งมอบผลคำขอ",
   request_confirm: "ยืนยันและปิดคำขอ",
@@ -172,7 +174,16 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                   ส่งจริงผ่าน {channelNames[event.channel] || event.channel}
                 </span>
               )}
-              <p>{event.body}</p>
+              {event.kind === "attachment" &&
+              /^attachment-\d+$/.test(event.id) ? (
+                <TimelineAttachment
+                  ticketId={ticket.id}
+                  attachmentId={Number(event.id.slice(11))}
+                  filename={event.body}
+                />
+              ) : (
+                <p>{event.body}</p>
+              )}
               {event.changes && (
                 <details>
                   <summary>ค่าเดิม / ค่าใหม่</summary>
