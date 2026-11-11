@@ -99,7 +99,7 @@ def validate_status_transition(
         return True
 
     if target_status == TicketStatus.CANCELLED:
-        if not ticket_data.get("cancel_reason"):
+        if not (ticket_data.get("cancel_reason") or "").strip():
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Cancellation reason is required when cancelling a ticket"

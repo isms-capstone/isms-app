@@ -2,6 +2,7 @@
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.db.base_class import Base
+from app.services import ticket_audit  # noqa: F401 — registers transaction hooks
 
 db_url = getattr(
     settings, 

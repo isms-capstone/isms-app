@@ -54,6 +54,7 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
+    db.info['ticket_actor_id'] = user.id
     return user
 
 
