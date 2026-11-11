@@ -17,3 +17,4 @@ tzdata
 pythainlp
 minio
 Pillow
+openpyxl

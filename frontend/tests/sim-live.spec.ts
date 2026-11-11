@@ -222,8 +222,20 @@ test("SIM and WRK persist through the current UI, API, CAT and unified timeline"
   await expect(page.getByRole("list", { name: "ไฟล์ที่เลือก" })).toContainText(
     "case-evidence.png",
   );
+  let caseCreates = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/backend/tickets")
+      caseCreates++;
+  });
+  await page.route(/\/api\/backend\/tickets\/\d+\/attachments$/, (route) =>
+    route.fulfill({ status: 503, json: { detail: "Temporary storage outage" } }),
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "แนบไฟล์ไม่สำเร็จ" })).toBeVisible();
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
   await expect(page).toHaveURL(/\/cases\/\d+$/);
+  expect(caseCreates).toBe(1);
   const attachments = page.getByRole("region", {
     name: "ไฟล์แนบ",
     exact: true,

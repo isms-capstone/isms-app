@@ -30,9 +30,7 @@ services:
       start_period: 10s
 
   minio:
-    build:
-      context: .
-      dockerfile: Dockerfile.minio
+    image: cgr.dev/chainguard/minio@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a
     restart: always
     command: server /data
     environment:
