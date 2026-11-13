@@ -81,11 +81,16 @@ def transition(db, ticket, changes, user):
                 service_stage_id=ticket.service_stage_id, problem_type_id=data.get('category_id')), db)
         elif data.get('category_id'):
             raise HTTPException(422, 'Select a product instance before category options')
-    if target == 'DUPLICATE':
-        master = db.get(Ticket, data['master_ticket_id'])
-        if not master or master.id == ticket.id or master.status in {'DRAFT', 'DUPLICATE', 'CANCELLED'}:
-            raise HTTPException(422, 'Select a different published master case')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if target == 'DUPLICATE':
+        from app.services.ticket_relationships import close_linked_case, lock_pair, move_duplicate_data
+
+        ticket, master = lock_pair(db, ticket.id, data['master_ticket_id'])
+        authorize_case(master, user)
+        move_duplicate_data(db, ticket, master, user.id, 'Duplicate status action')
+        if master.status == 'CLOSED':
+            close_linked_case(db, ticket, master, 'DUPLICATE', user.id, now)
+        return ticket
     history = TicketStatusHistory(ticket_id=ticket.id, from_status=ticket.status,
         to_status=target, actor_id=user.id, created_at=now,
         details={key: value for key, value in changes.items() if key != 'status' and value is not None})
@@ -103,7 +108,10 @@ def transition(db, ticket, changes, user):
         db.flush()
         initialize_interval(db, ticket, now, history.id)
     if target == 'RESOLVED': ticket.resolved_at = now
-    if target == 'CLOSED': ticket.closed_at = now
+    if target == 'CLOSED':
+        from app.services.ticket_relationships import close_relationships
+        ticket.closed_at = now
+        close_relationships(db, ticket, user.id, now)
     if target == 'REOPENED': ticket.reopen_count += 1
     if target == 'IN_PROGRESS' and ticket.first_response_at is None: ticket.first_response_at = now
     if category_before is not None:

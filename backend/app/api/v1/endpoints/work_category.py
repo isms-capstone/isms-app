@@ -1,5 +1,5 @@
 """Staff WRK/CAT APIs. External delivery adapters are separate integration work."""
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Literal
 
 from app.api.deps import RoleChecker, require_admin
@@ -32,7 +32,7 @@ from app.services.categorization import (
 from app.services.lifecycle import authorize_case, transition
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 staff = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -238,3 +238,41 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='request_' + body.action,
                        changes={'action': body.action, 'status': changes['status']}))
     return commit_edit(db, ticket)
+
+
+@router.get('/admin/audit-log', dependencies=[Depends(require_admin)])
+def search_audit(
+    db: Session = Depends(get_db),
+    q: str = Query('', max_length=255),
+    start: date | None = None,
+    end: date | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    if start and end and start > end:
+        raise HTTPException(422, 'Start date must be before end date')
+    query = (select(TicketAudit, Ticket.ticket_no, User.username)
+             .join(Ticket, Ticket.id == TicketAudit.ticket_id)
+             .outerjoin(User, User.id == TicketAudit.actor_id))
+    if q := q.strip():
+        query = query.where(or_(
+            Ticket.ticket_no.contains(q, autoescape=True),
+            User.username.contains(q, autoescape=True),
+            TicketAudit.event.contains(q, autoescape=True),
+            cast(TicketAudit.changes, String).contains(q, autoescape=True),
+        ))
+    if start:
+        query = query.where(TicketAudit.created_at >= datetime.combine(start, time.min))
+    if end:
+        query = query.where(TicketAudit.created_at <= datetime.combine(end, time.max))
+    results = db.execute(query.order_by(TicketAudit.created_at.desc(), TicketAudit.id.desc())
+                         .offset(offset).limit(limit + 1)).all()
+    return {
+        'has_more': len(results) > limit,
+        'rows': [
+            {'id': row.id, 'ticket_id': row.ticket_id, 'ticket_no': number,
+             'actor': username, 'actor_id': row.actor_id, 'event': row.event,
+             'changes': row.changes, 'created_at': utc(row.created_at)}
+            for row, number, username in results[:limit]
+        ],
+    }

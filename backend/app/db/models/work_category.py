@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     String,
     Text,
 )
@@ -19,6 +20,9 @@ class TicketWorklog(Base):
     __tablename__ = 'ticket_worklogs'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey('ticket.id'), index=True)
+    original_ticket_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ticket.id"), index=True, default=None
+    )
     is_internal: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default='1')
     message: Mapped[str] = mapped_column(Text)
     body = synonym('message')
@@ -40,6 +44,7 @@ class TicketWorklog(Base):
 
 class TicketAudit(Base):
     __tablename__ = 'ticket_audit'
+    __table_args__ = (Index("ix_ticket_audit_created_at_id", "created_at", "id"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey('ticket.id'), index=True)
     actor_id: Mapped[int] = mapped_column(ForeignKey('users.id'))

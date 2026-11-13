@@ -325,6 +325,8 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         db.add(history)
         db.flush()
         initialize_interval(db, ticket, now, history_id=history.id)
+        from app.services.ticket_relationships import add_link
+        add_link(db, ticket.id, source.id, 'follow-up', user.id, 'Follow-up created from case')
         db.commit()
     except HTTPException:
         db.rollback()
@@ -630,6 +632,7 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 @router.get('/tickets', response_model=list[TicketOut])
 def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = False,
+            product_id: int | None = Query(None, ge=1), published_only: bool = False,
             mine: bool = False, unassigned: bool = False, drafts_only: bool = False, today_only: bool = False,
             q: str = Query('', max_length=255), ticket_status: str | None = None,
             offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100),
@@ -646,6 +649,12 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         query = query.where(Ticket.assignee_id.is_(None))
     if drafts_only:
         query = query.where(Ticket.status == 'DRAFT', Ticket.created_by_id == user.id)
+    if published_only:
+        query = query.where(Ticket.status != 'DRAFT')
+    if product_id is not None:
+        query = query.where(Ticket.product_instance_id.in_(
+            select(ProductInstance.id).where(ProductInstance.product_id == product_id)
+        ))
     if ticket_status is not None:
         if ticket_status not in TICKET_STATUSES:
             raise HTTPException(422, 'Unknown ticket status')

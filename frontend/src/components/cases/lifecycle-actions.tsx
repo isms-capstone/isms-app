@@ -79,15 +79,16 @@ export function LifecycleActions({
       if (value) body[key] = key.endsWith("_id") ? Number(value) : value;
     });
     try {
-      onUpdated(
-        await api<Ticket>(`/tickets/${ticket.id}/status`, {
+      const updated = await api<Ticket>(`/tickets/${ticket.id}/status`, {
           method: "PATCH",
           body: JSON.stringify(body),
-        }),
-      );
+        });
+      onUpdated(updated);
       setTarget("");
       setValues({});
-      setMessage("เปลี่ยนสถานะแล้ว");
+      setMessage(target === "DUPLICATE" && updated.status !== "DUPLICATE"
+        ? "รวมข้อมูลแล้ว เคสนี้จะเปลี่ยนเป็นเคสซ้ำเมื่อปิดเคสหลัก"
+        : "เปลี่ยนสถานะแล้ว");
     } catch (e) {
       setError(e instanceof Error ? e.message : "เปลี่ยนสถานะไม่สำเร็จ");
     } finally {

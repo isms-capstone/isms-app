@@ -16,6 +16,7 @@ import type { Ticket, Organization } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
 import { RoutingPanel } from "@/components/routing/routing-panel";
+import { TicketRelationships } from "./ticket-relationships";
 import { SimilarityPanel } from "./similarity-panel";
 import { CaseIntakeEditor } from "./case-intake-editor";
 import { CaseAttachments } from "./case-attachments";
@@ -119,9 +120,16 @@ export function CaseDetail({ id }: { id: number }) {
               onChanged={() => setAttempt((x) => x + 1)}
             />
           )}
+          {!preview && (
+            <TicketRelationships id={id} editable={Boolean(editable)}
+              revision={`${ticket.status}:${attempt}`} onUpdated={() => setAttempt((n) => n + 1)} />
+          )}
           <section className="surface detail-card">
             {!preview && session?.can_create_cases && (
-              <LifecycleActions ticket={ticket} onUpdated={setTicket} />
+              <LifecycleActions ticket={ticket} onUpdated={(row) => {
+                setTicket(row);
+                setAttempt((n) => n + 1);
+              }} />
             )}
 
             <h2>ข้อมูลเคส</h2>
@@ -317,7 +325,7 @@ export function CaseDetail({ id }: { id: number }) {
             </details>
           )}
           {!preview && session && (
-            <CaseAttachments key={ticket.id} ticketId={ticket.id} />
+            <CaseAttachments key={`${ticket.id}:${attempt}`} ticketId={ticket.id} />
           )}
           {!preview && session?.can_create_cases && (
             <SimilarityPanel
@@ -334,7 +342,7 @@ export function CaseDetail({ id }: { id: number }) {
             <RequestWorkflow ticket={ticket} onUpdated={setTicket} />
           )}
           {!preview && session?.can_create_cases && (
-            <WorklogPanel ticket={ticket} />
+            <WorklogPanel key={`${ticket.id}:${attempt}`} ticket={ticket} />
           )}
         </>
       )}
