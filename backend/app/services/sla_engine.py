@@ -16,6 +16,7 @@ from app.db.models.user import User
 LEVELS = ("S1", "S2", "S3", "S4")
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 COUNTING = frozenset(OPEN_STATUSES) - {"PENDING_CUSTOMER"}
+MONITORED = (*OPEN_STATUSES, "RESOLVED")
 
 
 def utcnow():
@@ -180,12 +181,12 @@ def run_sla_checks(db, now=None):
 
     now = now or utcnow()
     schedule = schedule_for(db)
-    ids = db.scalars(select(Ticket.id).where(Ticket.status.in_(OPEN_STATUSES))).all()
+    ids = db.scalars(select(Ticket.id).where(Ticket.status.in_(MONITORED))).all()
     db.commit()
     count = 0
     for ticket_id in ids:
         ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
-        if not ticket or ticket.status not in OPEN_STATUSES:
+        if not ticket or ticket.status not in MONITORED:
             db.rollback()
             continue
         sync_clock(db, ticket, now)

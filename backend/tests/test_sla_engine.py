@@ -149,3 +149,24 @@ def test_warning_thresholds_and_s1_outside_business_hours(capture):
             assert run_sla_checks(db, now) == expected
             assert run_sla_checks(db, now) == 0
         assert db.get(Ticket, ticket_id).sla_breached
+
+def test_worker_notifies_breach_after_resolution(capture):
+    client, _, factory, data, _ = capture
+    with factory() as db:
+        configure_policy(db)
+    result = client.post('/api/v1/tickets', json=dict(
+        data, subject='Resolved before worker', channel='phone', impact_scope='organization',
+        severity='S1', severity_overridden_reason='Critical incident',
+    ))
+    assert result.status_code == 201, result.text
+    ticket_id = result.json()['id']
+    with factory() as db:
+        ticket = db.get(Ticket, ticket_id)
+        ticket.resolved_at = ticket.reported_at + timedelta(hours=6)
+        ticket.status = 'RESOLVED'
+        sync_clock(db, ticket, ticket.resolved_at)
+        now = ticket.resolved_at + timedelta(minutes=1)
+        db.commit()
+        assert run_sla_checks(db, now) > 0
+        assert run_sla_checks(db, now) == 0
+        assert db.get(Ticket, ticket_id).sla_breached
