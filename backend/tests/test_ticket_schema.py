@@ -31,6 +31,9 @@ def test_ticket_migration_round_trip():
                 "root_cause_detail",
                 "search_text",
                 "routing_version",
+                "pending_customer_reason",
+                "sla_breach_reason",
+                "sla_exam_base_severity",
             }
         )
         assert {i['name'] for i in inspector.get_indexes('ticket')} == {i.name for i in Ticket.__table__.indexes}

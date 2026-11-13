@@ -18,7 +18,7 @@ def test_merged_adm_cap_migration_graph_roundtrip():
     config = Config()
     config.set_main_option('script_location', str(directory))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["escsim01_merge"]
+    assert script.get_heads() == ["sla01_clock"]
 
     engine = create_engine('sqlite://')
 
@@ -37,7 +37,7 @@ def test_merged_adm_cap_migration_graph_roundtrip():
             module.upgrade()
             modules.append(module)
         assert {'ticket', 'organization', 'products', 'case_templates', 'canned_messages',
-                'automation_rules'} <= set(inspect(connection).get_table_names())
+                'automation_rules', 'sla_clock'} <= set(inspect(connection).get_table_names())
         assert connection.exec_driver_sql('PRAGMA foreign_key_check').all() == []
         for module in reversed(modules):
             module.op = Operations(MigrationContext.configure(connection))

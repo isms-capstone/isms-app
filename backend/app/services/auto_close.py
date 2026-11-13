@@ -16,15 +16,25 @@ def run_auto_close_resolved_tickets(db: Session, allowed_business_days: int = 3)
     resolved_tickets = db.scalars(stmt).all()
     
     closed_count = 0
+    from app.services.sla_engine import sync_clock, update_breach
+
     for ticket in resolved_tickets:
+        ticket = db.scalar(select(Ticket).where(Ticket.id == ticket.id)
+                           .with_for_update().execution_options(populate_existing=True))
+        if not ticket or ticket.status != TicketStatus.RESOLVED:
+            continue
         if ticket.resolved_at and is_auto_close_eligible(ticket.resolved_at, now, allowed_business_days):
+            if update_breach(db, ticket, now) and not (ticket.sla_breach_reason or '').strip():
+                continue
             db.add(TicketStatusHistory(ticket_id=ticket.id, from_status='RESOLVED', to_status='CLOSED',
                                       created_at=now, details={'reason': 'automatic business-day closure'}))
             from app.services.routing import close_interval
             close_interval(db, ticket, now)
+            sync_clock(db, ticket, now)
             ticket.routing_version += 1
             ticket.status = TicketStatus.CLOSED
             ticket.closed_at = now
+            sync_clock(db, ticket, now)
             closed_count += 1
 
     if closed_count > 0:

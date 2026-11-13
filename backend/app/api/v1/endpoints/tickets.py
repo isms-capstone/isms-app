@@ -48,6 +48,7 @@ from app.schemas.ticket import (
 )
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket import TicketStatus
+from app.services import sla_engine
 from app.services.auto_close import run_auto_close_resolved_tickets
 
 
@@ -63,6 +64,8 @@ class TicketStatusUpdatePayload(BaseModel):
     subject: str | None = None
     channel: str | None = None
     pending_external_reason: str | None = None
+    pending_customer_reason: str | None = Field(None, max_length=2000)
+    sla_breach_reason: str | None = Field(None, max_length=2000)
     category_id: int | None = None
     root_cause_code_id: int | None = None
     resolution_code_id: int | None = None
@@ -266,6 +269,8 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         )
         db.add(history)
         db.flush()
+        sla_engine.apply_exam_window(db, ticket, now)
+        sla_engine.sync_clock(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
         db.commit()
     except HTTPException:
@@ -276,6 +281,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         logging.getLogger(__name__).error('create_ticket IntegrityError: %s', exc.orig)
         raise HTTPException(409, 'Case data changed; reload and try again') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
@@ -298,6 +304,8 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
             'severity_overridden_reason', 'current_tier', 'sla_policy_id', 'is_exam_window'
         )
     }
+    if source.sla_exam_base_severity:
+        values['severity'] = source.sla_exam_base_severity
     values.update(subject=body.subject or source.subject,
                   description=body.description if body.description is not None else source.description,
                   channel=body.channel or source.channel, status='NEW',
@@ -324,6 +332,8 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         )
         db.add(history)
         db.flush()
+        sla_engine.apply_exam_window(db, ticket, now)
+        sla_engine.sync_clock(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
         db.commit()
     except HTTPException:
@@ -333,6 +343,7 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         db.rollback()
         raise HTTPException(409, 'Unable to create follow-up; reload and try again') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
@@ -354,11 +365,16 @@ def editable_ticket(db, ticket_id, user, draft_only=False):
 
 def commit_edit(db, ticket):
     try:
+        now = sla_engine.utcnow()
+        if ticket.status in OPEN_STATUSES:
+            sla_engine.apply_exam_window(db, ticket, now)
+            sla_engine.sync_clock(db, ticket, now)
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, 'Case data changed; reload and try again') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
@@ -625,7 +641,15 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
     }
     result = db.execute(select(*(func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(name)
                                  for name, condition in conditions.items()))).mappings().one()
-    return dict(result) | {'sla_at_risk': None}
+    schedule = sla_engine.schedule_for(db)
+    risk = 0
+    configured = False
+    for ticket in db.scalars(select(Ticket).where(opened)):
+        state = sla_engine.measurement(db, ticket, now, schedule)
+        configured |= state is not None
+        if state and state['remaining_ratio'] is not None and state['remaining_ratio'] < 0.25:
+            risk += 1
+    return dict(result) | {'sla_at_risk': risk if configured else None}
 
 
 @router.get('/tickets', response_model=list[TicketOut])
@@ -658,7 +682,12 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         query = query.where(or_(Ticket.subject.contains(q.strip(), autoescape=True),
                                Ticket.ticket_no.contains(q.strip(), autoescape=True)))
     ordering = (Ticket.created_at.asc(), Ticket.id.asc()) if drafts_only else (Ticket.created_at.desc(), Ticket.id.desc())
-    return db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
+    rows = db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
+    now = sla_engine.utcnow()
+    schedule = sla_engine.schedule_for(db)
+    for row in rows:
+        row.sla = sla_engine.measurement(db, row, now, schedule)
+    return rows
 
 
 @router.get('/tickets/team-members')
@@ -816,7 +845,10 @@ def save_similarity_feedback(
 
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
-    return get_record(db, Ticket, ticket_id)
+    row = get_record(db, Ticket, ticket_id)
+    row.sla = sla_engine.measurement(db, row)
+    row.sla_breached = row.sla_breached or bool(row.sla and row.sla['breached'])
+    return row
 
 
 @router.get('/tickets/{ticket_id}/lifecycle-options')

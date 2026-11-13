@@ -86,6 +86,18 @@ def transition(db, ticket, changes, user):
         if not master or master.id == ticket.id or master.status in {'DRAFT', 'DUPLICATE', 'CANCELLED'}:
             raise HTTPException(422, 'Select a different published master case')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    from app.services import sla_engine
+
+    if target == 'PENDING_CUSTOMER' and not (changes.get('pending_customer_reason') or '').strip():
+        raise HTTPException(422, 'Specify what is needed from the customer')
+    if target == 'CLOSED' and sla_engine.update_breach(db, ticket, now):
+        if not (changes.get('sla_breach_reason') or ticket.sla_breach_reason or '').strip():
+            raise HTTPException(422, 'An SLA breach reason is required before closing')
+    if target != 'PENDING_CUSTOMER':
+        changes.pop('pending_customer_reason', None)
+    if target != 'CLOSED':
+        changes.pop('sla_breach_reason', None)
+    sla_engine.sync_clock(db, ticket, now)
     history = TicketStatusHistory(ticket_id=ticket.id, from_status=ticket.status,
         to_status=target, actor_id=user.id, created_at=now,
         details={key: value for key, value in changes.items() if key != 'status' and value is not None})
@@ -106,6 +118,10 @@ def transition(db, ticket, changes, user):
     if target == 'CLOSED': ticket.closed_at = now
     if target == 'REOPENED': ticket.reopen_count += 1
     if target == 'IN_PROGRESS' and ticket.first_response_at is None: ticket.first_response_at = now
+    if target == 'NEW' or 'product_instance_id' in changes:
+        sla_engine.apply_exam_window(db, ticket, now)
+    sla_engine.sync_clock(db, ticket, now)
+    sla_engine.update_breach(db, ticket, now)
     if category_before is not None:
         record_categories(db, ticket, user, category_before['tags'], category_before)
     return ticket

@@ -217,6 +217,7 @@ class RequestAction(BaseModel):
     action: Literal['start', 'fulfil', 'confirm']
     assignee_id: int | None = Field(default=None, ge=1)
     fulfilment_detail: str | None = Field(default=None, max_length=20000)
+    sla_breach_reason: str | None = Field(default=None, max_length=2000)
 
 
 @router.post('/tickets/{ticket_id}/request-workflow', response_model=TicketOut)
@@ -227,6 +228,8 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     if not case_type or case_type.name != 'Request':
         raise HTTPException(409, 'This workflow is only available for Request cases')
     changes = {'status': {'start': 'IN_PROGRESS', 'fulfil': 'RESOLVED', 'confirm': 'CLOSED'}[body.action]}
+    if body.action == 'confirm' and body.sla_breach_reason is not None:
+        changes['sla_breach_reason'] = body.sla_breach_reason
     if body.action == 'start' and body.assignee_id is not None:
         changes['assignee_id'] = body.assignee_id
     if body.action == 'fulfil':
