@@ -157,13 +157,15 @@ def measurement(db, ticket, now=None, schedule=None):
                       ticket.first_response_at, bool(ticket.first_response_at) or terminal)
     resolution = metric(rule.resolution_max_value, rule.resolution_unit, ticket.resolved_at if terminal else None, terminal)
     pending = ticket.status == "PENDING_CUSTOMER"
-    active = None if terminal or pending else min(
-        (metric for metric in (response, resolution) if not metric["finished"]),
-        key=lambda metric: metric["remaining_seconds"],
-    )
+    running = [] if terminal or pending else [
+        clock for clock in (response, resolution) if not clock["finished"]
+    ]
+    remaining = min((clock["remaining_seconds"] for clock in running), default=None)
+    ratio = min((clock["remaining_seconds"] / clock["target_seconds"]
+                 for clock in running), default=None)
     return {"first_response": response, "resolution": resolution, "paused": pending,
-            "remaining_seconds": active["remaining_seconds"] if active else None,
-            "remaining_ratio": active["remaining_seconds"] / active["target_seconds"] if active else None,
+            "remaining_seconds": remaining,
+            "remaining_ratio": ratio,
             "breached": bool(ticket.sla_breached or response["breached"] or resolution["breached"])}
 
 
