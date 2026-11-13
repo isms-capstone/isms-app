@@ -57,7 +57,7 @@ test("REL case linking, customer history and audit search", async ({
   await page.getByRole("button", { name: "ค้นหา", exact: true }).click();
   const entry = page
     .getByRole("row")
-    .filter({ hasText: "relationship_created" });
+    .filter({ hasText: "เชื่อมโยงเคส" });
   await expect(
     entry.getByRole("link", { name: child.ticket_no }),
   ).toBeVisible();

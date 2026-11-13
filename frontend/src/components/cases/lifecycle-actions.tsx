@@ -12,8 +12,7 @@ type Options = {
   assignees: Choice[];
   causes: Choice[];
   solutions: Choice[];
-  categories: Choice[];
-  instances: Choice[];
+  instances: (Choice & { product_id: number })[];
 };
 
 export function LifecycleActions({
@@ -40,7 +39,31 @@ export function LifecycleActions({
       .catch(() => setOptions(null));
     return () => controller.abort();
   }, [ticket.id, ticket.status]);
+  const [catalog, setCatalog] = useState<{
+    product_id: number;
+    modules: Choice[];
+    problem_types: (Choice & { module_id: number })[];
+  }>();
+  const instance = options?.instances.find((row) => row.id === Number(values.product_instance_id));
+  const productId = target === "RESOLVED" ? instance?.product_id : undefined;
+  useEffect(() => {
+    if (!productId) return;
+    const controller = new AbortController();
+    api<NonNullable<typeof catalog>>(`/products/${productId}/case-options`, { signal: controller.signal })
+      .then(setCatalog)
+      .catch(() => {
+        if (!controller.signal.aborted) setError("โหลดโมดูลและประเภทปัญหาไม่สำเร็จ");
+      });
+    return () => controller.abort();
+  }, [productId]);
   if (!options?.actions.length) return null;
+  const activeCatalog = productId && catalog?.product_id === productId ? catalog : undefined;
+  const modules = activeCatalog?.modules ?? [];
+  const categories = activeCatalog?.problem_types.filter(
+    (row) => row.module_id === Number(values.module_id),
+  ) ?? [];
+  const canResolve = Boolean(instance && modules.some((row) => row.id === Number(values.module_id)) &&
+    categories.some((row) => row.id === Number(values.category_id)));
   const needsInstance =
     target === "RESOLVED" &&
     !options.instances.some(
@@ -56,7 +79,10 @@ export function LifecycleActions({
           required
           value={values[field] || ""}
           onValueChange={(nextValue) =>
-            setValues({ ...values, [field]: nextValue })
+            setValues((current) => ({ ...current, [field]: nextValue,
+              ...(field === "product_instance_id" ? { module_id: "", category_id: "" } : {}),
+              ...(field === "module_id" ? { category_id: "" } : {}),
+            }))
           }
         >
           <option value="">เลือก{label}</option>
@@ -105,15 +131,19 @@ export function LifecycleActions({
           : null;
   return (
     <section className="lifecycle-panel">
-      <h3>การดำเนินการกับเคส</h3>
+      <h3>อัปเดตสถานะเคส</h3>
       <div className="lifecycle-buttons">
-        {options.actions.map((action) => (
+        {options.actions.filter((action) => !(action === "IN_PROGRESS" && ticket.status === "NEW" && !ticket.assignee_id)).map((action) => (
           <Button
             key={action}
             disabled={busy || editingSystems}
             onClick={() => {
               setTarget(action);
               setValues(action === "RESOLVED" ? {
+                product_instance_id: options.instances.some((row) => row.id === ticket.product_instance_id)
+                  ? String(ticket.product_instance_id) : "",
+                module_id: ticket.module_id ? String(ticket.module_id) : "",
+                category_id: ticket.category_id ? String(ticket.category_id) : "",
                 root_cause_code_id: options.causes.some((cause) => cause.id === ticket.root_cause_code_id)
                   ? String(ticket.root_cause_code_id) : "",
                 resolution_code_id: options.solutions.some((solution) => solution.id === ticket.resolution_code_id)
@@ -126,7 +156,7 @@ export function LifecycleActions({
           >
             {action === "CANCELLED"
               ? "ยกเลิกเคส (สร้างผิด)"
-              : statusNames[action] || action}
+              : action === "RESOLVED" ? "บันทึกว่าแก้ไขเสร็จ" : action === "CLOSED" ? "ปิดเคส" : action === "IN_PROGRESS" ? "เริ่มดำเนินการ" : statusNames[action] || action}
           </Button>
         ))}
       </div>
@@ -140,10 +170,10 @@ export function LifecycleActions({
               ...current,
               instances: [
                 ...current.instances.filter((item) => item.id !== system.id),
-                { id: system.id, name: system.name },
+                { id: system.id, name: system.name, product_id: system.product_id },
               ],
             }));
-            setValues((current) => ({ ...current, product_instance_id: String(system.id) }));
+            setValues((current) => ({ ...current, product_instance_id: String(system.id), module_id: "", category_id: "" }));
             setMessage(`เลือกใช้ระบบ ${system.name} แล้ว`);
             setEditingSystems(false);
           }}
@@ -154,15 +184,13 @@ export function LifecycleActions({
           <strong>
             {target === "CANCELLED"
               ? "ยกเลิกเคส (สร้างผิด)"
-              : statusNames[target] || target}
+              : target === "RESOLVED" ? "บันทึกว่าแก้ไขเสร็จ" : target === "CLOSED" ? "ปิดเคส" : statusNames[target] || target}
           </strong>
           {target === "IN_PROGRESS" &&
             !ticket.assignee_id &&
             choice("assignee_id", "ผู้ดำเนินการ", options.assignees)}
           {target === "RESOLVED" && (
             <>
-              {!ticket.category_id &&
-                choice("category_id", "ประเภทปัญหา", options.categories)}
               {missingInstance ? (
                 <p role="alert" className="form-error">
                   {ticket.organization_id
@@ -171,19 +199,24 @@ export function LifecycleActions({
                       : "ลูกค้านี้ยังไม่มีระบบที่เปิดใช้งาน ให้ผู้ที่มีสิทธิ์แก้ข้อมูลลูกค้าเปิดหน้านี้เพื่อเพิ่มระบบ"
                     : "เคสนี้ยังไม่ได้ระบุลูกค้า จึงไม่มีระบบให้เลือก"}
                 </p>
-              ) : needsInstance ? (
+              ) : (
                 choice(
                   "product_instance_id",
                   "ระบบที่ลูกค้าใช้งาน",
                   options.instances,
                 )
-              ) : null}
+              )}
               {needsInstance && canManageSystems && (
                 <div>
                   <Button onClick={() => setEditingSystems(true)} disabled={busy}>
                     เพิ่มหรือเปิดใช้งานระบบของลูกค้า
                   </Button>
                 </div>
+              )}
+              {activeCatalog && choice("module_id", "โมดูล", modules)}
+              {values.module_id && activeCatalog && choice("category_id", "ประเภทปัญหา", categories)}
+              {activeCatalog && (!modules.length || (values.module_id && !categories.length)) && (
+                <p>ตรวจว่าระบบนี้มีโมดูลและประเภทปัญหาที่เปิดใช้งานใน Master Data</p>
               )}
               {choice("root_cause_code_id", "สาเหตุปัญหา", options.causes)}
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
@@ -231,7 +264,7 @@ export function LifecycleActions({
             <Button
               type="submit"
               variant="primary"
-              disabled={busy || missingInstance}
+              disabled={busy || (target === "RESOLVED" && !canResolve)}
             >
               ยืนยันเปลี่ยนสถานะ
             </Button>

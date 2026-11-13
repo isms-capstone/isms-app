@@ -71,7 +71,7 @@ export function CaseIntakeEditor({
             ))}
           </SelectControl>
         </label>
-        <Button type="submit" disabled={saving}>
+        <Button variant="primary" type="submit" disabled={saving}>
           {saving ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
         </Button>
         {error && <p role="alert">{error}</p>}

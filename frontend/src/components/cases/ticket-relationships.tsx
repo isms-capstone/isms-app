@@ -86,7 +86,7 @@ export function TicketRelationships({
   }
 
   return (
-    <section className="surface detail-card">
+    <section className="surface detail-card ticket-relationships">
       <h2>เคสที่เชื่อมโยง</h2>
       {rows?.length ? (
         <ul className="mb-4 space-y-2">
@@ -154,7 +154,7 @@ export function TicketRelationships({
           {kind === "duplicate" && (
             <p>ข้อความและไฟล์แนบจะย้ายไปเคสหลักขององค์กรเดียวกัน</p>
           )}
-          <Button type="submit" disabled={saving || !target || !reason.trim()}>
+          <Button variant="primary" type="submit" disabled={saving || !target || !reason.trim()}>
             {kind === "duplicate" ? "รวมเข้าเคสหลัก" : "เชื่อมเคส"}
           </Button>
         </form>

@@ -107,13 +107,22 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
         events.append({'id': f'status-{row.id}', 'kind': 'status_changed', 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id),
             'body': f'{row.from_status} → {row.to_status}', 'details': row.details})
-    for row in db.scalars(select(TicketAudit).where(TicketAudit.ticket_id == ticket_id,
-                                                   TicketAudit.event != 'worklog_created')):
+    audit_events = select(TicketAudit).where(or_(
+        (TicketAudit.ticket_id == ticket_id) & (TicketAudit.event != 'worklog_created'),
+        (TicketAudit.event == 'relationship_created')
+        & (TicketAudit.changes['related_ticket_id'].as_integer() == ticket_id),
+    ))
+    for row in db.scalars(audit_events):
+        incoming = row.event == 'relationship_created' and row.ticket_id != ticket_id
+        changes = row.changes
+        if incoming:
+            changes = {**changes, 'related_ticket_id': row.ticket_id}
         description = {'similarity_decision': 'บันทึกการตัดสินใจจากเคสที่คล้ายกัน',
                        'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
                        'request_confirm': 'ยืนยันและปิดคำขอ'}.get(row.event, 'บันทึกหมวดหมู่')
-        events.append({'id': f'audit-{row.id}', 'kind': row.event, 'created_at': utc(row.created_at),
-            'actor_id': row.actor_id, 'actor': actors.get(row.actor_id), 'body': description, 'changes': row.changes})
+        events.append({'id': f'audit-{row.id}', 'kind': 'relationship_received' if incoming else row.event,
+            'created_at': utc(row.created_at), 'actor_id': row.actor_id,
+            'actor': actors.get(row.actor_id), 'body': description, 'changes': changes})
     for row in db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)):
         events.append({'id': f'attachment-{row.id}', 'kind': 'attachment', 'created_at': utc(row.created_at),
             'actor_id': row.uploaded_by_id, 'actor': actors.get(row.uploaded_by_id), 'body': row.original_name})

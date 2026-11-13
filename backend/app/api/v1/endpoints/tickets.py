@@ -64,6 +64,7 @@ class TicketStatusUpdatePayload(BaseModel):
     channel: str | None = None
     pending_external_reason: str | None = None
     category_id: int | None = None
+    module_id: int | None = Field(default=None, ge=1)
     root_cause_code_id: int | None = None
     resolution_code_id: int | None = None
     resolution_detail: str | None = None
@@ -853,8 +854,12 @@ def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User 
         'causes': choices(CauseCode, CauseCode.is_active.is_(True)),
         'solutions': choices(SolutionCode, SolutionCode.is_active.is_(True)),
         'categories': choices(ProblemType, ProblemType.is_active.is_(True)),
-        'instances': choices(ProductInstance, ProductInstance.organization_id == row.organization_id,
-                             ProductInstance.is_active.is_(True))}
+        'instances': [
+            {'id': instance.id, 'name': instance.name, 'product_id': instance.product_id}
+            for instance in db.scalars(select(ProductInstance).where(
+                ProductInstance.organization_id == row.organization_id,
+                ProductInstance.is_active.is_(True)))
+        ]}
 
 @router.post('/tickets/auto-close-resolved', status_code=200)
 def auto_close_resolved_tickets(

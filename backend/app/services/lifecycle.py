@@ -42,7 +42,7 @@ def transition(db, ticket, changes, user):
     target = changes['status']
     data = {name: getattr(ticket, name, None) for name in (
         'organization_id', 'contact_id', 'subject', 'channel', 'assignee_id',
-        'category_id', 'root_cause_code_id', 'resolution_code_id', 'resolution_detail',
+        'category_id', 'module_id', 'root_cause_code_id', 'resolution_code_id', 'resolution_detail',
         'product_instance_id', 'master_ticket_id', 'closed_at', 'resolved_at',
         'pending_external_reason', 'cancel_reason')}
     data.update({key: value for key, value in changes.items() if value is not None})
@@ -72,12 +72,12 @@ def transition(db, ticket, changes, user):
         if not self_pick and not lead_for(db, user, route_team(db, ticket)):
             raise HTTPException(403, 'Manual assignment requires the responsible team lead')
         target_user(db, ticket, changes['assignee_id'], ticket.current_tier if ticket.current_tier is not None else 2)
-    if set(changes).intersection({'category_id', 'product_instance_id'}):
+    if target == 'RESOLVED' or set(changes).intersection({'category_id', 'module_id', 'product_instance_id'}):
         from app.api.v1.endpoints.product_configuration import CaseOptionsSelection, validate_selection
         instance = db.get(ProductInstance, data.get('product_instance_id')) if data.get('product_instance_id') else None
         if instance:
             validate_selection(instance.product_id, CaseOptionsSelection(
-                module_id=ticket.module_id, symptom_id=ticket.symptom_id,
+                module_id=data.get('module_id'), symptom_id=ticket.symptom_id,
                 service_stage_id=ticket.service_stage_id, problem_type_id=data.get('category_id')), db)
         elif data.get('category_id'):
             raise HTTPException(422, 'Select a product instance before category options')

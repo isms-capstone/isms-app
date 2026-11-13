@@ -2,7 +2,7 @@
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock3, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Clock3, CheckCircle2, Pencil, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import {
@@ -306,8 +306,8 @@ export function CaseDetail({ id }: { id: number }) {
             )}
           </section>
           {!preview && session?.can_create_cases && (
-            <details key={`case-edit-${ticket.id}`} className="surface detail-card">
-              <summary>แก้ไขข้อมูลเคส</summary>
+            <details key={`case-edit-${ticket.id}`} className="surface detail-card case-edit-panel">
+              <summary className="case-edit-trigger"><Pencil size={16} aria-hidden="true" /> แก้ไขข้อมูลเคส <ChevronDown size={16} aria-hidden="true" /></summary>
               {ticket.status === "NEW" &&
                 (session.role === "Admin" ||
                   [
@@ -325,7 +325,7 @@ export function CaseDetail({ id }: { id: number }) {
             </details>
           )}
           {!preview && session && (
-            <CaseAttachments key={`${ticket.id}:${attempt}`} ticketId={ticket.id} />
+            <CaseAttachments key={`attachments:${ticket.id}:${attempt}`} ticketId={ticket.id} />
           )}
           {!preview && session?.can_create_cases && (
             <SimilarityPanel
@@ -342,7 +342,7 @@ export function CaseDetail({ id }: { id: number }) {
             <RequestWorkflow ticket={ticket} onUpdated={setTicket} />
           )}
           {!preview && session?.can_create_cases && (
-            <WorklogPanel key={`${ticket.id}:${attempt}`} ticket={ticket} />
+            <WorklogPanel key={`worklog:${ticket.id}:${attempt}`} ticket={ticket} />
           )}
         </>
       )}

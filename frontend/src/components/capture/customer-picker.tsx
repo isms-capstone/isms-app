@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Search, ChevronUp, Building2, X } from "lucide-react";
+import { Search, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CustomerChoice, SelectionContext } from "@/lib/types";
 import { Input, Button } from "@/components/ui/primitives";
@@ -72,26 +72,27 @@ export function CustomerPicker({
       </label>
       <div className="customer-picker-row">
         <div className="combobox-wrap">
-          <div className="search-field">
-            <Search size={16} />
+          <div className="customer-search-control">
+            <Search size={18} aria-hidden="true" />
             <Input
               ref={inputRef}
               id="customer-search"
               value={query}
               role="combobox"
               aria-expanded={open}
-              aria-controls="customer-options"
+              aria-controls={open ? "customer-options" : undefined}
               aria-autocomplete="list"
               aria-activedescendant={
-                active >= 0 ? `customer-option-${active}` : undefined
+                open && active >= 0 ? `customer-option-${active}` : undefined
               }
               placeholder="ค้นหาลูกค้าหรือผู้แจ้ง..."
               onBlur={() => setTimeout(() => setOpen(false), 150)}
               onChange={(value) => {
                 selectionRef.current?.abort();
                 setQuery(value);
-                setOpen(!!value);
-                if (!value) setChoices([]);
+                setOpen(false);
+                setActive(-1);
+                setChoices([]);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setOpen(false);
@@ -101,15 +102,14 @@ export function CustomerPicker({
                 }
                 if (event.key === "ArrowUp") {
                   event.preventDefault();
-                  setActive((index) => Math.max(index - 1, 0));
+                  setActive((index) => choices.length ? Math.max(index - 1, 0) : -1);
                 }
-                if (event.key === "Enter" && open && active >= 0) {
+                if (event.key === "Enter" && open && choices[active]) {
                   event.preventDefault();
                   select(choices[active]);
                 }
               }}
             />
-            <ChevronUp size={14} />
           </div>
           {open && (
             <div
@@ -153,15 +153,14 @@ export function CustomerPicker({
               <small>{value.contact?.name || "องค์กรลูกค้า"}</small>
             </span>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => {
                 onChange(null);
                 inputRef.current?.focus();
               }}
             >
-              เปลี่ยน
-              <X size={12} />
+              เปลี่ยนลูกค้า
             </Button>
           </div>
         )}
