@@ -25,7 +25,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null),
     [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (preview || pathname === "/login" || pathname.startsWith("/portal/")) return;
+    if (
+      preview ||
+      pathname === "/login" ||
+      pathname === "/por-demo" ||
+      pathname.startsWith("/portal/")
+    )
+      return;
     let active = true;
     api<Session>("/registry/session")
       .then((data) => {
@@ -73,4 +79,3 @@ export function useSession() {
   if (!context) throw new Error("SessionProvider required");
   return context;
 }
-

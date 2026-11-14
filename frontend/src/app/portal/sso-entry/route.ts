@@ -13,16 +13,28 @@ export async function POST(request: NextRequest) {
       redirect: "error",
     });
     if (!response.ok) throw new Error();
-    const result = NextResponse.redirect(new URL("/portal/report", request.url), 303);
+    const result = new NextResponse(null, {
+      status: 303,
+      headers: { Location: "/portal/report" },
+    });
     result.cookies.set("isms_portal_grant", token, {
-      httpOnly: true, sameSite: "lax", secure: request.nextUrl.protocol === "https:",
-      path: "/api/portal", maxAge: 300,
+      httpOnly: true,
+      sameSite: "lax",
+      secure: request.nextUrl.protocol === "https:",
+      path: "/api/portal",
+      maxAge: 300,
     });
     result.headers.set("Cache-Control", "no-store");
     return result;
   } catch {
-    const result = NextResponse.redirect(new URL("/portal/report?entry=invalid", request.url), 303);
-    result.cookies.set("isms_portal_grant", "", { path: "/api/portal", maxAge: 0 });
+    const result = new NextResponse(null, {
+      status: 303,
+      headers: { Location: "/portal/report?entry=invalid" },
+    });
+    result.cookies.set("isms_portal_grant", "", {
+      path: "/api/portal",
+      maxAge: 0,
+    });
     return result;
   }
 }
