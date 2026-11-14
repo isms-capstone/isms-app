@@ -128,6 +128,9 @@ class TicketResolve(BaseModel):
 
 
 class TicketOut(BaseModel):
+    source_url: str | None = None
+    browser_device: str | None = None
+    exam_or_course_context: str | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     ticket_no: str | None

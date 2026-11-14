@@ -61,6 +61,9 @@ export type Ticket = {
   resolution_code_id?: number | null;
   resolution_detail?: string | null;
   sla_policy_id: number | null;
+  source_url?: string | null;
+  browser_device?: string | null;
+  exam_or_course_context?: string | null;
   is_exam_window: boolean;
 };
 export type CaseRow = Ticket & {

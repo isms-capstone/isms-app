@@ -12,6 +12,11 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
       MARIADB_DB: ${MARIADB_DB:-isms_db}
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
+      POR_SMTP_HOST: ${POR_SMTP_HOST:-}
+      POR_SMTP_FROM: ${POR_SMTP_FROM:-}
+      POR_SMTP_PORT: ${POR_SMTP_PORT:-}
+      POR_SMTP_USER: ${POR_SMTP_USER:-}
+      POR_SMTP_PASSWORD: ${POR_SMTP_PASSWORD:-}
     depends_on:
       app:
         condition: service_healthy

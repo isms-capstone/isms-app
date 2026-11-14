@@ -28,6 +28,12 @@ def main():
                 logger.info("Routing checks: %s", run_routing_checks(db))
         except Exception:
             logger.exception("Routing checks failed; transaction rolled back")
+        try:
+            from app.services.portal_mail import deliver_replies
+            with SessionLocal() as db:
+                deliver_replies(db)
+        except Exception:
+            logger.exception("Portal email delivery failed")
         stop.wait(300)
 
 

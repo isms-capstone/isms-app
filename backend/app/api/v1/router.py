@@ -73,3 +73,6 @@ from app.api.v1.endpoints.sim_support import router as sim_support_router
 api_router.include_router(sim_support_router, tags=['Similarity Integration'])
 from app.api.v1.endpoints.work_category import router as work_category_router
 api_router.include_router(work_category_router, tags=['Work Log and Categorization'])
+
+from app.api.v1.endpoints.portal import router as portal_router
+api_router.include_router(portal_router)
