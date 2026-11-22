@@ -3,6 +3,7 @@ import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -65,6 +66,18 @@ const previewContext: SelectionContext = {
   courses: [],
 };
 type Option = { id: number; name: string; module_id?: number };
+type CaptureSnapshot = {
+  context: SelectionContext | null;
+  subject: string;
+  channel: string;
+  description: string;
+  instance: number | null;
+  department: string;
+  course: string;
+  categories: CategoryValues;
+  createdFor: string;
+  savedAt?: number;
+};
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -94,6 +107,74 @@ export function CaptureScreen() {
   const [files, setFiles] = useState<File[]>([]);
   const savedTicketId = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // CAP-05 (P1-CAP-03): keep the form on this device every 5 seconds, on leaving
+  // a field and when the page is hidden, so closing the tab or losing the
+  // network never loses what was typed. Files cannot be stored and are re-attached.
+  const draftKey = session ? `isms:capture-draft:${session.id}` : null;
+  const [restorable, setRestorable] = useState<CaptureSnapshot | null>(null),
+    [autosavedAt, setAutosavedAt] = useState<Date | null>(null);
+  const snapshot = useMemo<CaptureSnapshot>(
+    () => ({ context, subject, channel, description, instance, department, course, categories, createdFor }),
+    [context, subject, channel, description, instance, department, course, categories, createdFor],
+  );
+  const dirty = !!(context || subject.trim() || description.trim() || channel);
+  const persist = useCallback(() => {
+    if (!draftKey || preview || !dirty || savedTicketId.current) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ ...snapshot, savedAt: Date.now() }));
+      setAutosavedAt(new Date());
+    } catch {
+      /* storage unavailable (private mode / quota): nothing else to do */
+    }
+  }, [draftKey, preview, dirty, snapshot]);
+  useEffect(() => {
+    if (!draftKey || preview) return;
+    // Read after mount (session arrives asynchronously); deferred to avoid a
+    // synchronous state update inside the effect.
+    const timer = setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(draftKey);
+        if (stored) setRestorable(JSON.parse(stored));
+      } catch {
+        /* ignore unreadable storage */
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [draftKey, preview]);
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(persist, 5000);
+    return () => clearTimeout(timer);
+  }, [persist, dirty]);
+  useEffect(() => {
+    const flush = () => document.visibilityState === "hidden" && persist();
+    window.addEventListener("pagehide", persist);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", persist);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [persist]);
+  const forgetDraft = useCallback(() => {
+    try {
+      if (draftKey) localStorage.removeItem(draftKey);
+    } catch {
+      /* ignore */
+    }
+    setRestorable(null);
+  }, [draftKey]);
+  function restoreDraft(value: CaptureSnapshot) {
+    setContext(value.context);
+    setSubject(value.subject || "");
+    setChannel(value.channel || "");
+    setDescription(value.description || "");
+    setInstance(value.instance ?? null);
+    setDepartment(value.department || "");
+    setCourse(value.course || "");
+    setCategories(value.categories || emptyCategories);
+    setCreatedFor(value.createdFor || "");
+    setRestorable(null);
+  }
   useEffect(() => {
     if (preview) return;
     const controller = new AbortController();
@@ -192,6 +273,7 @@ export function CaptureScreen() {
         });
         setFiles((remaining) => remaining.filter((item) => item !== file));
       }
+      forgetDraft();
       router.push(href(`/cases/${ticketId}`));
     } catch (e) {
       const detail = e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ";
@@ -246,7 +328,25 @@ export function CaptureScreen() {
             ยกเลิก
           </Link>
         </div>
-        <form id="create-case-form" onSubmit={onSubmit}>
+        {restorable && (
+          <div className="restore-banner" role="status">
+            <span>
+              พบข้อมูลที่กรอกค้างไว้เมื่อ{" "}
+              {new Date(restorable.savedAt ?? 0).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              น.{restorable.subject ? ` · “${restorable.subject}”` : ""} (ไฟล์แนบต้องเลือกใหม่)
+            </span>
+            <Button variant="primary" size="sm" onClick={() => restoreDraft(restorable)}>
+              กู้คืน
+            </Button>
+            <Button size="sm" onClick={forgetDraft}>
+              ทิ้ง
+            </Button>
+          </div>
+        )}
+        <form id="create-case-form" onSubmit={onSubmit} onBlur={persist}>
           <div className="capture-layout">
             <section className="surface capture-card">
               <div className="capture-card-heading">
@@ -636,6 +736,13 @@ export function CaptureScreen() {
         </form>
         <footer className="capture-bottom-bar">
           <span>
+            {autosavedAt && (
+              <small className="autosave-note">
+                บันทึกอัตโนมัติในเครื่องนี้{" "}
+                {autosavedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                {" · "}
+              </small>
+            )}
             {complete ? (
               <>
                 <CheckCircle2 size={14} />

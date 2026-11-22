@@ -3013,3 +3013,22 @@ textarea:focus {
     scroll-behavior: auto !important;
   }
 }
+
+/* CAP-03: restore a capture form that was autosaved on this device. */
+.restore-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-brand, var(--line));
+  border-radius: var(--radius-8, 8px);
+  background: var(--fill-element-brand-subtle, var(--soft));
+}
+.restore-banner > span {
+  flex: 1 1 260px;
+}
+.autosave-note {
+  color: var(--muted);
+}
