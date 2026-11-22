@@ -300,6 +300,53 @@ def test_reuse_maps_destination_customer_and_saves_editable_fields(capture):
     assert response.json()["resolution_detail"] == reused["resolution_detail"]
 
 
+def test_rel01_typed_case_links(capture):
+    client, app, factory, context, _ = capture
+    target_id = seed_case(factory, context)
+    source_id = seed_case(factory, context)
+    with factory() as db:
+        db.get(Ticket, target_id).status = "NEW"
+        db.get(Ticket, source_id).status = "NEW"
+        db.commit()
+    path = f"/api/v1/tickets/{source_id}/links"
+    link_types = ("duplicate", "related", "follow-up", "caused-by", "child-of")
+    for kind in link_types:
+        response = client.post(
+            path, json={"related_ticket_id": target_id, "relationship_type": kind}
+        )
+        assert response.status_code == 201, response.text
+        link = response.json()
+        expected = (target_id, source_id) if kind == "related" else (source_id, target_id)
+        assert (link["ticket_id"], link["related_ticket_id"]) == expected
+        assert link["relationship_type"] == kind
+    for case_id in (source_id, target_id):
+        response = client.get(f"/api/v1/tickets/{case_id}/links")
+        assert response.status_code == 200
+        assert {row["relationship_type"] for row in response.json()} == set(link_types)
+
+    reverse = client.post(
+        f"/api/v1/tickets/{target_id}/links",
+        json={"related_ticket_id": source_id, "relationship_type": "related"},
+    )
+    assert reverse.status_code == 409
+    assert client.post(
+        path, json={"related_ticket_id": source_id, "relationship_type": "related"}
+    ).status_code == 422
+    assert client.post(
+        path, json={"related_ticket_id": target_id, "relationship_type": "invalid"}
+    ).status_code == 422
+    assert client.post(
+        path, json={"related_ticket_id": 999999999, "relationship_type": "related"}
+    ).status_code == 404
+
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id=999999999, role=SimpleNamespace(name="Agent")
+    )
+    assert client.post(
+        path, json={"related_ticket_id": target_id, "relationship_type": "related"}
+    ).status_code == 403
+
+
 def test_link_creates_real_relation_and_audit_without_changing_status(capture):
     client, _, factory, data, _ = capture
     source_id = seed_case(factory, data)
@@ -541,3 +588,119 @@ def test_internal_notes_never_enter_external_payloads_and_audit_is_atomic(
     assert client.get(path + "/worklogs").status_code == 403
     assert client.get(path + "/history").status_code == 403
     assert client.get(path + f"/external-replies/{channel}").status_code == 403
+
+
+def test_duplicate_merge_moves_notes_preserves_customer_scope_and_closes(capture):
+    from app.db.models.ticket_attachment import TicketAttachment
+    from app.db.models.work_category import TicketWorklog
+    from app.services.ticket_relationships import close_relationships
+
+    client, _, factory, context, _ = capture
+    master_id = seed_case(factory, context, status="RESOLVED")
+    source_id = seed_case(factory, context, status="NEW")
+    with factory() as db:
+        db.add(TicketAttachment(ticket_id=source_id, original_name="evidence.txt",
+                                stored_name="qa-evidence.txt", content_type="text/plain",
+                                size_bytes=1, uploaded_by_id=db.get(Ticket, source_id).owner_id))
+        db.commit()
+    master = f"/api/v1/tickets/{master_id}"
+    source = f"/api/v1/tickets/{source_id}"
+    for payload in [
+        {"kind": "internal_note", "body": "private duplicate note"},
+        {"kind": "public_reply", "body": "original reporter reply", "channel": "email"},
+    ]:
+        response = client.post(source + "/worklogs", json=payload)
+        assert response.status_code == 201, response.text
+
+    response = client.post(source + "/merge-duplicate", json={
+        "master_ticket_id": master_id, "reason": "QA merge same organization",
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "NEW"
+    assert len(client.get(master + "/worklogs").json()) == 2
+    assert [row["filename"] for row in client.get(master + "/attachments").json()] == [
+        "evidence.txt"
+    ]
+    assert client.get(source + "/attachments").json() == []
+    assert client.get(master + "/external-replies/email").json() == []
+    assert [row["body"] for row in client.get(source + "/external-replies/email").json()] == [
+        "original reporter reply"
+    ]
+
+    audit = client.get("/api/v1/admin/audit-log", params={"q": "QA merge same organization"})
+    assert audit.status_code == 200, audit.text
+    assert {row["event"] for row in audit.json()["rows"]} == {
+        "duplicate_merged", "relationship_created"
+    }
+    with factory() as db:
+        ticket = db.get(Ticket, master_id)
+        ticket.status = "CLOSED"
+        close_relationships(db, ticket, ticket.owner_id or ticket.created_by_id)
+        db.commit()
+    with factory() as db:
+        assert db.get(Ticket, source_id).status == "DUPLICATE"
+        assert len(db.scalars(select(TicketWorklog).where(
+            TicketWorklog.original_ticket_id == source_id)).all()) == 2
+        notices = db.scalars(select(TicketAudit).where(
+            TicketAudit.event == "relationship_closure_notice")).all()
+        assert {notice.ticket_id for notice in notices} == {source_id, master_id}
+        assert {notice.changes["delivery_status"] for notice in notices} == {"pending"}
+
+
+def test_master_incident_closes_children_and_audit_search_retains_old_events(capture):
+    from app.services.ticket_relationships import close_relationships
+
+    client, app, factory, context, _ = capture
+    master_id = seed_case(factory, context, status="RESOLVED")
+    child_id = seed_case(factory, context, status="NEW")
+    payload = {"related_ticket_id": master_id, "relationship_type": "child-of",
+               "reason": "shared incident regression"}
+    response = client.post(f"/api/v1/tickets/{child_id}/links", json=payload)
+    assert response.status_code == 201, response.text
+    cycle = client.post(f"/api/v1/tickets/{master_id}/links",
+                        json=dict(payload, related_ticket_id=child_id))
+    assert cycle.status_code == 409
+    with factory() as db:
+        master = db.get(Ticket, master_id)
+        master.status = "CLOSED"
+        close_relationships(db, master, master.owner_id)
+        db.add(TicketAudit(ticket_id=master.id, actor_id=master.owner_id,
+                           event="historical_event", changes={"reason": "historical-search"},
+                           created_at=datetime(2022, 1, 15)))
+        db.commit()
+    with factory() as db:
+        assert db.get(Ticket, child_id).status == "CLOSED"
+        notices = db.scalars(select(TicketAudit).where(
+            TicketAudit.event == "relationship_closure_notice")).all()
+        assert {row.ticket_id for row in notices} == {master_id, child_id}
+        assert len({row.changes["message"] for row in notices}) == 1
+
+    audit_path = "/api/v1/admin/audit-log"
+    audit = client.get(audit_path, params={
+        "start": "2022-01-15", "end": "2022-01-15", "q": "historical-search",
+    })
+    assert audit.status_code == 200, audit.text
+    assert [row["event"] for row in audit.json()["rows"]] == ["historical_event"]
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id=1, role=SimpleNamespace(name="Agent")
+    )
+    assert client.get(audit_path).status_code == 403
+
+
+def test_customer_history_filters_and_orders_published_cases(capture):
+    from app.db.models.product import ProductInstance
+
+    client, _, factory, context, _ = capture
+    old_case = seed_case(factory, context, status="CLOSED", created_at=datetime(2024, 1, 1))
+    new_case = seed_case(factory, context, status="NEW", created_at=datetime(2024, 2, 1))
+    seed_case(factory, context, status="DRAFT", created_at=datetime(2024, 3, 1))
+    seed_case(factory, context, product_instance_id=None, status="NEW")
+    with factory() as db:
+        product_id = db.get(ProductInstance, context["product_instance_id"]).product_id
+    params = {"organization_id": context["organization_id"], "product_id": product_id,
+              "published_only": True}
+    response = client.get("/api/v1/tickets", params=params)
+    assert response.status_code == 200, response.text
+    assert [row["id"] for row in response.json()] == [new_case, old_case]
+    response = client.get("/api/v1/tickets", params=dict(params, ticket_status="CLOSED"))
+    assert [row["id"] for row in response.json()] == [old_case]

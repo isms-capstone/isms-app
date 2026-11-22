@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.db.models.similarity_feedback import SimilarityFeedback
 from app.db.models.ticket import Ticket
-from app.db.models.ticket_link import TicketLink
+from app.services.ticket_relationships import add_link, find_link
 from app.db.models.work_category import TicketAudit
 
 
@@ -51,14 +51,9 @@ def attach_choice(db, feedback, ticket, user):
     )
     feedback.ticket_id = ticket.id
     if feedback.decision == "link":
-        a, b = sorted((ticket.id, feedback.chosen_ticket_id))
-        existing = db.scalar(
-            select(TicketLink).where(
-                TicketLink.ticket_id == a, TicketLink.related_ticket_id == b
-            )
-        )
-        if not existing:
-            db.add(TicketLink(ticket_id=a, related_ticket_id=b, actor_id=user.id))
+        chosen_id = feedback.chosen_ticket_id
+        if not find_link(db, ticket.id, chosen_id, "related"):
+            add_link(db, ticket.id, chosen_id, "related", user.id, "SIM: link to existing case")
     db.add(
         TicketAudit(
             ticket_id=ticket.id,

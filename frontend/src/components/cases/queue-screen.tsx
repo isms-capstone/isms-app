@@ -101,7 +101,8 @@ export function QueueScreen({
     return data.rows
       .filter((row) => {
         if (row.status === "DRAFT") return false;
-        if (view !== "all" && !openStatuses.includes(row.status)) return false;
+        if (view !== "all" && !filters.statuses.length && !openStatuses.includes(row.status))
+          return false;
         if (
           scope === "open" &&
           !filters.statuses.length &&

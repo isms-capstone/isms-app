@@ -123,7 +123,7 @@ export function Sidebar({
           path: "/administration/automation",
           icon: Zap,
         },
-        { label: "Audit Log", icon: History, disabled: true },
+        { label: "Audit Log", icon: History, path: "/administration/audit-log" },
         ...(session?.role === "Admin"
           ? [
               {

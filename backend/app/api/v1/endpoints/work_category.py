@@ -1,5 +1,5 @@
 """Staff WRK/CAT APIs. External delivery adapters are separate integration work."""
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Literal
 
 from app.api.deps import RoleChecker, require_admin
@@ -32,7 +32,7 @@ from app.services.categorization import (
 from app.services.lifecycle import authorize_case, transition
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 staff = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -109,13 +109,22 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
         events.append({'id': f'status-{row.id}', 'kind': 'status_changed', 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id),
             'body': f'{row.from_status} → {row.to_status}', 'details': row.details})
-    for row in db.scalars(select(TicketAudit).where(TicketAudit.ticket_id == ticket_id,
-                                                   TicketAudit.event != 'worklog_created')):
+    audit_events = select(TicketAudit).where(or_(
+        (TicketAudit.ticket_id == ticket_id) & (TicketAudit.event != 'worklog_created'),
+        (TicketAudit.event == 'relationship_created')
+        & (TicketAudit.changes['related_ticket_id'].as_integer() == ticket_id),
+    ))
+    for row in db.scalars(audit_events):
+        incoming = row.event == 'relationship_created' and row.ticket_id != ticket_id
+        changes = row.changes
+        if incoming:
+            changes = {**changes, 'related_ticket_id': row.ticket_id}
         description = {'similarity_decision': 'บันทึกการตัดสินใจจากเคสที่คล้ายกัน',
                        'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
                        'request_confirm': 'ยืนยันและปิดคำขอ'}.get(row.event, 'บันทึกหมวดหมู่')
-        events.append({'id': f'audit-{row.id}', 'kind': row.event, 'created_at': utc(row.created_at),
-            'actor_id': row.actor_id, 'actor': actors.get(row.actor_id), 'body': description, 'changes': row.changes})
+        events.append({'id': f'audit-{row.id}', 'kind': 'relationship_received' if incoming else row.event,
+            'created_at': utc(row.created_at), 'actor_id': row.actor_id,
+            'actor': actors.get(row.actor_id), 'body': description, 'changes': changes})
     for row in db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)):
         events.append({'id': f'attachment-{row.id}', 'kind': 'attachment', 'created_at': utc(row.created_at),
             'actor_id': row.uploaded_by_id, 'actor': actors.get(row.uploaded_by_id), 'body': row.original_name})
@@ -243,3 +252,41 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='request_' + body.action,
                        changes={'action': body.action, 'status': changes['status']}))
     return commit_edit(db, ticket)
+
+
+@router.get('/admin/audit-log', dependencies=[Depends(require_admin)])
+def search_audit(
+    db: Session = Depends(get_db),
+    q: str = Query('', max_length=255),
+    start: date | None = None,
+    end: date | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    if start and end and start > end:
+        raise HTTPException(422, 'Start date must be before end date')
+    query = (select(TicketAudit, Ticket.ticket_no, User.username)
+             .join(Ticket, Ticket.id == TicketAudit.ticket_id)
+             .outerjoin(User, User.id == TicketAudit.actor_id))
+    if q := q.strip():
+        query = query.where(or_(
+            Ticket.ticket_no.contains(q, autoescape=True),
+            User.username.contains(q, autoescape=True),
+            TicketAudit.event.contains(q, autoescape=True),
+            cast(TicketAudit.changes, String).contains(q, autoescape=True),
+        ))
+    if start:
+        query = query.where(TicketAudit.created_at >= datetime.combine(start, time.min))
+    if end:
+        query = query.where(TicketAudit.created_at <= datetime.combine(end, time.max))
+    results = db.execute(query.order_by(TicketAudit.created_at.desc(), TicketAudit.id.desc())
+                         .offset(offset).limit(limit + 1)).all()
+    return {
+        'has_more': len(results) > limit,
+        'rows': [
+            {'id': row.id, 'ticket_id': row.ticket_id, 'ticket_no': number,
+             'actor': username, 'actor_id': row.actor_id, 'event': row.event,
+             'changes': row.changes, 'created_at': utc(row.created_at)}
+            for row, number, username in results[:limit]
+        ],
+    }

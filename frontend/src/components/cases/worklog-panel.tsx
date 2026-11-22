@@ -29,6 +29,20 @@ const labels: Record<string, string> = {
   request_confirm: "ยืนยันและปิดคำขอ",
   similarity_decision: "ตัดสินใจจากเคสที่คล้ายกัน",
 };
+const relationshipEvents: Record<string, string> = {
+  relationship_received: "มีเคสอื่นเชื่อมมาที่เคสนี้",
+  relationship_created: "เชื่อมโยงเคส",
+  duplicate_merged: "รวมเคสซ้ำ",
+  relationship_closure_notice: "บันทึกการแจ้งปิดเคส",
+};
+const relationshipTypes: Record<string, string> = {
+  related: "เกี่ยวข้องกัน",
+  duplicate: "เคสซ้ำ",
+  "follow-up": "ติดตามผล",
+  "caused-by": "เกิดจาก",
+  "child-of": "เคสย่อยของเหตุการณ์หลัก",
+};
+
 const fieldLabels: Record<string, string> = {
   module_id: "โมดูล",
   category_id: "ประเภทปัญหา",
@@ -50,6 +64,16 @@ const fieldLabels: Record<string, string> = {
   feedback_id: "ผลการค้นหา",
   chosen_ticket_id: "เคสต้นทาง",
   decision: "แนวทางที่เลือก",
+  related_ticket_id: "เคสที่เชื่อมโยง",
+  source_ticket_id: "เคสต้นทาง",
+  master_ticket_id: "เคสหลัก",
+  relationship_type: "ประเภทความสัมพันธ์",
+  reason: "เหตุผล",
+  delivery_status: "สถานะการแจ้ง",
+  message: "ข้อความ",
+  contact_id: "รหัสผู้แจ้ง",
+  organization_id: "รหัสองค์กร",
+  channel: "ช่องทาง",
 };
 export function WorklogPanel({ ticket }: { ticket: Ticket }) {
   const { session } = useSession();
@@ -161,7 +185,7 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
           .map((event) => (
             <li key={event.id} className={`timeline-event ${event.kind}`}>
               <div className="timeline-event-heading">
-                <strong>{labels[event.kind] || event.kind}</strong>
+                <strong>{relationshipEvents[event.kind] || labels[event.kind] || event.kind}</strong>
                 <span>{event.actor || "ระบบ"}</span>
                 <time dateTime={event.created_at}>
                   {new Date(event.created_at).toLocaleString("th-TH")}
@@ -172,10 +196,10 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                   ส่งจริงผ่าน {channelNames[event.channel] || event.channel}
                 </span>
               )}
-              <p>{event.body}</p>
+              {!relationshipEvents[event.kind] && <p>{event.body}</p>}
               {event.changes && (
                 <details>
-                  <summary>ค่าเดิม / ค่าใหม่</summary>
+                  <summary className="timeline-detail-trigger">{relationshipEvents[event.kind] ? "ดูรายละเอียด" : "ค่าเดิม / ค่าใหม่"}</summary>
                   <dl>
                     {Object.entries(event.changes).map(([key, change]) => {
                       const pair = change as { old: unknown; new: unknown };
@@ -191,7 +215,10 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                                 {JSON.stringify(pair.new ?? null)}
                               </>
                             ) : (
-                              JSON.stringify(change)
+                              typeof change === "string"
+                                ? key === "relationship_type" ? relationshipTypes[change] ?? change
+                                  : key === "delivery_status" && change === "pending" ? "รอส่ง" : change
+                                : change == null ? "–" : JSON.stringify(change)
                             )}
                           </dd>
                         </div>

@@ -67,6 +67,7 @@ class TicketStatusUpdatePayload(BaseModel):
     pending_customer_reason: str | None = Field(None, max_length=2000)
     sla_breach_reason: str | None = Field(None, max_length=2000)
     category_id: int | None = None
+    module_id: int | None = Field(default=None, ge=1)
     root_cause_code_id: int | None = None
     resolution_code_id: int | None = None
     resolution_detail: str | None = None
@@ -335,6 +336,8 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         sla_engine.apply_exam_window(db, ticket, now)
         sla_engine.sync_clock(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
+        from app.services.ticket_relationships import add_link
+        add_link(db, ticket.id, source.id, 'follow-up', user.id, 'Follow-up created from case')
         db.commit()
     except HTTPException:
         db.rollback()
@@ -654,6 +657,7 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 @router.get('/tickets', response_model=list[TicketOut])
 def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = False,
+            product_id: int | None = Query(None, ge=1), published_only: bool = False,
             mine: bool = False, unassigned: bool = False, drafts_only: bool = False, today_only: bool = False,
             q: str = Query('', max_length=255), ticket_status: str | None = None,
             offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100),
@@ -670,6 +674,12 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         query = query.where(Ticket.assignee_id.is_(None))
     if drafts_only:
         query = query.where(Ticket.status == 'DRAFT', Ticket.created_by_id == user.id)
+    if published_only:
+        query = query.where(Ticket.status != 'DRAFT')
+    if product_id is not None:
+        query = query.where(Ticket.product_instance_id.in_(
+            select(ProductInstance.id).where(ProductInstance.product_id == product_id)
+        ))
     if ticket_status is not None:
         if ticket_status not in TICKET_STATUSES:
             raise HTTPException(422, 'Unknown ticket status')
@@ -876,8 +886,12 @@ def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User 
         'causes': choices(CauseCode, CauseCode.is_active.is_(True)),
         'solutions': choices(SolutionCode, SolutionCode.is_active.is_(True)),
         'categories': choices(ProblemType, ProblemType.is_active.is_(True)),
-        'instances': choices(ProductInstance, ProductInstance.organization_id == row.organization_id,
-                             ProductInstance.is_active.is_(True))}
+        'instances': [
+            {'id': instance.id, 'name': instance.name, 'product_id': instance.product_id}
+            for instance in db.scalars(select(ProductInstance).where(
+                ProductInstance.organization_id == row.organization_id,
+                ProductInstance.is_active.is_(True)))
+        ]}
 
 @router.post('/tickets/auto-close-resolved', status_code=200)
 def auto_close_resolved_tickets(
