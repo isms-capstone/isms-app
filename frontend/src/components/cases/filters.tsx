@@ -3,7 +3,13 @@ import { SelectControl } from "@/components/ui/company-fields";
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { Button, Checkbox } from "@/components/ui/primitives";
-import { channelNames, statusNames, type Product } from "@/lib/types";
+import {
+  channelNames,
+  severityNames,
+  statusNames,
+  tierNames,
+  type Product,
+} from "@/lib/types";
 export type Filters = {
   statuses: string[];
   products: string[];
@@ -79,7 +85,7 @@ export function FilterDrawer({
           onChange={() => toggle(key, id)}
         />
       ))}
-      {disabled && <p className="field-hint">รอข้อมูลจากระบบ SLA</p>}
+      {disabled && <p className="field-hint">ยังไม่ได้ตั้งนโยบาย SLA</p>}
     </fieldset>
   );
   return (
@@ -109,42 +115,38 @@ export function FilterDrawer({
       </div>
       <div className="drawer-body">
         {group(
-          "สถานะ (Status)",
+          "สถานะ",
           "statuses",
           Object.entries(statusNames).filter(([key]) => key !== "DRAFT"),
         )}
         {group(
-          "ผลิตภัณฑ์ (Product)",
+          "ผลิตภัณฑ์",
           "products",
-          products.map((p) => [p.name, p.name]),
+          products.map((p) => [p.code, p.name]),
         )}
         {group(
-          "Priority",
+          "ความรุนแรง",
           "priorities",
-          ["S1", "S2", "S3", "S4"].map((v) => [v, v]),
+          Object.entries(severityNames).map(([v, label]) => [v, `${v} ${label}`]),
         )}
-        {group(
-          "Tier",
-          "tiers",
-          ["0", "1", "2"].map((v) => [v, `Tier ${v}`]),
-        )}
-        {group("ช่องทาง (Channel)", "channels", Object.entries(channelNames))}
+        {group("Tier", "tiers", Object.entries(tierNames).reverse())}
+        {group("ช่องทาง", "channels", Object.entries(channelNames))}
         {group(
           "SLA",
           "sla",
           [
-            ["breached", "SLA breached"],
-            ["risk", "At risk"],
-            ["safe", "On track"],
+            ["breached", "เกิน SLA แล้ว"],
+            ["risk", "ใกล้ครบกำหนด (เหลือไม่ถึง 25%)"],
+            ["safe", "ทันเวลา"],
           ],
           !slaAvailable,
         )}
         <fieldset>
-          <legend>ผู้รับผิดชอบ (Assignee)</legend>
+          <legend>ผู้ดำเนินการ</legend>
           {[
-            ["any", "Anyone"],
-            ["mine", "Me"],
-            ["unassigned", "Unassigned"],
+            ["any", "ทุกคน"],
+            ["mine", "ฉัน"],
+            ["unassigned", "ยังไม่มีผู้รับ"],
           ].map(([id, label]) => (
             <label key={id} className="check-label">
               <input
@@ -158,7 +160,7 @@ export function FilterDrawer({
           ))}
         </fieldset>
         <fieldset>
-          <legend>วันที่สร้าง (Date)</legend>
+          <legend>วันที่สร้างเคส</legend>
           <SelectControl
             aria-label="วันที่สร้าง"
             value={value.date}

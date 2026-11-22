@@ -1,10 +1,9 @@
 import type {
   CaseRow,
-  Instance,
-  Organization,
   Product,
   QueueData,
-  Session,
+  QueuePage,
+  QueueRow,
   Summary,
   Ticket,
 } from "./types";
@@ -55,82 +54,90 @@ export async function all<T>(
     if (page.length < 100) return rows;
   }
 }
+export type QueueQuery = {
+  scope: string;
+  product?: string;
+  statuses: string[];
+  severities: string[];
+  tiers: string[];
+  channels: string[];
+  sla: string[];
+  assignee: string;
+  createdFrom?: string;
+  createdTo?: string;
+  q: string;
+  sort: string;
+  offset: number;
+  limit: number;
+};
+function queueParams(query: QueueQuery) {
+  const params = new URLSearchParams({
+    scope: query.scope,
+    sort: query.sort,
+    assignee: query.assignee,
+    offset: String(query.offset),
+    limit: String(query.limit),
+  });
+  if (query.product) params.set("product", query.product);
+  if (query.q.trim()) params.set("q", query.q.trim());
+  if (query.createdFrom) params.set("created_from", query.createdFrom);
+  if (query.createdTo) params.set("created_to", query.createdTo);
+  for (const [key, values] of [
+    ["status", query.statuses],
+    ["severity", query.severities],
+    ["tier", query.tiers],
+    ["channel", query.channels],
+    ["sla", query.sla],
+  ] as const)
+    values.forEach((value) => params.append(key, value));
+  return params;
+}
+function initials(name: string | null) {
+  if (!name) return "–";
+  const parts = name.trim().split(/\s+/);
+  return (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+}
+export function queueRow(row: QueueRow): CaseRow {
+  return {
+    ...(row as unknown as Ticket),
+    customer: row.customer ?? "ยังไม่ระบุลูกค้า",
+    product: row.product ?? "ยังไม่ระบุ",
+    productId: row.product_id ?? undefined,
+    assignee: row.assignee ?? "ยังไม่มีผู้รับ",
+    assigneeInitials: initials(row.assignee),
+    slaSeconds: row.sla?.remaining_seconds ?? null,
+    slaRatio: row.sla?.remaining_ratio ?? null,
+    slaPaused: row.sla?.paused ?? false,
+    slaDueAt: row.sla?.due_at ?? null,
+  };
+}
+/** One server-side page of the work queue plus the side data the screen needs. */
 export async function queueData(
-  session: Session,
+  query: QueueQuery,
   signal: AbortSignal,
+  withDrafts: boolean,
 ): Promise<QueueData> {
-  const [tickets, drafts, products, summary] = await Promise.all([
-    all<Ticket>("/tickets", signal),
-    all<Ticket>("/tickets?drafts_only=true", signal),
-    all<Product>("/products?is_active=true", signal),
+  const [page, drafts, products, summary] = await Promise.all([
+    api<QueuePage>(`/case-queue?${queueParams(query)}`, { signal }),
+    withDrafts
+      ? api<Ticket[]>("/tickets?drafts_only=true&limit=100", { signal })
+      : Promise.resolve([] as Ticket[]),
+    api<Product[]>("/products?is_active=true&limit=100", { signal }),
     api<Summary>("/tickets/queue-summary", { signal }),
   ]);
-  const allTickets = [...tickets, ...drafts];
-  const orgs = new Map(
-    await Promise.all(
-      [
-        ...new Set(
-          allTickets
-            .map((t) => t.organization_id)
-            .filter((id): id is number => id !== null),
-        ),
-      ].map(
-        async (id) =>
-          [
-            id,
-            await api<Organization>(`/customers/organizations/${id}`, {
-              signal,
-            }),
-          ] as const,
-      ),
-    ),
-  );
-  const instances = new Map(
-    await Promise.all(
-      [
-        ...new Set(
-          allTickets
-            .map((t) => t.product_instance_id)
-            .filter((id): id is number => id !== null),
-        ),
-      ].map(
-        async (id) =>
-          [
-            id,
-            await api<Instance>(`/product-instances/${id}`, { signal }),
-          ] as const,
-      ),
-    ),
-  );
-  const adapt = (ticket: Ticket): CaseRow => {
-    const instance = instances.get(ticket.product_instance_id ?? -1);
-    return {
-      ...ticket,
-      customer:
-        orgs.get(ticket.organization_id ?? -1)?.name ?? "ยังไม่ระบุลูกค้า",
-      product:
-        products.find((p) => p.id === instance?.product_id)?.name ??
-        "ยังไม่ระบุ",
-      productId: instance?.product_id,
-      assignee:
-        ticket.assignee_id === session.id
-          ? session.username
-          : ticket.assignee_id
-            ? `ผู้ใช้ #${ticket.assignee_id}`
-            : "ยังไม่มีผู้รับ",
-      assigneeInitials:
-        ticket.assignee_id === session.id
-          ? session.username.slice(0, 2).toUpperCase()
-          : ticket.assignee_id
-            ? "•"
-            : "–",
-      slaSeconds: ticket.sla?.remaining_seconds ?? null,
-      slaRatio: ticket.sla?.remaining_ratio ?? null,
-    };
-  };
+  const draftRow = (ticket: Ticket): CaseRow => ({
+    ...ticket,
+    customer: "",
+    product: "",
+    assignee: "",
+    assigneeInitials: "",
+    slaSeconds: null,
+    slaRatio: null,
+  });
   return {
-    rows: tickets.map(adapt),
-    drafts: drafts.map(adapt),
+    rows: page.items.map(queueRow),
+    total: page.total,
+    drafts: drafts.map(draftRow),
     products,
     summary,
   };

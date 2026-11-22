@@ -2,39 +2,47 @@
 import { SelectControl } from "@/components/ui/company-fields";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  StatCard,
-  Segment,
-  Search as GetSearch,
-} from "@DeverhoodHT/get-design";
-import {
-  Plus,
-  Clock3,
-  SlidersHorizontal,
-  RefreshCw,
-  Download,
-  Bookmark,
-  UserPlus,
-  Tag,
-  Check,
-  X,
-  Settings2,
-} from "lucide-react";
+import { StatCard, Segment, Search as GetSearch } from "@DeverhoodHT/get-design";
+import { Plus, SlidersHorizontal, RefreshCw, X, Search as SearchIcon } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
-import {
-  Button,
-  ErrorState,
-  TableSkeleton,
-  cx,
-} from "@/components/ui/primitives";
-import { queueData } from "@/lib/api";
+import { Button, ErrorState, TableSkeleton, cx } from "@/components/ui/primitives";
+import { queueData, type QueueQuery } from "@/lib/api";
 import { previewData, previewNow } from "@/lib/preview";
-import { channelNames, openStatuses, type QueueData } from "@/lib/types";
+import {
+  channelNames,
+  severityNames,
+  statusNames,
+  tierNames,
+  type QueueData,
+} from "@/lib/types";
 import { CaseTable } from "./case-table";
 import { DraftList } from "./draft-list";
 import { emptyFilters, FilterDrawer, type Filters } from "./filters";
-type Scope = "all" | "open" | "mine" | "unassigned" | "today" | "risk";
+
+type Scope = "open" | "all" | "mine" | "unassigned" | "today" | "risk";
+const EXPORT_ROLES = new Set(["Admin", "Team Lead", "Executive"]);
+
+function useDebounced<T>(value: T, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+function dateRange(filters: Filters, now: Date) {
+  const day = (date: Date) =>
+    date.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+  if (filters.date === "today") return { from: day(now), to: day(now) };
+  if (filters.date === "7days")
+    return { from: day(new Date(now.getTime() - 6 * 86400000)), to: day(now) };
+  if (filters.date === "custom")
+    return { from: filters.from || undefined, to: filters.to || undefined };
+  return {};
+}
+
 export function QueueScreen({
   view = "work",
   initialQuery = "",
@@ -42,38 +50,57 @@ export function QueueScreen({
 }: {
   view?: "work" | "all" | "unassigned";
   initialQuery?: string;
+  /** Product code from the URL, e.g. "examplus". */
   product?: string;
 }) {
   const { session, preview, href } = useSession();
-  const [data, setData] = useState<QueueData | null>(
-      preview ? previewData : null,
-    ),
+  const [data, setData] = useState<QueueData | null>(preview ? previewData : null),
     [error, setError] = useState(""),
-    [refreshing, setRefreshing] = useState(false),
+    [loading, setLoading] = useState(false),
     [updated, setUpdated] = useState<Date | null>(null);
   const [query, setQuery] = useState(initialQuery),
-    [scope, setScope] = useState<Scope>(
-      view === "unassigned" ? "unassigned" : view === "all" ? "open" : "all",
-    );
-  const [filters, setFilters] = useState<Filters>({ ...emptyFilters }),
+    [scope, setScope] = useState<Scope>(view === "unassigned" ? "unassigned" : "open"),
+    [filters, setFilters] = useState<Filters>({ ...emptyFilters }),
     [pending, setPending] = useState<Filters>({ ...emptyFilters }),
     [drawer, setDrawer] = useState(false),
     [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(25),
     [selected, setSelected] = useState<Set<number>>(new Set()),
     [sort, setSort] = useState("sla");
+  const searchText = useDebounced(query, 300);
   const requestRef = useRef<AbortController | null>(null);
-  const [mountedAt] = useState(
-    () => new Date(preview ? previewNow : Date.now()),
-  );
+  const [mountedAt] = useState(() => new Date(preview ? previewNow : Date.now()));
   const now = updated || mountedAt;
+  const withDrafts = view === "work" && !product;
+
+  const request = useMemo<QueueQuery>(() => {
+    const range = dateRange(filters, mountedAt);
+    return {
+      scope,
+      product: product || filters.products[0],
+      statuses: filters.statuses,
+      severities: filters.priorities,
+      tiers: filters.tiers,
+      channels: filters.channels,
+      sla: filters.sla,
+      assignee: filters.assignee,
+      createdFrom: range.from,
+      createdTo: range.to,
+      q: searchText,
+      sort,
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
+    };
+  }, [scope, product, filters, searchText, sort, page, pageSize, mountedAt]);
+
   const load = useCallback(async () => {
     if (preview || !session) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
+    setLoading(true);
     try {
-      const result = await queueData(session, controller.signal);
+      const result = await queueData(request, controller.signal, withDrafts);
       if (!controller.signal.aborted) {
         setData(result);
         setError("");
@@ -81,11 +108,12 @@ export function QueueScreen({
       }
     } catch (e) {
       if (!controller.signal.aborted)
-        setError(e instanceof Error ? e.message : "โหลดคิวเคสไม่สำเร็จ");
+        setError(e instanceof Error ? e.message : "โหลดรายการเคสไม่สำเร็จ");
     } finally {
-      if (!controller.signal.aborted) setRefreshing(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [preview, session]);
+  }, [preview, session, request, withDrafts]);
+
   useEffect(() => {
     const initial = setTimeout(load, 0);
     const interval = setInterval(load, 60000);
@@ -95,238 +123,84 @@ export function QueueScreen({
       requestRef.current?.abort();
     };
   }, [load]);
-  const slaAvailable = !!data?.rows.some((row) => row.slaSeconds !== null);
-  const rows = useMemo(() => {
-    if (!data) return [];
-    return data.rows
-      .filter((row) => {
-        if (row.status === "DRAFT") return false;
-        if (view !== "all" && !filters.statuses.length && !openStatuses.includes(row.status))
-          return false;
-        if (
-          scope === "open" &&
-          !filters.statuses.length &&
-          !openStatuses.includes(row.status)
-        )
-          return false;
-        if (product && row.product.toLowerCase() !== product.toLowerCase())
-          return false;
-        if (scope === "mine" && row.assignee_id !== session?.id) return false;
-        if (scope === "unassigned" && row.assignee_id !== null) return false;
-        if (
-          scope === "today" &&
-          new Date(row.created_at).toLocaleDateString("en-CA", {
-            timeZone: "Asia/Bangkok",
-          }) !== now.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })
-        )
-          return false;
-        if (scope === "risk" && (row.slaRatio === null || row.slaRatio >= 0.25))
-          return false;
-        if (
-          query.trim() &&
-          !`${row.ticket_no} ${row.subject} ${row.customer} ${row.assignee}`
-            .toLocaleLowerCase()
-            .includes(query.toLocaleLowerCase().trim())
-        )
-          return false;
-        if (filters.statuses.length && !filters.statuses.includes(row.status))
-          return false;
-        if (filters.products.length && !filters.products.includes(row.product))
-          return false;
-        if (
-          filters.priorities.length &&
-          !filters.priorities.includes(row.severity || "")
-        )
-          return false;
-        if (
-          filters.channels.length &&
-          !filters.channels.includes(row.channel || "")
-        )
-          return false;
-        if (
-          filters.tiers.length &&
-          !filters.tiers.includes(String(row.current_tier))
-        )
-          return false;
-        if (
-          (filters.assignee === "mine" && row.assignee_id !== session?.id) ||
-          (filters.assignee === "unassigned" && row.assignee_id !== null)
-        )
-          return false;
-        if (filters.sla.length) {
-          const state =
-            row.slaSeconds === null
-              ? "none"
-              : row.slaSeconds < 0
-                ? "breached"
-                : row.slaRatio !== null && row.slaRatio < 0.25
-                  ? "risk"
-                  : "safe";
-          if (!filters.sla.includes(state)) return false;
-        }
-        const date = Date.parse(row.created_at);
-        if (
-          filters.date === "today" &&
-          new Date(date).toLocaleDateString("en-CA", {
-            timeZone: "Asia/Bangkok",
-          }) !== now.toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })
-        )
-          return false;
-        if (filters.date === "7days" && date < now.getTime() - 7 * 86400000)
-          return false;
-        if (
-          filters.date === "custom" &&
-          ((filters.from &&
-            date < Date.parse(`${filters.from}T00:00:00+07:00`)) ||
-            (filters.to &&
-              date > Date.parse(`${filters.to}T23:59:59.999+07:00`)))
-        )
-          return false;
-        return true;
-      })
-      .sort((a, b) =>
-        sort === "sla" && slaAvailable
-          ? (a.slaSeconds ?? Infinity) - (b.slaSeconds ?? Infinity)
-          : Date.parse(b.created_at) - Date.parse(a.created_at),
-      );
-  }, [
-    data,
-    view,
-    product,
-    scope,
-    session?.id,
-    query,
-    filters,
-    sort,
-    slaAvailable,
-    now,
-  ]);
+
+  const productName =
+    product &&
+    (data?.products.find((p) => p.code === product)?.name ?? product);
   const title =
-    product ||
-    {
-      work: "งานของฉัน",
-      all: "เคสทั้งหมด",
-      unassigned: "ยังไม่มีผู้รับผิดชอบ",
-    }[view];
-  const setScopeAndReset = (next: Scope) => {
-    setScope(next);
+    productName ||
+    { work: "งานของฉัน", all: "เคสทั้งหมด", unassigned: "เคสที่ยังไม่มีผู้รับ" }[view];
+  const reset = () => {
     setPage(1);
     setSelected(new Set());
+  };
+  const changeScope = (next: Scope) => {
+    setScope(next);
+    reset();
   };
   const apply = (next: Filters) => {
     setFilters(next);
-    setPage(1);
-    setSelected(new Set());
+    reset();
   };
-  const openDrawer = () => {
-    setPending(structuredClone(filters));
-    setDrawer(true);
-  };
-  const activeCount = Object.entries(filters).reduce(
-    (count, [key, value]) =>
-      count +
-      (Array.isArray(value)
-        ? value.length
-        : key === "assignee" || key === "date"
-          ? Number(value !== "any")
-          : 0),
-    0,
-  );
-  const tabs = (
-    <Segment
-      aria-label="มุมมองคิว"
-      value={scope}
-      onChange={(value) => setScopeAndReset(value as Scope)}
-      options={[
-        { value: "all", label: "ทั้งหมด" },
-        { value: "mine", label: "งานของฉัน" },
-        { value: "unassigned", label: "ยังไม่มีผู้รับ" },
-      ]}
-    />
+  const activeCount =
+    filters.statuses.length +
+    filters.products.length +
+    filters.priorities.length +
+    filters.tiers.length +
+    filters.channels.length +
+    filters.sla.length +
+    Number(filters.assignee !== "any") +
+    Number(filters.date !== "any");
+
+  const single = (
+    key: "products" | "priorities" | "tiers" | "channels" | "sla",
+    label: string,
+    placeholder: string,
+    options: [string, string][],
+  ) => (
+    <SelectControl
+      aria-label={label}
+      className="filter-select"
+      value={filters[key][0] || ""}
+      onValueChange={(next) => apply({ ...filters, [key]: next ? [next] : [] })}
+    >
+      <option value="">{placeholder}</option>
+      {options.map(([value, text]) => (
+        <option key={value} value={value}>
+          {text}
+        </option>
+      ))}
+    </SelectControl>
   );
   const quickFilters = (
     <>
-      <SelectControl
-        aria-label="กรองผลิตภัณฑ์"
-        className="filter-select"
-        value={filters.products[0] || ""}
-        onValueChange={(nextValue) =>
-          apply({
-            ...filters,
-            products: nextValue ? [nextValue] : [],
-          })
-        }
+      {!product &&
+        single(
+          "products",
+          "กรองตามผลิตภัณฑ์",
+          "ผลิตภัณฑ์",
+          (data?.products || []).map((p) => [p.code, p.name]),
+        )}
+      {single(
+        "priorities",
+        "กรองตามความรุนแรง",
+        "ความรุนแรง",
+        Object.entries(severityNames).map(([v, label]) => [v, `${v} ${label}`]),
+      )}
+      {single("tiers", "กรองตาม Tier", "Tier", Object.entries(tierNames).reverse())}
+      {single("channels", "กรองตามช่องทาง", "ช่องทาง", Object.entries(channelNames))}
+      {single("sla", "กรองตาม SLA", "SLA", [
+        ["breached", "เกิน SLA แล้ว"],
+        ["risk", "ใกล้ครบกำหนด"],
+        ["safe", "ทันเวลา"],
+      ])}
+      <Button
+        onClick={() => {
+          setPending(structuredClone(filters));
+          setDrawer(true);
+        }}
+        className="more-filters"
       >
-        <option value="">Product</option>
-        {data?.products.map((p) => (
-          <option key={p.id}>{p.name}</option>
-        ))}
-      </SelectControl>
-      <SelectControl
-        aria-label="กรอง Priority"
-        className="filter-select"
-        value={filters.priorities[0] || ""}
-        onValueChange={(nextValue) =>
-          apply({
-            ...filters,
-            priorities: nextValue ? [nextValue] : [],
-          })
-        }
-      >
-        <option value="">Priority</option>
-        {["S1", "S2", "S3", "S4"].map((s) => (
-          <option key={s}>{s}</option>
-        ))}
-      </SelectControl>
-      <SelectControl
-        aria-label="กรอง Tier"
-        className="filter-select"
-        value={filters.tiers[0] || ""}
-        onValueChange={(nextValue) =>
-          apply({ ...filters, tiers: nextValue ? [nextValue] : [] })
-        }
-      >
-        <option value="">Tier</option>
-        {["0", "1", "2"].map((s) => (
-          <option key={s} value={s}>
-            Tier {s}
-          </option>
-        ))}
-      </SelectControl>
-      <SelectControl
-        aria-label="กรองช่องทาง"
-        className="filter-select"
-        value={filters.channels[0] || ""}
-        onValueChange={(nextValue) =>
-          apply({
-            ...filters,
-            channels: nextValue ? [nextValue] : [],
-          })
-        }
-      >
-        <option value="">Channel</option>
-        {Object.entries(channelNames).map(([id, label]) => (
-          <option key={id} value={id}>
-            {label}
-          </option>
-        ))}
-      </SelectControl>
-      <SelectControl
-        aria-label="กรอง SLA"
-        className="filter-select"
-        disabled={!slaAvailable}
-        title={!slaAvailable ? "รอข้อมูลจากระบบ SLA" : undefined}
-        value={filters.sla[0] || ""}
-        onValueChange={(nextValue) =>
-          apply({ ...filters, sla: nextValue ? [nextValue] : [] })
-        }
-      >
-        <option value="">SLA</option>
-        <option value="breached">Breached</option>
-        <option value="risk">At risk</option>
-        <option value="safe">On track</option>
-      </SelectControl>
-      <Button onClick={openDrawer} className="more-filters">
         <SlidersHorizontal size={15} />
         ตัวกรองเพิ่มเติม
         {activeCount > 0 && <span className="small-count">{activeCount}</span>}
@@ -337,67 +211,36 @@ export function QueueScreen({
     <GetSearch
       className="company-search"
       aria-label="ค้นหาเคส"
-      placeholder={
-        view === "all"
-          ? "ค้นหาเลขเคส, หัวข้อ, ลูกค้า, ผู้รับผิดชอบ..."
-          : "ค้นหาเคส ลูกค้า หรือผู้รับผิดชอบ..."
-      }
+      placeholder="ค้นหาเลขเคส หัวข้อ หรือชื่อลูกค้า"
       value={query}
-      onChange={(nextValue) => {
-        setQuery(nextValue);
-        setPage(1);
+      onChange={(next) => {
+        setQuery(next);
+        reset();
       }}
     />
   );
-  function exportCsv() {
-    const selectedRows = selected.size
-      ? rows.filter((r) => selected.has(r.id))
-      : rows;
-    const cell = (value: unknown) =>
-      `"${String(value ?? "")
-        .replace(/^[=+@\-]/, "'$&")
-        .replaceAll('"', '""')}"`;
-    const csv =
-      "\uFEFF" +
-      [
-        [
-          "Case",
-          "Subject",
-          "Customer",
-          "Product",
-          "Priority",
-          "Status",
-          "Channel",
-        ],
-        ...selectedRows.map((r) => [
-          r.ticket_no,
-          r.subject,
-          r.customer,
-          r.product,
-          r.severity,
-          r.status,
-          channelNames[r.channel || ""],
-        ]),
-      ]
-        .map((row) => row.map(cell).join(","))
-        .join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: "text/csv;charset=utf-8" }),
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "isms-cases.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+  const chips: { key: string; label: string; remove: () => void }[] = [
+    ...filters.statuses.map((value) => ({
+      key: `s-${value}`,
+      label: statusNames[value] || value,
+      remove: () => apply({ ...filters, statuses: filters.statuses.filter((v) => v !== value) }),
+    })),
+    ...filters.products.map((value) => ({
+      key: `p-${value}`,
+      label: data?.products.find((p) => p.code === value)?.name || value,
+      remove: () => apply({ ...filters, products: [] }),
+    })),
+    ...filters.priorities.map((value) => ({
+      key: `r-${value}`,
+      label: `${value} ${severityNames[value] || ""}`,
+      remove: () => apply({ ...filters, priorities: filters.priorities.filter((v) => v !== value) }),
+    })),
+  ];
+
   return (
     <AppShell
       title={title}
-      counts={
-        data
-          ? { mine: data.summary.mine, unassigned: data.summary.unassigned }
-          : undefined
-      }
+      counts={data ? { mine: data.summary.mine, unassigned: data.summary.unassigned } : undefined}
     >
       <div className={cx("queue-page", view === "all" && "all-cases-page")}>
         <div className="page-heading">
@@ -406,69 +249,46 @@ export function QueueScreen({
               {title}
               {view === "work" && !product && (
                 <span className="heading-date">
-                  {preview
-                    ? "วันจันทร์ที่ 8 กันยายน"
-                    : now.toLocaleDateString("th-TH", {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "long",
-                        timeZone: "Asia/Bangkok",
-                      })}
+                  {now.toLocaleDateString("th-TH", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    timeZone: "Asia/Bangkok",
+                  })}
                 </span>
               )}
             </h1>
             <p>
               {view === "all"
-                ? "ค้นหา ตรวจสอบ และจัดการเคสทั้งหมดในระบบ"
-                : slaAvailable
-                  ? "ดูเคสที่ต้องดำเนินการ โดยเรียงตามเวลาที่เหลือของ SLA"
-                  : "ดูเคสที่ต้องดำเนินการและเคสร่างของคุณ"}
+                ? "ค้นหาและเปิดดูเคสทุกสถานะที่คุณมีสิทธิ์เห็น"
+                : view === "unassigned"
+                  ? "เคสใหม่ที่ยังไม่มีใครรับ เลือกเคสเพื่อรับไปดำเนินการ"
+                  : "เคสที่เปิดอยู่ เรียงจากเคสที่ใกล้ครบกำหนด SLA ก่อน"}
             </p>
-            {view === "all" && (
-              <small>แสดงเคสทั้งหมดที่ผู้ใช้มีสิทธิ์เข้าถึง</small>
-            )}
           </div>
           <div className="heading-actions">
-            {view === "all" ? (
-              <>
-                <Button disabled title="Saved Views ยังไม่เปิดใช้งาน">
-                  <Bookmark size={14} />
-                  Save View
-                </Button>
-                <Button onClick={exportCsv} disabled={!rows.length}>
-                  <Download size={14} />
-                  Export
-                </Button>
-              </>
-            ) : (
-              <span className="last-updated">
-                <span className="healthy-dot" />
-                อัปเดตล่าสุด{" "}
-                {preview
-                  ? "14:08"
-                  : updated?.toLocaleTimeString("th-TH", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }) || "—"}{" "}
-                · อัปเดตอัตโนมัติทุก 60 วินาที
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="อัปเดตคิวเคส"
-                  onClick={() => {
-                    setRefreshing(true);
-                    if (preview) setRefreshing(false);
-                    else load();
-                  }}
-                >
-                  <RefreshCw
-                    size={13}
-                    className={cx(refreshing && "animate-spin")}
-                  />
-                </Button>
-              </span>
+            <span className="last-updated" aria-live="polite">
+              <span className="healthy-dot" />
+              อัปเดต{" "}
+              {updated?.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) ||
+                "—"}{" "}
+              น.
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="โหลดรายการใหม่"
+                onClick={() => load()}
+              >
+                <RefreshCw size={13} className={cx(loading && "animate-spin")} />
+              </Button>
+            </span>
+            {view === "all" && session && EXPORT_ROLES.has(session.role) && (
+              <Link href={href("/cases/search")} className="button button-secondary">
+                <SearchIcon size={15} />
+                ค้นหาขั้นสูง / ส่งออก
+              </Link>
             )}
-            {view === "all" && session?.can_create_cases && (
+            {session?.can_create_cases && (
               <Link href={href("/cases/new")} className="button button-primary">
                 <Plus size={16} />
                 สร้างเคส
@@ -478,54 +298,26 @@ export function QueueScreen({
         </div>
         {view === "work" && !product && (
           <div className="action-counts">
-            {[
-              {
-                count: data?.summary.unassigned,
-                label: "ยังไม่มีผู้รับผิดชอบ",
-                icon: "users",
-                scope: "unassigned" as Scope,
-                style: "unassigned",
-              },
-              {
-                count: data?.summary.sla_at_risk,
-                label: "เหลือเวลา SLA ไม่ถึง 25%",
-                icon: "clock",
-                scope: "risk" as Scope,
-                style: "risk",
-              },
-              {
-                count: data?.summary.mine,
-                label: "งานของฉันที่เปิดอยู่",
-                icon: "user",
-                scope: "mine" as Scope,
-                style: "mine",
-              },
-              {
-                count: data?.summary.today,
-                label: "เคสเข้าใหม่วันนี้",
-                icon: "folder",
-                scope: "today" as Scope,
-                style: "incoming",
-              },
-            ].map((item) => (
+            {(
+              [
+                [data?.summary.unassigned, "ยังไม่มีผู้รับเคส", "users", "unassigned", "unassigned"],
+                [data?.summary.sla_at_risk, "ใกล้ครบกำหนดหรือเกิน SLA", "clock", "risk", "risk"],
+                [data?.summary.mine, "งานที่ฉันดำเนินการอยู่", "user", "mine", "mine"],
+                [data?.summary.today, "เคสเข้าใหม่วันนี้", "folder", "today", "incoming"],
+              ] as const
+            ).map(([count, label, icon, itemScope, style]) => (
               <button
-                key={item.scope}
-                className={`native-stat-action stat-${item.style}`}
-                aria-pressed={scope === item.scope}
-                onClick={() => setScopeAndReset(item.scope)}
-                disabled={item.scope === "risk" && !slaAvailable}
-                title={
-                  item.scope === "risk" && !slaAvailable
-                    ? "รอข้อมูลจากระบบ SLA"
-                    : undefined
-                }
+                key={itemScope}
+                className={`native-stat-action stat-${style}`}
+                aria-pressed={scope === itemScope}
+                onClick={() => changeScope(scope === itemScope ? "open" : itemScope)}
               >
                 <StatCard
                   size="small"
-                  label={item.label}
-                  value={item.count ?? "—"}
+                  label={label}
+                  value={count ?? "—"}
                   icon
-                  iconName={item.icon}
+                  iconName={icon}
                   iconColor="brand"
                   classNames={{
                     root: "work-stat",
@@ -539,137 +331,63 @@ export function QueueScreen({
             ))}
           </div>
         )}
-        {view === "all" && (
-          <>
-            <section className="surface all-search-panel">
-              {search}
-              <p>
-                ค้นหาใน: <span className="search-scope-dot" />
-                เลขเคส / หัวข้อ / ลูกค้า / ผู้รับผิดชอบ
-              </p>
-            </section>
-            <div className="saved-views">
-              <span>มุมมอง:</span>
-              {(
-                [
-                  ["open", "All Open Cases"],
-                  ["all", "All Cases"],
-                  ["mine", "My Cases"],
-                  ["unassigned", "Unassigned"],
-                  ["risk", "SLA At Risk"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  className={cx(scope === value && "active")}
-                  disabled={value === "risk" && !slaAvailable}
-                  onClick={() => setScopeAndReset(value)}
-                >
-                  {label}
-                </button>
-              ))}
-              <Button variant="ghost" onClick={openDrawer}>
-                <SlidersHorizontal size={14} />
-                ตัวกรอง
-              </Button>
-            </div>
-          </>
-        )}
         <section className="surface queue-surface">
-          {view !== "all" ? (
-            <>
-              <div className="queue-heading">
-                <h2>
-                  {product
-                    ? `เคสที่เปิดอยู่ (${product})`
-                    : "คิวเคสที่เปิดอยู่"}
-                </h2>
-                {tabs}
-                <div className="queue-heading-actions">
-                  <label className="sort-control">
-                    เรียงตาม:
-                    <SelectControl
-                      aria-label="เรียงคิวเคส"
-                      value={slaAvailable ? sort : "recent"}
-                      onValueChange={(nextValue) => setSort(nextValue)}
-                    >
-                      <option value="sla" disabled={!slaAvailable}>
-                        SLA เหลือน้อยที่สุด ↓
-                      </option>
-                      <option value="recent">บันทึกล่าสุด ↓</option>
-                    </SelectControl>
-                  </label>
-                  {session?.can_create_cases && (
-                    <Link
-                      href={href("/cases/new")}
-                      className="button button-primary"
-                    >
-                      <Plus size={16} />
-                      สร้างเคส
-                    </Link>
-                  )}
-                </div>
-              </div>
-              <div className="queue-toolbar">
-                <div className="quick-filters">{quickFilters}</div>
-                {search}
-              </div>
-            </>
-          ) : (
-            <div className="bulk-toolbar">
-              <span className="selected-count">
-                <Check size={14} />
-                เลือกแล้ว {selected.size} เคส
-              </span>
-              <Button disabled title="ยังไม่มี API สำหรับเปลี่ยนผู้รับผิดชอบ">
-                <UserPlus size={14} />
-                Assign
-              </Button>
-              <Button disabled title="ยังไม่มี API สำหรับเปลี่ยนสถานะ">
-                Change Status
-              </Button>
-              <Button disabled title="ยังไม่มี API สำหรับเปลี่ยน Priority">
-                Change Priority
-              </Button>
-              <Button disabled title="ยังไม่มีระบบ Tag">
-                <Tag size={14} />
-                Add Tag
-              </Button>
-              <Button onClick={exportCsv} disabled={!rows.length}>
-                <Download size={14} />
-                Export
-              </Button>
-              <Button
-                size="icon"
-                aria-label="ตัวกรองคอลัมน์"
-                onClick={openDrawer}
-              >
-                <Settings2 size={16} />
-              </Button>
-            </div>
-          )}
-          {activeCount > 0 && (
-            <div className="applied-filters">
-              <span>ใช้ตัวกรอง {activeCount} เงื่อนไข</span>
-              {filters.products.map((name) => (
-                <button
-                  key={name}
-                  onClick={() =>
-                    apply({
-                      ...filters,
-                      products: filters.products.filter((p) => p !== name),
-                    })
-                  }
+          <div className="queue-heading">
+            <h2>{view === "all" ? "รายการเคส" : "เคสที่เปิดอยู่"}</h2>
+            {view !== "unassigned" && (
+              <Segment
+                aria-label="มุมมองรายการ"
+                value={scope}
+                onChange={(next) => changeScope(next as Scope)}
+                options={
+                  view === "all"
+                    ? [
+                        { value: "open", label: "เปิดอยู่" },
+                        { value: "all", label: "ทุกสถานะ" },
+                        { value: "mine", label: "ของฉัน" },
+                        { value: "unassigned", label: "ยังไม่มีผู้รับ" },
+                      ]
+                    : [
+                        { value: "open", label: "ทั้งหมด" },
+                        { value: "mine", label: "ของฉัน" },
+                        { value: "unassigned", label: "ยังไม่มีผู้รับ" },
+                      ]
+                }
+              />
+            )}
+            <div className="queue-heading-actions">
+              <label className="sort-control">
+                เรียงตาม
+                <SelectControl
+                  aria-label="เรียงรายการเคส"
+                  value={sort}
+                  onValueChange={(next) => {
+                    setSort(next);
+                    reset();
+                  }}
                 >
-                  {name}
+                  <option value="sla">ใกล้ครบกำหนด SLA ก่อน</option>
+                  <option value="newest">สร้างล่าสุดก่อน</option>
+                  <option value="oldest">สร้างเก่าสุดก่อน</option>
+                </SelectControl>
+              </label>
+            </div>
+          </div>
+          <div className="queue-toolbar">
+            <div className="quick-filters">{quickFilters}</div>
+            {search}
+          </div>
+          {(chips.length > 0 || activeCount > chips.length) && (
+            <div className="applied-filters">
+              <span>ตัวกรองที่ใช้ {activeCount} รายการ</span>
+              {chips.map((chip) => (
+                <button key={chip.key} onClick={chip.remove} aria-label={`เอาตัวกรอง ${chip.label} ออก`}>
+                  {chip.label}
                   <X size={12} />
                 </button>
               ))}
-              <button
-                className="clear-filters"
-                onClick={() => apply({ ...emptyFilters })}
-              >
-                ล้างทั้งหมด
+              <button className="clear-filters" onClick={() => apply({ ...emptyFilters })}>
+                ล้างตัวกรองเพิ่มเติม
               </button>
             </div>
           )}
@@ -679,26 +397,23 @@ export function QueueScreen({
             <TableSkeleton />
           ) : (
             <CaseTable
-              rows={rows}
+              rows={data.rows}
+              total={preview ? undefined : data.total}
               variant={view === "all" ? "all" : "work"}
               page={page}
               pageSize={pageSize}
               onPage={setPage}
-              onPageSize={setPageSize}
+              onPageSize={(size) => {
+                setPageSize(size);
+                reset();
+              }}
               selected={selected}
               onSelected={setSelected}
+              selectable={false}
             />
           )}
-          {!preview && data && !slaAvailable && (
-            <div className="data-note">
-              <Clock3 size={13} />
-              ยังไม่มีข้อมูล SLA จาก Backend · ใช้เวลาบันทึกล่าสุดในการเรียงคิว
-            </div>
-          )}
         </section>
-        {view === "work" && !product && data && (
-          <DraftList rows={data.drafts} onRefresh={load} />
-        )}
+        {withDrafts && data && <DraftList rows={data.drafts} onRefresh={load} />}
         <FilterDrawer
           open={drawer}
           onClose={() => setDrawer(false)}
@@ -709,7 +424,7 @@ export function QueueScreen({
             setDrawer(false);
           }}
           products={data?.products || []}
-          slaAvailable={slaAvailable}
+          slaAvailable
         />
       </div>
     </AppShell>

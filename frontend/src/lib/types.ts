@@ -86,8 +86,37 @@ export type CaseRow = Ticket & {
   assigneeInitials: string;
   slaSeconds: number | null;
   slaRatio: number | null;
+  slaPaused?: boolean;
+  slaDueAt?: string | null;
   typeName?: string;
 };
+/** One row of GET /case-queue (filtered, ordered and paged by the server). */
+export type QueueRow = {
+  id: number;
+  ticket_no: string | null;
+  subject: string | null;
+  status: string;
+  severity: string | null;
+  channel: string | null;
+  current_tier: number | null;
+  created_at: string;
+  reported_at: string | null;
+  organization_id: number | null;
+  customer: string | null;
+  product_id: number | null;
+  product: string | null;
+  assignee_id: number | null;
+  assignee: string | null;
+  owner_id: number | null;
+  sla: {
+    remaining_seconds: number | null;
+    remaining_ratio: number | null;
+    paused: boolean;
+    breached: boolean;
+    due_at: string | null;
+  } | null;
+};
+export type QueuePage = { items: QueueRow[]; total: number };
 export type Summary = {
   unassigned: number;
   mine: number;
@@ -97,6 +126,7 @@ export type Summary = {
 };
 export type QueueData = {
   rows: CaseRow[];
+  total: number;
   drafts: CaseRow[];
   products: Product[];
   summary: Summary;
@@ -105,30 +135,44 @@ export const channelNames: Record<string, string> = {
   line_oa: "LINE OA",
   line_group: "LINE Group",
   line_personal: "LINE ส่วนตัว",
-  portal: "แจ้งในระบบ",
+  portal: "พอร์ทัลลูกค้า",
   phone: "โทรศัพท์",
   email: "อีเมล",
   face_to_face: "พบหน้า",
   other: "อื่น ๆ",
 };
+/** Status names follow SRS section 7.1. */
 export const statusNames: Record<string, string> = {
-  NEW: "New",
-  IN_PROGRESS: "In Progress",
-  PENDING_CUSTOMER: "Pending Customer",
-  PENDING_EXTERNAL: "Pending External",
-  RESOLVED: "Resolved",
-  CLOSED: "Closed",
-  REOPENED: "Reopened",
-  DUPLICATE: "Duplicate",
-  CANCELLED: "Cancelled",
-  DRAFT: "Draft",
+  DRAFT: "ร่าง",
+  NEW: "ใหม่",
+  IN_PROGRESS: "กำลังดำเนินการ",
+  PENDING_CUSTOMER: "รอลูกค้า",
+  PENDING_EXTERNAL: "รอทีมพัฒนา/ภายนอก",
+  RESOLVED: "แก้ไขแล้ว",
+  CLOSED: "ปิดแล้ว",
+  REOPENED: "เปิดใหม่",
+  DUPLICATE: "ซ้ำ",
+  CANCELLED: "ยกเลิก",
 };
+/** Must match OPEN_STATUSES in backend/app/db/models/ticket.py. */
 export const openStatuses = [
   "NEW",
   "IN_PROGRESS",
   "PENDING_CUSTOMER",
+  "PENDING_EXTERNAL",
   "REOPENED",
 ];
+export const severityNames: Record<string, string> = {
+  S1: "วิกฤต",
+  S2: "สูง",
+  S3: "ปานกลาง",
+  S4: "ต่ำ",
+};
+export const tierNames: Record<string, string> = {
+  "2": "Tier 2 · หน้าด่าน",
+  "1": "Tier 1 · ผู้เชี่ยวชาญ",
+  "0": "Tier 0 · ทีมพัฒนา",
+};
 
 export type SlaMetric = {
   target_seconds: number;

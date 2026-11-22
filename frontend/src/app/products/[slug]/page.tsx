@@ -1,16 +1,13 @@
 import { notFound } from "next/navigation";
 import { QueueScreen } from "@/components/cases/queue-screen";
+
+/** Any product code from the catalogue works; new products need no deployment. */
 export default async function Page({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const name: Record<string, string> = {
-    examplus: "ExamPlus",
-    geta: "GetA",
-    logbook: "Logbook",
-  };
-  if (!name[slug]) notFound();
-  return <QueueScreen product={name[slug]} />;
+  if (!/^[a-z0-9][a-z0-9_-]{0,49}$/.test(slug)) notFound();
+  return <QueueScreen product={slug} />;
 }

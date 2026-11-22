@@ -145,6 +145,7 @@ export const previewRows: CaseRow[] = cases.map((c, i) => ({
 }));
 export const previewData: QueueData = {
   rows: previewRows,
+  total: previewRows.length,
   drafts: [
     "Download error ตอนเริ่มสอบ",
     "ขอเพิ่มสิทธิ์อาจารย์",
