@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GitBranch, Clock3, UsersRound, ShieldCheck } from "lucide-react";
@@ -111,11 +112,11 @@ export function RoutingAdmin() {
     </label>
   );
   return (
-    <AppShell title="ตั้งค่า Escalation & Routing">
+    <AppShell title="ตั้งค่าการส่งต่อเคส">
       <div className="page-heading">
         <div>
-          <h1>Escalation & Routing</h1>
-          <p>ตั้งทีมปลายทาง ผู้รับผิดชอบ และเงื่อนไขส่งต่อเคส</p>
+          <h1>ตั้งค่าการส่งต่อเคส</h1>
+          <p>กำหนดว่าเคสของแต่ละผลิตภัณฑ์ส่งต่อไปทีมไหนในแต่ละ Tier และใครเป็นหัวหน้าทีม</p>
         </div>
       </div>
       {preview || session?.role !== "Admin" ? (
@@ -123,7 +124,7 @@ export function RoutingAdmin() {
           <h2>
             <ShieldCheck size={18} /> สำหรับผู้ดูแลระบบ
           </h2>
-          <p>ใช้บัญชี Admin เพื่อปรับการตั้งค่า Routing</p>
+          <p>เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหน้านี้ได้</p>
         </section>
       ) : (
         <>
@@ -148,8 +149,7 @@ export function RoutingAdmin() {
               >
                 <h2>ตั้งครั้งแรกหรือเมื่อทีมเปลี่ยน</h2>
                 <p>
-                  หน้านี้สำหรับ Admin กำหนดว่าใครรับงานระดับไหน
-                  ไม่ใช่หน้ารับเคสประจำวัน และไม่ต้องตั้งใหม่ทุกเคส
+                  ตั้งครั้งเดียวตอนเริ่มใช้งาน หรือเมื่อโครงสร้างทีมเปลี่ยน ไม่ต้องตั้งทุกเคส
                 </p>
                 <p>
                   <strong>บทบาท</strong> คือสิทธิ์ใช้งาน · <strong>ทีม</strong>{" "}
@@ -161,9 +161,8 @@ export function RoutingAdmin() {
                 </Link>
                 {!config.worker?.last_success_at && (
                   <p className="routing-error">
-                    ยังไม่พบการตรวจอัตโนมัติ
-                    ต้องให้ผู้ดูแลเปิดบริการตรวจเคสก่อนทดสอบ S1 และ New ค้าง
-                    การบันทึกนโยบายอย่างเดียวไม่ได้เริ่มบริการ
+                    บริการตรวจเคสอัตโนมัติยังไม่ทำงาน การแจ้งเตือน S1 ไม่ตอบสนอง
+                    และเคสใหม่ค้าง จะยังไม่เกิดจนกว่าจะเปิดบริการ routing-worker
                   </p>
                 )}
                 {!options.products.length && (
@@ -213,7 +212,7 @@ export function RoutingAdmin() {
                   <h2>
                     <UsersRound size={18} /> หัวหน้าทีม
                   </h2>
-                  <p>รับการแจ้งเตือนเคส NEW ค้างและเคส S1 ที่ไม่มีการตอบสนอง</p>
+                  <p>หัวหน้าทีมจะได้รับแจ้งเตือนเมื่อมีเคสใหม่ค้างเกิน 15 นาที หรือเคส S1 ยังไม่มีใครตอบสนอง</p>
                   <form
                     className="routing-form"
                     onSubmit={(e) => form(e, "leader")}
@@ -329,7 +328,7 @@ export function RoutingAdmin() {
                     <label>
                       ไม่มีการตอบสนองเกิน (นาที)
                       <Input
-                        aria-label="S1 timeout minutes"
+                        aria-label="ส่งต่ออัตโนมัติเมื่อเคส S1 ไม่มีการตอบสนองเกิน (นาที)"
                         type="number"
                         min={1}
                         max={1440}
@@ -347,7 +346,7 @@ export function RoutingAdmin() {
                       />
                     </label>
                     <label>
-                      ปฏิทินแจ้งเตือน NEW ค้าง
+                      ปฏิทินเวลาทำการสำหรับแจ้งเตือนเคสใหม่ค้าง
                       <select
                         value={config.policy.business_calendar_id || ""}
                         onChange={(e) =>
@@ -424,9 +423,10 @@ export function RoutingAdmin() {
                   ))}
                 </div>
                 <p className="routing-note">
-                  Worker ตรวจครั้งล่าสุด:{" "}
-                  {config.worker?.last_success_at ||
-                    "ยังไม่พบการทำงาน — ต้องเปิด routing-worker"}
+                  ระบบตรวจอัตโนมัติครั้งล่าสุด:{" "}
+                  {config.worker?.last_success_at
+                    ? `${formatDateTime(config.worker.last_success_at)} น. (ตรวจทุก 5 นาที)`
+                    : "ยังไม่เคยทำงาน — ต้องเปิดบริการ routing-worker"}
                 </p>
               </section>
             </>

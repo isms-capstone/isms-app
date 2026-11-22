@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -103,10 +104,10 @@ export default function Page() {
   }, [session, search, offset]);
 
   return (
-    <AppShell title="Audit Log">
+    <AppShell title="ประวัติการแก้ไขข้อมูล">
       <div className="page-heading">
         <div>
-          <h1>Audit Log</h1>
+          <h1>ประวัติการแก้ไขข้อมูล</h1>
         </div>
       </div>
       {session?.role === "Admin" ? (
@@ -157,7 +158,7 @@ export default function Page() {
             <Button type="submit">ค้นหา</Button>
           </form>
           {error && <p role="alert">{error}</p>}
-          {!data && !error && <p role="status">กำลังโหลด Audit Log</p>}
+          {!data && !error && <p role="status">กำลังโหลดประวัติ…</p>}
           {data?.rows.length === 0 && <p>ไม่พบรายการ</p>}
           {!!data?.rows.length && (
             <table className="customer-list">
@@ -172,7 +173,7 @@ export default function Page() {
               <tbody>
                 {data.rows.map((row) => (
                   <tr key={row.id}>
-                    <td>{new Date(row.created_at).toLocaleString("th-TH")}</td>
+                    <td>{formatDateTime(row.created_at)}</td>
                     <td>
                       <Link
                         className="text-link"

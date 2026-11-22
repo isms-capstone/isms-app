@@ -16,6 +16,7 @@ import {
 import type { CaseRow } from "@/lib/types";
 import { channelNames, severityNames, statusNames } from "@/lib/types";
 import { cx } from "@/components/ui/primitives";
+import { formatDateTime, formatDuration } from "@/lib/format";
 
 export function StatusBadge({
   status,
@@ -103,15 +104,6 @@ export function ChannelLabel({ channel }: { channel: string | null }) {
   );
 }
 
-function duration(totalSeconds: number) {
-  const minutes = Math.floor(Math.abs(totalSeconds) / 60),
-    hours = Math.floor(minutes / 60),
-    days = Math.floor(hours / 24);
-  if (days) return `${days} วัน ${hours % 24} ชม.`;
-  if (hours) return `${hours} ชม. ${minutes % 60} นาที`;
-  return `${minutes} นาที`;
-}
-
 /** Remaining SLA time. S2-S4 count business hours only, S1 counts 24x7. */
 export function SlaIndicator({ row }: { row: CaseRow }) {
   if (row.slaPaused)
@@ -142,15 +134,7 @@ export function SlaIndicator({ row }: { row: CaseRow }) {
       : state === "risk"
         ? Clock3
         : CheckCircle2;
-  const due = row.slaDueAt
-    ? new Date(row.slaDueAt + (row.slaDueAt.endsWith("Z") ? "" : "Z")).toLocaleString("th-TH", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Asia/Bangkok",
-      })
-    : undefined;
+  const due = row.slaDueAt ? formatDateTime(row.slaDueAt) : undefined;
   return (
     <span
       className={`sla-indicator sla-${state}`}
@@ -160,8 +144,8 @@ export function SlaIndicator({ row }: { row: CaseRow }) {
         <Icon size={15} />
         <strong>
           {state === "breached"
-            ? `เกิน ${duration(row.slaSeconds)}`
-            : `เหลือ ${duration(row.slaSeconds)}`}
+            ? `เกิน ${formatDuration(row.slaSeconds)}`
+            : `เหลือ ${formatDuration(row.slaSeconds)}`}
         </strong>
       </span>
       <small>

@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime, formatDuration } from "@/lib/format";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -145,11 +146,11 @@ export function CaseDetail({ id }: { id: number }) {
                 ["สถานะ", statusNames[ticket.status] || ticket.status],
                 [
                   "เวลาที่ลูกค้าแจ้ง",
-                  new Date(ticket.reported_at).toLocaleString("th-TH"),
+                  formatDateTime(ticket.reported_at),
                 ],
                 [
-                  "เวลาที่ระบบสร้าง",
-                  new Date(ticket.created_at).toLocaleString("th-TH"),
+                  "เวลาที่บันทึกในระบบ",
+                  formatDateTime(ticket.created_at),
                 ],
                 ["รายละเอียด", ticket.description || "ยังไม่มีรายละเอียด"],
               ].map(([label, text]) => (
@@ -160,14 +161,8 @@ export function CaseDetail({ id }: { id: number }) {
               ))}
               {ticket.resolved_at && (
                 <div>
-                  <dt>เวลาแก้ไขเสร็จล่าสุด (Resolved)</dt>
-                  <dd>
-                    {new Date(
-                      /(?:Z|[+-]\d{2}:\d{2})$/i.test(ticket.resolved_at)
-                        ? ticket.resolved_at
-                        : `${ticket.resolved_at}Z`,
-                    ).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
-                  </dd>
+                  <dt>แก้ไขเสร็จเมื่อ</dt>
+                  <dd>{formatDateTime(ticket.resolved_at)}</dd>
                 </div>
               )}
               <div>
@@ -177,7 +172,7 @@ export function CaseDetail({ id }: { id: number }) {
                 </dd>
               </div>
               <div>
-                <dt>Priority</dt>
+                <dt>ความรุนแรง</dt>
                 <dd>
                   <PriorityBadge value={ticket.severity} />
                 </dd>
@@ -187,38 +182,48 @@ export function CaseDetail({ id }: { id: number }) {
                 <dd>
                   {ticket.sla ? (
                     <>
-                      {ticket.sla.paused && <p>พักเวลารอลูกค้า</p>}
+                      {ticket.sla.paused && (
+                        <p className="sla-paused">หยุดนับเวลาระหว่างรอลูกค้า</p>
+                      )}
                       {(
                         [
-                          ["ตอบกลับครั้งแรก", ticket.sla.first_response],
-                          ["แก้ไขเคส", ticket.sla.resolution],
+                          ["ตอบสนองครั้งแรก", ticket.sla.first_response],
+                          ["แก้ไขให้เสร็จ", ticket.sla.resolution],
                         ] as const
                       ).map(([label, clock]) => (
-                        <p key={label}>
-                          {label}: {Math.floor(clock.elapsed_seconds / 60)} /{" "}
-                          {clock.target_seconds / 60} นาที
-                          {clock.breached ? " · เกิน SLA" : ""}
+                        <p
+                          key={label}
+                          className={clock.breached ? "sla-breached" : undefined}
+                        >
+                          {label}:{" "}
+                          {clock.finished && !clock.breached
+                            ? "ทำได้ตามเป้า"
+                            : clock.breached
+                              ? `เกินเป้า ${formatDuration(clock.elapsed_seconds - clock.target_seconds)}`
+                              : `เหลือ ${formatDuration(clock.remaining_seconds)}`}{" "}
+                          <small>(เป้าหมาย {formatDuration(clock.target_seconds)}
+                          {ticket.severity === "S1" ? " นับ 24 ชม." : " เวลาทำการ"})</small>
                         </p>
                       ))}
                     </>
                   ) : (
-                    "ยังไม่มีเป้าหมาย SLA"
+                    "ยังไม่มีเป้าหมาย SLA (ระบุความรุนแรงก่อน)"
                   )}
                   {ticket.sla_breach_reason && (
                     <p>เหตุผลที่เกิน SLA: {ticket.sla_breach_reason}</p>
                   )}
                   {ticket.status === "PENDING_CUSTOMER" &&
                     ticket.pending_customer_reason && (
-                      <p>รอข้อมูล: {ticket.pending_customer_reason}</p>
+                      <p>กำลังรอจากลูกค้า: {ticket.pending_customer_reason}</p>
                     )}
                 </dd>
               </div>
               {ticket.channel === "portal" && (
                 <div>
-                  <dt>บริบทจากผลิตภัณฑ์</dt>
-                  <dd className="break-all">{ticket.source_url}</dd>
-                  <dd>{ticket.browser_device}</dd>
-                  <dd>{ticket.exam_or_course_context}</dd>
+                  <dt>ข้อมูลจากหน้าจอที่ลูกค้ากดแจ้ง</dt>
+                  <dd className="break-all">หน้าที่แจ้ง: {ticket.source_url || "—"}</dd>
+                  <dd>เบราว์เซอร์/อุปกรณ์: {ticket.browser_device || "—"}</dd>
+                  <dd>รหัสการสอบ/รายวิชา: {ticket.exam_or_course_context || "—"}</dd>
                 </div>
               )}
             </dl>

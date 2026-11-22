@@ -150,12 +150,12 @@ export function CaptureScreen() {
   );
   async function save(draft: boolean) {
     if (preview) {
-      setMessage("หน้านี้เป็น Design Preview · ไม่มีการบันทึกข้อมูลตัวอย่าง");
+      setMessage("หน้านี้เป็นตัวอย่างดีไซน์ ไม่มีการบันทึกข้อมูล");
       return;
     }
     if (!session?.can_create_cases || saving || optionsLoading) return;
     if (!savedTicketId.current && !draft && similarBlocked) {
-      setError("กรุณายืนยันแนวทางจากเคสที่คล้ายกันก่อนสร้างเคส");
+      setError("มีเคสที่คล้ายกัน กรุณาเลือกว่าจะใช้วิธีแก้เดิม ผูกกับเคสเดิม หรือเปิดสอบสวนใหม่ ก่อนสร้างเคส");
       return;
     }
     setSaving(true);
@@ -237,11 +237,10 @@ export function CaptureScreen() {
         <div className="page-heading">
           <div>
             <h1>สร้างเคส</h1>
-            <p>บันทึกเรื่องก่อน แล้วค่อยเติมรายละเอียดภายหลัง</p>
-            <small>
-              <strong>สร้างเคสด้วยข้อมูลขั้นต่ำ 3 ช่อง</strong>{" "}
-              <span>รายละเอียดอื่นสามารถเติมภายหลังได้</span>
-            </small>
+            <p>
+              กรอกแค่ลูกค้า หัวข้อ และช่องทาง ก็สร้างเคสได้ทันที
+              รายละเอียดอื่นค่อยเติมทีหลัง
+            </p>
           </div>
           <Link className="button button-secondary" href={href("/my-work")}>
             ยกเลิก
@@ -252,10 +251,9 @@ export function CaptureScreen() {
             <section className="surface capture-card">
               <div className="capture-card-heading">
                 <h2>
-                  ข้อมูลเริ่มต้น{" "}
-                  <span className="required-chip">ต้องกรอก 3 ช่อง</span>
+                  ข้อมูลที่ต้องกรอก{" "}
+                  <span className="required-chip">3 ช่อง</span>
                 </h2>
-                <small>3 required fields</small>
               </div>
               {preview ? (
                 <div className="customer-picker">
@@ -266,7 +264,7 @@ export function CaptureScreen() {
                     <div className="search-field">
                       <SearchIcon />
                       <Input
-                        placeholder="ค้นหาลูกค้าหรือผู้แจ้ง..."
+                        placeholder="พิมพ์ชื่อองค์กร ผู้แจ้ง อีเมล หรือ LINE"
                         aria-label="ค้นหาลูกค้าหรือผู้แจ้ง"
                       />
                     </div>
@@ -304,7 +302,7 @@ export function CaptureScreen() {
                   aria-label="หัวข้อ *"
                   value={subject}
                   maxLength={255}
-                  placeholder="ระบุเรื่องที่ต้องการแจ้งให้เข้าใจง่าย"
+                  placeholder="สรุปปัญหาสั้น ๆ เช่น ดาวน์โหลดข้อสอบไม่ได้ทั้งห้องสอบ"
                   onChange={setSubject}
                 />
               </label>
@@ -326,10 +324,10 @@ export function CaptureScreen() {
                         <small>
                           {row.product} ·{" "}
                           {index === 0
-                            ? "Resolved"
+                            ? "แก้ไขแล้ว"
                             : index === 1
-                              ? "Closed"
-                              : "In Progress"}{" "}
+                              ? "ปิดแล้ว"
+                              : "กำลังดำเนินการ"}{" "}
                           · {row.assignee} · {row.customer.split(" · ")[0]}
                         </small>
                       </div>
@@ -343,14 +341,14 @@ export function CaptureScreen() {
                     </div>
                   ))}
                   <p>
-                    เคสที่คล้ายกันเป็นเพียงคำแนะนำ คุณยังสามารถสร้างเคสใหม่ได้
+                    เป็นเพียงคำแนะนำ ถ้าไม่ใช่เรื่องเดียวกันให้สร้างเคสใหม่ได้เลย
                   </p>
                 </section>
               ) : context && existing.length > 0 ? (
                 <section className="related-cases">
                   <div className="related-heading">
-                    <h3>เคสเปิดของลูกค้ารายนี้</h3>
-                    <span>{existing.length} รายการล่าสุด</span>
+                    <h3>ลูกค้ารายนี้มีเคสที่ยังเปิดอยู่</h3>
+                    <span>{existing.length} เคส · ถ้าเป็นเรื่องเดิมให้เพิ่มในเคสเดิมแทน</span>
                   </div>
                   {existing.map((row) => (
                     <div className="existing-case" key={row.id}>
@@ -362,7 +360,7 @@ export function CaptureScreen() {
                         className="button button-secondary button-sm"
                         href={href(`/cases/${row.id}`)}
                       >
-                        ดูเคสเดิม
+                        เพิ่มเข้าเคสเดิม
                       </Link>
                     </div>
                   ))}
@@ -379,13 +377,13 @@ export function CaptureScreen() {
                 />
               )}
               <label>
-                สร้างแทนเพื่อนร่วมทีม (ไม่บังคับ)
+                บันทึกแทนเพื่อนในทีม (ไม่บังคับ)
                 <SelectControl
                   value={createdFor}
                   onValueChange={setCreatedFor}
                   disabled={preview || members.length === 0}
                 >
-                  <option value="">ยังไม่ระบุ</option>
+                  <option value="">ไม่ใช่ — ฉันเป็นผู้รับเรื่องเอง</option>
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -432,7 +430,7 @@ export function CaptureScreen() {
                 <summary>
                   <FileText size={15} />
                   <strong>รายละเอียดเพิ่มเติม</strong>
-                  <span>(ไม่จำเป็นต้องกรอกตอนนี้)</span>
+                  <span>(เติมทีหลังได้)</span>
                   <ChevronDown size={15} />
                 </summary>
                 <div className="capture-optional-fields">
@@ -570,23 +568,23 @@ export function CaptureScreen() {
               <div className="case-preview-heading">
                 <h2>
                   <Ticket size={15} />
-                  ตัวอย่างเคส
+                  สรุปเคสก่อนบันทึก
                 </h2>
                 <span>
                   <Clock3 size={11} />
-                  DRAFT / ยังไม่สร้าง
+                  ยังไม่บันทึก
                 </span>
               </div>
               <dl>
-                <dt>เลขที่เคส</dt>
+                <dt>เลขเคส</dt>
                 <dd className="preview-case-number">
-                  {preview ? "DVHT-202609-00425" : "ระบบออกเลขหลังสร้างเคส"}
+                  {preview ? "DVHT-202609-00425" : "ออกให้เมื่อกดสร้างเคส"}
                   <Clipboard size={14} aria-hidden="true" />
                 </dd>
                 <dd className="preview-number-hint">
                   {preview
                     ? "เลขตัวอย่างสำหรับตรวจแบบ"
-                    : "ไม่จองเลขเคสก่อนบันทึกจริง"}
+                    : "เคสร่างยังไม่ได้เลขเคส"}
                 </dd>
                 <dt>ลูกค้า</dt>
                 <dd className="preview-customer">
@@ -611,14 +609,14 @@ export function CaptureScreen() {
               <div className="automatic-fields">
                 <strong>
                   <CheckCircle2 size={13} />
-                  ระบบจะบันทึกให้หลังสร้างเคส
+                  ระบบบันทึกให้อัตโนมัติ
                 </strong>
                 {[
-                  "เลขที่เคส (เมื่อส่งเป็น New)",
-                  "ผู้สร้าง / ผู้แจ้ง",
-                  "วันที่สร้าง",
-                  "สถานะเริ่มต้น",
-                  "วันที่แจ้ง",
+                  "เลขเคส",
+                  "ผู้บันทึก",
+                  "วันเวลาที่บันทึก",
+                  "สถานะ: ใหม่",
+                  "เวลาที่ลูกค้าแจ้ง (แก้ย้อนหลังได้ 7 วัน)",
                 ].map((text) => (
                   <span key={text}>
                     <Check size={12} />
@@ -629,8 +627,8 @@ export function CaptureScreen() {
               {preview && (
                 <div className="preview-priority">
                   <strong>ความรุนแรงที่ระบบเสนอ</strong>
-                  <span className="priority-pill priority-S2">S2 High</span>
-                  <p>ตัวอย่างหน้าตา · ยังไม่มีระบบเสนอความรุนแรงใน Backend</p>
+                  <span className="priority-pill priority-S2">S2 สูง</span>
+                  <p>ข้อมูลตัวอย่างสำหรับตรวจแบบ</p>
                 </div>
               )}
             </aside>
@@ -641,11 +639,11 @@ export function CaptureScreen() {
             {complete ? (
               <>
                 <CheckCircle2 size={14} />
-                ข้อมูลครบ 3 ช่องแล้ว
+                ข้อมูลครบแล้ว กดสร้างเคสได้
               </>
             ) : (
               <>
-                ต้องกรอก: <strong>ลูกค้า / ผู้แจ้ง, หัวข้อ, ช่องทาง</strong>
+                ยังขาด: <strong>{[!context && "ลูกค้า", !subject.trim() && "หัวข้อ", !channel && "ช่องทาง"].filter(Boolean).join(", ")}</strong>
               </>
             )}
           </span>
@@ -669,7 +667,7 @@ export function CaptureScreen() {
               }
             >
               <Plus size={15} />
-              {saving ? "กำลังบันทึก..." : "สร้างเคส"}
+              {saving ? "กำลังบันทึก…" : "สร้างเคส"}
             </Button>
           </div>
         </footer>

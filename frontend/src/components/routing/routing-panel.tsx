@@ -102,27 +102,27 @@ export function RoutingPanel({
   return (
     <section
       className="surface routing-panel"
-      aria-label="การส่งต่อและ Routing"
+      aria-label="การส่งต่อเคส"
     >
       <div className="routing-heading">
         <div>
           <h2>
-            <GitBranch size={18} /> การส่งต่อและ Routing
+            <GitBranch size={18} /> การส่งต่อเคส
           </h2>
           <p>
-            Tier {state.tier} · ผู้ดูแลการสื่อสารกับลูกค้ายังคงเป็น Owner เดิม
+            ส่งต่อแล้วผู้ดำเนินการเปลี่ยน แต่เจ้าของเคสยังเป็นผู้ติดต่อลูกค้าเหมือนเดิม
           </p>
         </div>
         <span className="routing-tier">Tier {state.tier}</span>
       </div>
       <dl className="routing-ownership">
         <div>
-          <dt>Owner · ดูแลลูกค้า</dt>
+          <dt>เจ้าของเคส (ติดต่อลูกค้า)</dt>
           <dd>{state.owner?.name || "ยังไม่ระบุ"}</dd>
         </div>
         <div>
-          <dt>Assignee · ผู้ดำเนินการ</dt>
-          <dd>{state.assignee?.name || "ยังไม่มีผู้รับผิดชอบ"}</dd>
+          <dt>ผู้ดำเนินการตอนนี้</dt>
+          <dd>{state.assignee?.name || "ยังไม่มีผู้รับ"}</dd>
         </div>
         <div>
           <dt>การตอบสนองครั้งแรก</dt>
@@ -311,9 +311,9 @@ export function RoutingPanel({
         ))}
       </div>
       <p className="routing-note">
-        เวลาสะสมจริงในแต่ละ Tier รวมช่วงรอ ไม่ใช่ SLA ตามเวลาทำการ
+        เวลาที่เคสอยู่ในแต่ละ Tier (นับต่อเนื่องรวมช่วงรอ จึงไม่เท่ากับเวลา SLA)
         {state.intervals.some((i) => i.is_estimated)
-          ? " · ข้อมูลก่อนเปิดใช้ Routing เป็นค่าประมาณจากวันที่สร้างเคส"
+          ? " · ช่วงก่อนเริ่มใช้ระบบส่งต่อเป็นค่าประมาณจากวันที่สร้างเคส"
           : ""}
       </p>
       <h3>ประวัติการส่งงาน</h3>

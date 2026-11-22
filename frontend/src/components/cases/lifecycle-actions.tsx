@@ -2,7 +2,26 @@
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { statusNames, type Ticket } from "@/lib/types";
+import { statusNames, type QueuePage, type Ticket } from "@/lib/types";
+
+const ACTION_LABELS: Record<string, string> = {
+  NEW: "ส่งเป็นเคสใหม่",
+  IN_PROGRESS: "เริ่มดำเนินการ",
+  PENDING_CUSTOMER: "รอข้อมูลจากลูกค้า",
+  PENDING_EXTERNAL: "ส่งให้ทีมพัฒนา/ภายนอก",
+  RESOLVED: "บันทึกว่าแก้ไขเสร็จ",
+  CLOSED: "ปิดเคส",
+  REOPENED: "เปิดเคสใหม่",
+  DUPLICATE: "รวมเป็นเคสซ้ำ",
+  CANCELLED: "ยกเลิกเคส (สร้างผิด)",
+};
+const REASON_LABELS: Record<string, string> = {
+  cancel_reason: "เหตุผลที่ยกเลิก",
+  reopen_reason: "ลูกค้าแจ้งว่ายังพบปัญหาอะไร",
+  pending_external_reason: "กำลังรออะไรจากทีมพัฒนา/ภายนอก",
+  pending_customer_reason: "กำลังรออะไรจากลูกค้า",
+  sla_breach_reason: "เคสนี้เกิน SLA — เหตุผลที่เกิน (ใช้วิเคราะห์เชิงระบบ ไม่ใช่การลงโทษ)",
+};
 import { Button, Input } from "@/components/ui/primitives";
 import { useSession } from "@/components/providers/session-provider";
 import { CustomerSystemEditor } from "./customer-system-editor";
@@ -104,9 +123,19 @@ export function LifecycleActions({
     setMessage("");
     const body: Record<string, string | number> = { status: target };
     Object.entries(values).forEach(([key, value]) => {
-      if (value) body[key] = key.endsWith("_id") ? Number(value) : value;
+      if (value && key !== "master_ticket_no")
+        body[key] = key.endsWith("_id") ? Number(value) : value;
     });
     try {
+      if (target === "DUPLICATE") {
+        const number = (values.master_ticket_no || "").trim().toUpperCase();
+        const found = await api<QueuePage>(
+          `/case-queue?scope=all&limit=5&q=${encodeURIComponent(number)}`,
+        );
+        const master = found.items.find((row) => row.ticket_no === number);
+        if (!master) throw new Error(`ไม่พบเคสเลข ${number} กรุณาตรวจเลขเคสหลักอีกครั้ง`);
+        body.master_ticket_id = master.id;
+      }
       const updated = await api<Ticket>(`/tickets/${ticket.id}/status`, {
           method: "PATCH",
           body: JSON.stringify(body),
@@ -160,9 +189,7 @@ export function LifecycleActions({
               setMessage("");
             }}
           >
-            {action === "CANCELLED"
-              ? "ยกเลิกเคส (สร้างผิด)"
-              : action === "RESOLVED" ? "บันทึกว่าแก้ไขเสร็จ" : action === "CLOSED" ? "ปิดเคส" : action === "IN_PROGRESS" ? "เริ่มดำเนินการ" : statusNames[action] || action}
+            {ACTION_LABELS[action] || statusNames[action] || action}
           </Button>
         ))}
       </div>
@@ -202,9 +229,7 @@ export function LifecycleActions({
       {target && !editingSystems && (
         <form onSubmit={submit} className="lifecycle-form">
           <strong>
-            {target === "CANCELLED"
-              ? "ยกเลิกเคส (สร้างผิด)"
-              : target === "RESOLVED" ? "บันทึกว่าแก้ไขเสร็จ" : target === "CLOSED" ? "ปิดเคส" : statusNames[target] || target}
+            {ACTION_LABELS[target] || statusNames[target] || target}
           </strong>
           {target === "IN_PROGRESS" &&
             !ticket.assignee_id &&
@@ -258,11 +283,7 @@ export function LifecycleActions({
           )}
           {reason && (
             <label>
-              {reason === "pending_customer_reason"
-                ? "ข้อมูลที่รอจากลูกค้า"
-                : reason === "sla_breach_reason"
-                  ? "เหตุผลที่เกิน SLA"
-                  : "เหตุผล"}
+              {REASON_LABELS[reason]}
               <Input
                 required
                 maxLength={
@@ -279,14 +300,13 @@ export function LifecycleActions({
           )}
           {target === "DUPLICATE" && (
             <label>
-              เลข ID เคสหลัก
+              เลขเคสหลักที่จะรวมเข้าไป
               <Input
                 required
-                type="number"
-                min={1}
-                value={values.master_ticket_id || ""}
+                placeholder="เช่น DVHT-202611-00001"
+                value={values.master_ticket_no || ""}
                 onChange={(value) =>
-                  setValues({ ...values, master_ticket_id: value })
+                  setValues({ ...values, master_ticket_no: value })
                 }
               />
             </label>

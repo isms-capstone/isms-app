@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -128,7 +129,7 @@ export function CustomerHistory({ id }: { id: number }) {
                       {row.ticket_no} · {row.subject}
                     </Link>
                   </td>
-                  <td>{new Date(row.created_at).toLocaleString("th-TH")}</td>
+                  <td>{formatDateTime(row.created_at)}</td>
                   <td>{statusNames[row.status] ?? row.status}</td>
                 </tr>
               ))}

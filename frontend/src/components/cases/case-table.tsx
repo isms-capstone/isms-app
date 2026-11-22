@@ -1,4 +1,5 @@
 "use client";
+import { formatShortDate } from "@/lib/format";
 import { SelectControl } from "@/components/ui/company-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -146,11 +147,7 @@ export function CaseTable({
                         {row.ticket_no || `ร่าง #${row.id}`}
                       </Link>
                       <small>
-                        {new Date(row.created_at).toLocaleDateString("th-TH", {
-                          day: "numeric",
-                          month: "short",
-                          timeZone: "Asia/Bangkok",
-                        })}
+                        {formatShortDate(row.created_at)}
                       </small>
                     </TableCell>
                     <TableCell className="subject-only">
