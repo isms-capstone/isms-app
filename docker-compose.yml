@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # The routing worker runs this same image, so one build updates both.
+    image: isms-backend:${ISMS_IMAGE_TAG:-local}
     restart: always
     environment:
       APP_ENV: ${APP_ENV:-local}
@@ -21,6 +23,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
     volumes:
       - ticket_attachments:/app/uploads/ticket-attachments
     healthcheck:

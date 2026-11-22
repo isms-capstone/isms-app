@@ -9,6 +9,13 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in the production env file}
       MARIADB_DB: ${MARIADB_DB:?Set MARIADB_DB in the production env file}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in the production env file}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in the production env file}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in the production env file}
+
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?Set MINIO_ACCESS_KEY in the production env file}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?Set MINIO_SECRET_KEY in the production env file}
 
   db:
     container_name: isms-db-prod
