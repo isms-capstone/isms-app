@@ -1,6 +1,12 @@
 "use client";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -86,6 +92,7 @@ export function CaptureScreen() {
   const [createdFor, setCreatedFor] = useState("");
   const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const savedTicketId = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (preview) return;
@@ -147,41 +154,52 @@ export function CaptureScreen() {
       return;
     }
     if (!session?.can_create_cases || saving || optionsLoading) return;
-    if (!draft && similarBlocked) {
+    if (!savedTicketId.current && !draft && similarBlocked) {
       setError("กรุณายืนยันแนวทางจากเคสที่คล้ายกันก่อนสร้างเคส");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const ticket = await api<TicketType>("/tickets", {
-        method: "POST",
-        body: JSON.stringify({
-          save_as_draft: draft,
-          similarity_feedback_id: similarFeedbackId,
-          created_for_user_id: createdFor ? Number(createdFor) : null,
-          subject,
-          description,
-          channel: channel || null,
-          organization_id: context?.organization.id || null,
-          contact_id: context?.contact?.id || null,
-          product_instance_id: instance,
-          department_id: department ? Number(department) : null,
-          course_or_exam_id: course ? Number(course) : null,
-          ...categories,
-        }),
-      });
+      const ticketId =
+        savedTicketId.current ??
+        (
+          await api<TicketType>("/tickets", {
+            method: "POST",
+            body: JSON.stringify({
+              save_as_draft: draft,
+              similarity_feedback_id: similarFeedbackId,
+              created_for_user_id: createdFor ? Number(createdFor) : null,
+              subject,
+              description,
+              channel: channel || null,
+              organization_id: context?.organization.id || null,
+              contact_id: context?.contact?.id || null,
+              product_instance_id: instance,
+              department_id: department ? Number(department) : null,
+              course_or_exam_id: course ? Number(course) : null,
+              ...categories,
+            }),
+          })
+        ).id;
+      savedTicketId.current = ticketId;
       for (const file of files) {
         const body = new FormData();
         body.append("file", file);
-        await api(`/tickets/${ticket.id}/attachments`, {
+        await api(`/tickets/${ticketId}/attachments`, {
           method: "POST",
           body,
         });
+        setFiles((remaining) => remaining.filter((item) => item !== file));
       }
-      router.push(href(`/cases/${ticket.id}`));
+      router.push(href(`/cases/${ticketId}`));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ");
+      const detail = e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ";
+      setError(
+        savedTicketId.current
+          ? `บันทึกเคส #${savedTicketId.current} แล้ว แต่แนบไฟล์ไม่สำเร็จ · ${detail} · กดบันทึกอีกครั้งเพื่อแนบไฟล์ที่เหลือ`
+          : detail,
+      );
     } finally {
       setSaving(false);
     }
@@ -493,12 +511,13 @@ export function CaptureScreen() {
                 </summary>
                 <div className="capture-attachments">
                   <p id="capture-attachment-hint" className="field-hint">
-                    รองรับ JPG, PNG, WebP และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+                    รองรับภาพ, MP4, WebM, PDF และไฟล์ log แบบ ZIP/GZIP
+                    ขนาดไม่เกิน 25 MB ต่อไฟล์
                   </p>
                   <input
                     ref={fileInput}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.mp4,.webm,.zip,.gz"
                     multiple
                     hidden
                     disabled={preview || saving}

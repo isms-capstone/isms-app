@@ -47,7 +47,7 @@ class TicketAudit(Base):
     __table_args__ = (Index("ix_ticket_audit_created_at_id", "created_at", "id"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     ticket_id: Mapped[int] = mapped_column(ForeignKey('ticket.id'), index=True)
-    actor_id: Mapped[int] = mapped_column(ForeignKey('users.id'))
+    actor_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'))
     event: Mapped[str] = mapped_column(String(50))
     changes: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -121,10 +121,12 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
             changes = {**changes, 'related_ticket_id': row.ticket_id}
         description = {'similarity_decision': 'บันทึกการตัดสินใจจากเคสที่คล้ายกัน',
                        'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
-                       'request_confirm': 'ยืนยันและปิดคำขอ'}.get(row.event, 'บันทึกหมวดหมู่')
+                       'request_confirm': 'ยืนยันและปิดคำขอ',
+                       'ticket_fields_updated': 'เปลี่ยนข้อมูลสำคัญของเคส'}.get(row.event, 'บันทึกหมวดหมู่')
         events.append({'id': f'audit-{row.id}', 'kind': 'relationship_received' if incoming else row.event,
             'created_at': utc(row.created_at), 'actor_id': row.actor_id,
-            'actor': actors.get(row.actor_id), 'body': description, 'changes': changes})
+            'actor': actors.get(row.actor_id) if row.actor_id else 'ระบบ',
+            'body': description, 'changes': changes})
     for row in db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)):
         events.append({'id': f'attachment-{row.id}', 'kind': 'attachment', 'created_at': utc(row.created_at),
             'actor_id': row.uploaded_by_id, 'actor': actors.get(row.uploaded_by_id), 'body': row.original_name})

@@ -7,6 +7,7 @@ import {
   GitBranch,
   Inbox,
   List,
+  Search,
   ClipboardList,
   BookOpen,
   Users,
@@ -68,6 +69,18 @@ export function Sidebar({
           badge: counts?.mine,
         },
         { label: "All Cases", path: "/cases", icon: List },
+        ...(!preview &&
+        session &&
+        [
+          "Admin",
+          "Agent",
+          "Specialist",
+          "Developer",
+          "Team Lead",
+          "Executive",
+        ].includes(session.role)
+          ? [{ label: "ค้นหาเคส", path: "/cases/search", icon: Search }]
+          : []),
         ...(session?.can_create_cases
           ? [{ label: "การส่งมอบงาน", path: "/routing", icon: ArrowRightLeft }]
           : []),
@@ -97,8 +110,18 @@ export function Sidebar({
     },
     {
       title: "REPORTS",
-      items: [{ label: "Dashboard", icon: ChartNoAxesColumn, disabled: true },
-        ...(session?.role === "Admin" && !preview ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }] : [])],
+      items: [
+        { label: "Dashboard", icon: ChartNoAxesColumn, disabled: true },
+        ...(session?.role === "Admin" && !preview
+          ? [
+              {
+                label: "แท็กยอดนิยม",
+                path: "/reports/popular-tags",
+                icon: ChartNoAxesColumn,
+              },
+            ]
+          : []),
+      ],
     },
     {
       title: "ADMINISTRATION",

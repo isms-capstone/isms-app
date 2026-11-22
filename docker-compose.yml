@@ -14,6 +14,10 @@ services:
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
       POR_PRODUCTS: ${POR_PRODUCTS:-}
       ATTACHMENT_DIR: /app/uploads/ticket-attachments
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-isms-local}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-isms-local-storage-dev}
     depends_on:
       db:
         condition: service_healthy
@@ -25,6 +29,16 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a
+    restart: always
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-isms-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-isms-local-storage-dev}
+    volumes:
+      - attachment_objects:/data
 
   db:
     image: mariadb:11
@@ -46,3 +60,4 @@ services:
 volumes:
   mariadb_data:
   ticket_attachments:
+  attachment_objects:
