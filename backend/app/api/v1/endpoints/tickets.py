@@ -965,32 +965,17 @@ def attachment_access(ticket_id: int, attachment_id: int, db: Session = Depends(
 @router.post('/tickets/{ticket_id}/attachments', status_code=201)
 def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...),
                              db: Session = Depends(get_db), user: User = Depends(require_capture)):
-    from io import BytesIO
     from app.services import attachment_storage as objects
 
     _attachment_ticket(db, ticket_id, user)
     original_name = Path((file.filename or 'attachment').replace('\\', '/')).name[:255]
-    size, mime, thumbnail = objects.inspect_file(file.file, original_name)
-    key = f'{ticket_id}/{uuid4().hex}'
     written = []
     try:
-        objects.put_object(key, file.file, size, mime)
-        written.append(key)
-        if thumbnail:
-            objects.put_object(key + '.thumb.webp', BytesIO(thumbnail), len(thumbnail), 'image/webp')
-            written.append(key + '.thumb.webp')
-        row = TicketAttachment(ticket_id=ticket_id, original_name=original_name,
-                               stored_name='minio/' + key, content_type=mime,
-                               size_bytes=size, uploaded_by_id=user.id)
-        db.add(row)
+        row, written = objects.store_attachment(db, ticket_id, file.file, original_name, user.id)
         db.commit()
     except Exception as exc:
         db.rollback()
-        for object_key in written:
-            try:
-                objects.storage().remove_object(objects.BUCKET, object_key)
-            except Exception:
-                logging.exception('Could not remove incomplete attachment object')
+        objects.discard(written)
         if isinstance(exc, HTTPException):
             raise
         logging.exception('Attachment upload failed')

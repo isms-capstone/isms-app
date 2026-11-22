@@ -34,23 +34,27 @@ def schedule_for(db):
                     frozenset(row.holiday_date for row in calendar.holidays if row.is_active))
 
 
+def _active_rule(policy, severity):
+    if not policy or not policy.is_active:
+        return None
+    return next((rule for rule in policy.rules if rule.is_active and rule.severity == severity), None)
+
+
 def rule_for(db, ticket):
-    policy_id = None
+    """Policy precedence: snapshot taken when the case was captured, the product's
+    current policy, then the company default. A policy without a rule for the
+    case severity falls through to the next source instead of disabling SLA."""
+    candidates = [ticket.sla_policy_id]
     if ticket.product_instance_id:
-        policy_id = db.scalar(select(Product.sla_policy_id).join(ProductInstance)
-                              .where(ProductInstance.id == ticket.product_instance_id))
-    policy = db.get(SlaPolicy, policy_id) if policy_id else None
-    if policy and policy.is_active:
-        rule = next((rule for rule in policy.rules
-                     if rule.is_active and rule.severity == ticket.severity), None)
+        candidates.append(db.scalar(select(Product.sla_policy_id).join(ProductInstance)
+                                    .where(ProductInstance.id == ticket.product_instance_id)))
+    for policy_id in dict.fromkeys(candidate for candidate in candidates if candidate):
+        rule = _active_rule(db.get(SlaPolicy, policy_id), ticket.severity)
         if rule:
             return rule
     default = db.scalar(select(SlaPolicy).where(
         SlaPolicy.name == "Default SLA Policy", SlaPolicy.is_active.is_(True)))
-    if default:
-        return next((rule for rule in default.rules
-                     if rule.is_active and rule.severity == ticket.severity), None)
-    return None
+    return _active_rule(default, ticket.severity)
 
 
 def apply_exam_window(db, ticket, now):
@@ -119,8 +123,10 @@ def sync_clock(db, ticket, now):
     if not rows:
         return
     db.add_all(rows)
-    rule = rule_for(db, ticket)
-    ticket.sla_policy_id = rule.sla_policy_id if rule else None
+    if ticket.sla_policy_id is None:
+        # Fill a missing snapshot only; never erase the policy recorded at capture.
+        rule = rule_for(db, ticket)
+        ticket.sla_policy_id = rule.sla_policy_id if rule else None
     first = rows[0]
     first.started_at = min(ticket.reported_at, first.ended_at or now)
     last = rows[-1]

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -10,23 +11,23 @@ from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from uuid import uuid4
 
 from app.api.v1.endpoints import tickets
 from app.db.models.customer import ChannelIdentity, Contact, Organization
-from app.db.models.customer_context import ExamWindow
 from app.db.models.product import Product, ProductInstance, ProductModule
 from app.db.models.portal import PortalIdentity, PortalSubmission
 from app.services.external_communication import external_replies
 from app.db.models.ticket import Ticket
-from app.db.models.ticket_attachment import TicketAttachment
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.user import User
 from app.db.session import get_db
+from app.services import attachment_storage, sla_engine
+from app.services.categorization import suggest_severity
 
 router = APIRouter(prefix="/portal", tags=["Product SSO"])
 AUDIENCE = "isms-portal"
 IMAGES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
 
 
 class Grant(BaseModel):
@@ -97,15 +98,8 @@ def create_case(request: Request, token: str = Form(...), subject: str = Form(..
     actor = db.get(User, config["intake_user_id"])
     if not actor or not actor.is_active:
         raise HTTPException(503, "ช่องทางแจ้งปัญหายังไม่พร้อม")
-    image = None
-    if screenshot:
-        image = screenshot.file.read(tickets.MAX_ATTACHMENT_BYTES + 1)
-        kind = screenshot.content_type
-        valid = ((kind == "image/png" and image.startswith(b"\x89PNG\r\n\x1a\n"))
-                 or (kind == "image/jpeg" and image.startswith(b"\xff\xd8\xff"))
-                 or (kind == "image/webp" and image.startswith(b"RIFF") and image[8:12] == b"WEBP"))
-        if not valid or len(image) > tickets.MAX_ATTACHMENT_BYTES:
-            raise HTTPException(422, "รองรับภาพ PNG, JPEG หรือ WebP ขนาดไม่เกิน 10 MB")
+    if screenshot is not None and (screenshot.size or 0) > MAX_SCREENSHOT_BYTES:
+        raise HTTPException(422, "รองรับภาพ PNG, JPEG หรือ WebP ขนาดไม่เกิน 10 MB")
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     grant_key = hashlib.sha256(json.dumps([claims.iss, claims.sub, claims.organization_id,
                                            claims.instance_id, claims.jti]).encode()).hexdigest()
@@ -138,20 +132,17 @@ def create_case(request: Request, token: str = Form(...), subject: str = Form(..
         db.add(PortalIdentity(organization_id=claims.organization_id, identity_key=identity_key, contact_id=contact.id))
     instance = db.get(ProductInstance, claims.instance_id)
     product = db.get(Product, instance.product_id)
-    window = db.scalar(select(ExamWindow.id).where(
-        ExamWindow.organization_id == claims.organization_id, ExamWindow.is_active.is_(True),
-        ExamWindow.department_id.is_(None), ExamWindow.starts_at <= now, ExamWindow.ends_at > now,
-    ).limit(1))
     source = urlsplit(claims.source_url)
     ticket = Ticket(ticket_no=tickets.next_ticket_number(db, now), subject=subject, description=description,
                     status="NEW", channel="portal", organization_id=claims.organization_id,
                     contact_id=contact.id, product_instance_id=claims.instance_id, module_id=claims.module_id,
                     created_by_id=actor.id, current_tier=2, reported_at=now, created_at=now,
-                    sla_policy_id=product.sla_policy_id, is_exam_window=window is not None,
+                    sla_policy_id=product.sla_policy_id if product.sla_policy_id else None,
+                    impact_scope="single_user", severity=suggest_severity("single_user", False),
                     source_url=source._replace(query="", fragment="").geturl(),
                     browser_device=request.headers.get("user-agent", "")[:255],
                     exam_or_course_context=claims.exam_or_course_context)
-    path = None
+    written = []
     try:
         db.add(ticket)
         db.flush()
@@ -159,23 +150,24 @@ def create_case(request: Request, token: str = Form(...), subject: str = Form(..
                                       created_at=now, details={"event": "CASE_CREATED", "source": "product_sso"})
         db.add(history)
         db.flush()
+        # Same intake rules as staff capture: exam-window priority, SLA clock, tier interval.
+        sla_engine.apply_exam_window(db, ticket, now)
+        sla_engine.sync_clock(db, ticket, now)
         initialize_interval(db, ticket, now, history.id)
         db.add(PortalSubmission(grant_key=grant_key, ticket_id=ticket.id))
-        if image:
-            stored = uuid4().hex + IMAGES[kind]
-            tickets.ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-            path = tickets.ATTACHMENT_DIR / stored
-            path.write_bytes(image)
-            db.add(TicketAttachment(ticket_id=ticket.id, original_name="screenshot" + IMAGES[kind],
-                                    stored_name=stored, content_type=kind, size_bytes=len(image),
-                                    uploaded_by_id=actor.id))
+        if screenshot is not None and screenshot.filename:
+            suffix = PurePosixPath(screenshot.filename.lower()).suffix
+            suffix = suffix if suffix in {".png", ".jpg", ".jpeg", ".webp"} else IMAGES.get(screenshot.content_type, "")
+            _, written = attachment_storage.store_attachment(
+                db, ticket.id, screenshot.file, "screenshot" + suffix, actor.id, allowed_types=set(IMAGES))
         db.commit()
     except Exception as exc:
         db.rollback()
-        if path:
-            path.unlink(missing_ok=True)
+        attachment_storage.discard(written)
         if isinstance(exc, IntegrityError):
             raise HTTPException(409, "บันทึกไม่สำเร็จ กรุณาเปิดฟอร์มใหม่จากผลิตภัณฑ์") from None
+        if isinstance(exc, HTTPException) and exc.status_code in (413, 415, 422):
+            raise HTTPException(422, "รองรับภาพ PNG, JPEG หรือ WebP ขนาดไม่เกิน 10 MB") from None
         raise
     return {"ticket_no": ticket.ticket_no}
 

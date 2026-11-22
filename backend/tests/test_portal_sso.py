@@ -42,7 +42,14 @@ def test_product_grant_intake_and_reply_scope(capture, monkeypatch, tmp_path):
     assert client.post(base + "/sso-entry", data={"token": token}).status_code == 200
     payload = {"token": token, "subject": "Exam problem"}
     png = b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ZkAAAAASUVORK5CYII=")
-    monkeypatch.setattr("app.api.v1.endpoints.tickets.ATTACHMENT_DIR", tmp_path)
+    from app.services import attachment_storage
+    stored = {}
+
+    def put(key, stream, size, mime):
+        stored[key] = stream.read()
+        assert len(stored[key]) == size
+
+    monkeypatch.setattr(attachment_storage, "put_object", put)
     created = client.post(base + "/cases", data=payload,
                           files={"screenshot": ("capture.png", png, "image/png")})
     assert created.status_code == 201, created.text
@@ -55,7 +62,12 @@ def test_product_grant_intake_and_reply_scope(capture, monkeypatch, tmp_path):
         db.add(TicketWorklog(ticket_id=ticket.id, actor_id=actor, kind="internal_note",
                              is_internal=True, body="Staff only"))
         db.commit()
-    assert [file.read_bytes() for file in tmp_path.glob("*.png")] == [png]
+    assert list(stored.values())[0] == png  # original image; a thumbnail follows it
+    with factory() as db:
+        from app.db.models.sla import SlaClock
+        ticket = db.get(Ticket, ticket_id)
+        assert ticket.severity == "S3" and ticket.impact_scope == "single_user"
+        assert db.scalar(select(SlaClock.id).where(SlaClock.ticket_id == ticket_id)) is not None
     reply = client.post(f"/api/v1/tickets/{ticket_id}/worklogs", json={
         "kind": "public_reply", "channel": "portal", "body": "Visible",
     })
