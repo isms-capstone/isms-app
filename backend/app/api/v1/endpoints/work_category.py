@@ -104,8 +104,8 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
     for row in db.scalars(select(TicketWorklog).where(TicketWorklog.ticket_id == ticket_id)):
         events.append(worklog_json(row, actors.get(row.actor_id)) | {'id': f'worklog-{row.id}'})
     for row in db.scalars(select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == ticket_id)):
-        if (row.details or {}).get('event') == 'CASE_CREATED':
-            continue  # Already represented by the unified case_created event.
+        if (row.details or {}).get('event') == 'CASE_CREATED' or row.from_status == row.to_status:
+            continue  # Creation has its own event; same-status rows are routing records shown in the routing panel.
         events.append({'id': f'status-{row.id}', 'kind': 'status_changed', 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id),
             'body': f'{row.from_status} → {row.to_status}', 'details': row.details})

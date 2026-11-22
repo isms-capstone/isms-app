@@ -1,8 +1,8 @@
 "use client";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { statusNames, type QueuePage, type Ticket } from "@/lib/types";
+import { api, findCaseByNumber } from "@/lib/api";
+import { statusNames, type Ticket } from "@/lib/types";
 
 const ACTION_LABELS: Record<string, string> = {
   NEW: "ส่งเป็นเคสใหม่",
@@ -127,15 +127,8 @@ export function LifecycleActions({
         body[key] = key.endsWith("_id") ? Number(value) : value;
     });
     try {
-      if (target === "DUPLICATE") {
-        const number = (values.master_ticket_no || "").trim().toUpperCase();
-        const found = await api<QueuePage>(
-          `/case-queue?scope=all&limit=5&q=${encodeURIComponent(number)}`,
-        );
-        const master = found.items.find((row) => row.ticket_no === number);
-        if (!master) throw new Error(`ไม่พบเคสเลข ${number} กรุณาตรวจเลขเคสหลักอีกครั้ง`);
-        body.master_ticket_id = master.id;
-      }
+      if (target === "DUPLICATE")
+        body.master_ticket_id = await findCaseByNumber(values.master_ticket_no || "");
       const updated = await api<Ticket>(`/tickets/${ticket.id}/status`, {
           method: "PATCH",
           body: JSON.stringify(body),

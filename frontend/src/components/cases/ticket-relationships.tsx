@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, findCaseByNumber } from "@/lib/api";
 import { Button, Input } from "@/components/ui/primitives";
 
 const labels = {
@@ -55,15 +55,16 @@ export function TicketRelationships({
     setMessage("");
     try {
       const merging = kind === "duplicate";
+      const targetId = await findCaseByNumber(target);
       const result = await api<{ status?: string }>(
         `/tickets/${id}/${merging ? "merge-duplicate" : "links"}`,
         {
           method: "POST",
           body: JSON.stringify(
             merging
-              ? { master_ticket_id: Number(target), reason }
+              ? { master_ticket_id: targetId, reason }
               : {
-                  related_ticket_id: Number(target),
+                  related_ticket_id: targetId,
                   relationship_type: kind,
                   reason,
                 },
@@ -132,11 +133,10 @@ export function TicketRelationships({
               </select>
             </label>
             <label>
-              ID ของเคสปลายทาง
+              เลขเคสที่จะเชื่อม
               <Input
-                type="number"
                 required
-                min={1}
+                placeholder="เช่น DVHT-202611-00001"
                 value={target}
                 onChange={(value) => setTarget(value)}
               />

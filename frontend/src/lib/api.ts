@@ -142,3 +142,15 @@ export async function queueData(
     summary,
   };
 }
+
+/** Resolve a case number such as DVHT-202611-00001 to its internal id. */
+export async function findCaseByNumber(value: string): Promise<number> {
+  const number = value.trim().toUpperCase();
+  if (/^\d+$/.test(number)) return Number(number);
+  const found = await api<QueuePage>(
+    `/case-queue?scope=all&limit=5&q=${encodeURIComponent(number)}`,
+  );
+  const match = found.items.find((row) => row.ticket_no === number);
+  if (!match) throw new Error(`ไม่พบเคสเลข ${number} กรุณาตรวจเลขเคสอีกครั้ง`);
+  return match.id;
+}
