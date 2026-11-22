@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # Initial Admin password for an empty database. Local environments fall back
     # to a documented development password; other environments must set it.
     ISMS_ADMIN_PASSWORD: str | None = None
+    # Self-service portal (POR-07..09): public web address used in sign-in e-mails,
+    # session length and the account recorded as creator of customer-opened cases.
+    PORTAL_BASE_URL: str = "http://localhost:3100"
+    PORTAL_SESSION_HOURS: int = 8
+    PORTAL_INTAKE_USER_ID: int | None = None
 
     # Security
     SECRET_KEY: str = DEVELOPMENT_SECRET

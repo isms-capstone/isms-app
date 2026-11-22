@@ -59,4 +59,5 @@ from app.db.models.routing import TeamRouting, ProductTierRoute, RoutingPolicy, 
 from app.db.models.work_category import TicketWorklog, TicketAudit, TicketTag, CategoryUsage
 
 from app.db.models.ticket_link import TicketLink
-from app.db.models.portal import PortalIdentity, PortalSubmission
+from app.db.models.portal import (PortalAnnouncement, PortalEmail, PortalIdentity, PortalMagicLink,
+                                  PortalOutbox, PortalSubmission)

@@ -27,6 +27,8 @@ class Contact(Base):
     organization_id: Mapped[int] = mapped_column(ForeignKey("organization.id"), index=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # POR-08: "own" sees only this contact's cases; "organization" (coordinator) sees all of them.
+    portal_scope: Mapped[str] = mapped_column(String(16), default="own", server_default="own")
     organization: Mapped[Organization] = relationship(back_populates="contacts")
     channels: Mapped[list["ChannelIdentity"]] = relationship(back_populates="contact")
 
