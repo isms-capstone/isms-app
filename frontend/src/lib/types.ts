@@ -72,6 +72,9 @@ export type Ticket = {
     remaining_seconds: number | null;
     remaining_ratio: number | null;
   } | null;
+  source_url?: string | null;
+  browser_device?: string | null;
+  exam_or_course_context?: string | null;
   is_exam_window: boolean;
 };
 export type CaseRow = Ticket & {

@@ -34,6 +34,12 @@ def main():
                 logger.info("SLA notifications: %s", run_sla_checks(db))
         except Exception:
             logger.exception("SLA checks failed")
+        try:
+            from app.services.portal_mail import deliver_replies
+            with SessionLocal() as db:
+                deliver_replies(db)
+        except Exception:
+            logger.exception("Portal email delivery failed")
         stop.wait(300)
 
 

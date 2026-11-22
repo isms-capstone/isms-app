@@ -205,6 +205,14 @@ export function CaseDetail({ id }: { id: number }) {
                     )}
                 </dd>
               </div>
+              {ticket.channel === "portal" && (
+                <div>
+                  <dt>บริบทจากผลิตภัณฑ์</dt>
+                  <dd className="break-all">{ticket.source_url}</dd>
+                  <dd>{ticket.browser_device}</dd>
+                  <dd>{ticket.exam_or_course_context}</dd>
+                </div>
+              )}
             </dl>
 
             {editable &&

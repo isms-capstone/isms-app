@@ -149,6 +149,9 @@ class TicketOut(BaseModel):
     sla_breached: bool = False
     sla_breach_reason: str | None = None
     pending_customer_reason: str | None = None
+    source_url: str | None = None
+    browser_device: str | None = None
+    exam_or_course_context: str | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     ticket_no: str | None

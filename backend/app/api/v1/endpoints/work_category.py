@@ -61,12 +61,14 @@ def worklog_json(row, actor):
 
 @router.post('/tickets/{ticket_id}/worklogs', status_code=201)
 def create_worklog(ticket_id: int, body: WorklogCreate, db: Session = Depends(get_db), user=Depends(staff)):
-    locked_ticket(db, ticket_id, user)
+    ticket = locked_ticket(db, ticket_id, user)
     row = TicketWorklog(ticket_id=ticket_id, actor_id=user.id, **body.model_dump())
     db.add(row)
     db.flush()
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='worklog_created',
         changes={'worklog_id': row.id, 'kind': row.kind, 'channel': row.channel}, created_at=row.created_at))
+    from app.services.portal_mail import queue_reply
+    queue_reply(db, ticket, row)
     db.commit()
     actor = db.get(User, user.id)
     return worklog_json(row, actor.full_name or actor.username)

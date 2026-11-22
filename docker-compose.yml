@@ -12,6 +12,7 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
       MARIADB_DB: ${MARIADB_DB:-isms_db}
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
+      POR_PRODUCTS: ${POR_PRODUCTS:-}
       ATTACHMENT_DIR: /app/uploads/ticket-attachments
     depends_on:
       db:
