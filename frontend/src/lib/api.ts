@@ -124,8 +124,8 @@ export async function queueData(
           : ticket.assignee_id
             ? "•"
             : "–",
-      slaSeconds: null,
-      slaRatio: null,
+      slaSeconds: ticket.sla?.remaining_seconds ?? null,
+      slaRatio: ticket.sla?.remaining_ratio ?? null,
     };
   };
   return {

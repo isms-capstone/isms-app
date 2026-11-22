@@ -127,7 +127,28 @@ class TicketResolve(BaseModel):
         return value
 
 
+class SlaMetric(BaseModel):
+    target_seconds: int
+    elapsed_seconds: int
+    remaining_seconds: int
+    finished: bool
+    breached: bool
+
+
+class SlaMeasurement(BaseModel):
+    first_response: SlaMetric
+    resolution: SlaMetric
+    paused: bool
+    remaining_seconds: int | None
+    remaining_ratio: float | None
+    breached: bool
+
+
 class TicketOut(BaseModel):
+    sla: SlaMeasurement | None = None
+    sla_breached: bool = False
+    sla_breach_reason: str | None = None
+    pending_customer_reason: str | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     ticket_no: str | None

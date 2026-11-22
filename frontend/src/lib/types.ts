@@ -61,6 +61,17 @@ export type Ticket = {
   resolution_code_id?: number | null;
   resolution_detail?: string | null;
   sla_policy_id: number | null;
+  sla_breached?: boolean;
+  sla_breach_reason?: string | null;
+  pending_customer_reason?: string | null;
+  sla?: {
+    first_response: SlaMetric;
+    resolution: SlaMetric;
+    paused: boolean;
+    breached: boolean;
+    remaining_seconds: number | null;
+    remaining_ratio: number | null;
+  } | null;
   is_exam_window: boolean;
 };
 export type CaseRow = Ticket & {
@@ -115,3 +126,11 @@ export const openStatuses = [
   "PENDING_CUSTOMER",
   "REOPENED",
 ];
+
+export type SlaMetric = {
+  target_seconds: number;
+  elapsed_seconds: number;
+  remaining_seconds: number;
+  finished: boolean;
+  breached: boolean;
+};

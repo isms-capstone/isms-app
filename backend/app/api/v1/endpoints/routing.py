@@ -357,6 +357,9 @@ def respond(
         raise HTTPException(409, "Response was already recorded")
     service.claim_version(db, ticket, body.expected_version)
     ticket.first_response_at = service.utcnow()
+    from app.services.sla_engine import sync_clock, update_breach
+    sync_clock(db, ticket, ticket.first_response_at)
+    update_breach(db, ticket, ticket.first_response_at)
     service.record(
         db,
         ticket,

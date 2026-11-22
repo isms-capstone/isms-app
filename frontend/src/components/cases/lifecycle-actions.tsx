@@ -47,7 +47,9 @@ export function LifecycleActions({
       (instance) => instance.id === ticket.product_instance_id,
     );
   const missingInstance = needsInstance && options.instances.length === 0;
-  const canManageSystems = Boolean(ticket.organization_id && session?.can_edit_customers);
+  const canManageSystems = Boolean(
+    ticket.organization_id && session?.can_edit_customers,
+  );
   function choice(field: string, label: string, rows: Choice[]) {
     return (
       <label key={field}>
@@ -101,7 +103,11 @@ export function LifecycleActions({
         ? "reopen_reason"
         : target === "PENDING_EXTERNAL"
           ? "pending_external_reason"
-          : null;
+          : target === "PENDING_CUSTOMER"
+            ? "pending_customer_reason"
+            : target === "CLOSED" && ticket.sla_breached
+              ? "sla_breach_reason"
+              : null;
   return (
     <section className="lifecycle-panel">
       <h3>การดำเนินการกับเคส</h3>
@@ -112,13 +118,23 @@ export function LifecycleActions({
             disabled={busy || editingSystems}
             onClick={() => {
               setTarget(action);
-              setValues(action === "RESOLVED" ? {
-                root_cause_code_id: options.causes.some((cause) => cause.id === ticket.root_cause_code_id)
-                  ? String(ticket.root_cause_code_id) : "",
-                resolution_code_id: options.solutions.some((solution) => solution.id === ticket.resolution_code_id)
-                  ? String(ticket.resolution_code_id) : "",
-                resolution_detail: ticket.resolution_detail ?? "",
-              } : {});
+              setValues(
+                action === "RESOLVED"
+                  ? {
+                      root_cause_code_id: options.causes.some(
+                        (cause) => cause.id === ticket.root_cause_code_id,
+                      )
+                        ? String(ticket.root_cause_code_id)
+                        : "",
+                      resolution_code_id: options.solutions.some(
+                        (solution) => solution.id === ticket.resolution_code_id,
+                      )
+                        ? String(ticket.resolution_code_id)
+                        : "",
+                      resolution_detail: ticket.resolution_detail ?? "",
+                    }
+                  : {},
+              );
               setError("");
               setMessage("");
             }}
@@ -135,14 +151,22 @@ export function LifecycleActions({
           organizationId={ticket.organization_id}
           onCancel={() => setEditingSystems(false)}
           onSaved={(system) => {
-            setOptions((current) => current && ({
+            setOptions(
+              (current) =>
+                current && {
+                  ...current,
+                  instances: [
+                    ...current.instances.filter(
+                      (item) => item.id !== system.id,
+                    ),
+                    { id: system.id, name: system.name },
+                  ],
+                },
+            );
+            setValues((current) => ({
               ...current,
-              instances: [
-                ...current.instances.filter((item) => item.id !== system.id),
-                { id: system.id, name: system.name },
-              ],
+              product_instance_id: String(system.id),
             }));
-            setValues((current) => ({ ...current, product_instance_id: String(system.id) }));
             setMessage(`เลือกใช้ระบบ ${system.name} แล้ว`);
             setEditingSystems(false);
           }}
@@ -179,7 +203,10 @@ export function LifecycleActions({
               ) : null}
               {needsInstance && canManageSystems && (
                 <div>
-                  <Button onClick={() => setEditingSystems(true)} disabled={busy}>
+                  <Button
+                    onClick={() => setEditingSystems(true)}
+                    disabled={busy}
+                  >
                     เพิ่มหรือเปิดใช้งานระบบของลูกค้า
                   </Button>
                 </div>
@@ -201,10 +228,19 @@ export function LifecycleActions({
           )}
           {reason && (
             <label>
-              เหตุผล
+              {reason === "pending_customer_reason"
+                ? "ข้อมูลที่รอจากลูกค้า"
+                : reason === "sla_breach_reason"
+                  ? "เหตุผลที่เกิน SLA"
+                  : "เหตุผล"}
               <Input
                 required
-                maxLength={20000}
+                maxLength={
+                  reason === "pending_customer_reason" ||
+                  reason === "sla_breach_reason"
+                    ? 2000
+                    : 20000
+                }
                 aria-label="เหตุผลเปลี่ยนสถานะ"
                 value={values[reason] || ""}
                 onChange={(value) => setValues({ ...values, [reason]: value })}

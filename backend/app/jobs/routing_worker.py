@@ -11,6 +11,7 @@ from app.db.migration_state import require_current_schema
 from app.db.models import customer, customer_context  # noqa: F401
 from app.db.session import SessionLocal, engine
 from app.services.routing_jobs import run_routing_checks
+from app.services.sla_engine import run_sla_checks
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,11 @@ def main():
                 logger.info("Routing checks: %s", run_routing_checks(db))
         except Exception:
             logger.exception("Routing checks failed; transaction rolled back")
+        try:
+            with SessionLocal() as db:
+                logger.info("SLA notifications: %s", run_sla_checks(db))
+        except Exception:
+            logger.exception("SLA checks failed")
         stop.wait(300)
 
 

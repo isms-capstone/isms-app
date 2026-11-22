@@ -176,7 +176,34 @@ export function CaseDetail({ id }: { id: number }) {
               </div>
               <div>
                 <dt>SLA</dt>
-                <dd className="text-muted">ยังไม่มีการคำนวณจาก Backend</dd>
+                <dd>
+                  {ticket.sla ? (
+                    <>
+                      {ticket.sla.paused && <p>พักเวลารอลูกค้า</p>}
+                      {(
+                        [
+                          ["ตอบกลับครั้งแรก", ticket.sla.first_response],
+                          ["แก้ไขเคส", ticket.sla.resolution],
+                        ] as const
+                      ).map(([label, clock]) => (
+                        <p key={label}>
+                          {label}: {Math.floor(clock.elapsed_seconds / 60)} /{" "}
+                          {clock.target_seconds / 60} นาที
+                          {clock.breached ? " · เกิน SLA" : ""}
+                        </p>
+                      ))}
+                    </>
+                  ) : (
+                    "ยังไม่มีเป้าหมาย SLA"
+                  )}
+                  {ticket.sla_breach_reason && (
+                    <p>เหตุผลที่เกิน SLA: {ticket.sla_breach_reason}</p>
+                  )}
+                  {ticket.status === "PENDING_CUSTOMER" &&
+                    ticket.pending_customer_reason && (
+                      <p>รอข้อมูล: {ticket.pending_customer_reason}</p>
+                    )}
+                </dd>
               </div>
             </dl>
 
@@ -298,7 +325,10 @@ export function CaseDetail({ id }: { id: number }) {
             )}
           </section>
           {!preview && session?.can_create_cases && (
-            <details key={`case-edit-${ticket.id}`} className="surface detail-card">
+            <details
+              key={`case-edit-${ticket.id}`}
+              className="surface detail-card"
+            >
               <summary>แก้ไขข้อมูลเคส</summary>
               {ticket.status === "NEW" &&
                 (session.role === "Admin" ||
