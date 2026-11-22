@@ -20,13 +20,13 @@ def login_for_access_token(
     if not user or not security.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user account"
+            detail="บัญชีนี้ถูกระงับการใช้งาน"
         )
 
     access_token = security.create_access_token(subject=user.username)
@@ -45,7 +45,7 @@ def refresh_token(
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired refresh token",
+        detail="เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:

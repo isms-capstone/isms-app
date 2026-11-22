@@ -18,26 +18,26 @@ def feedback_for_user(db, feedback_id, user):
         .with_for_update()
     )
     if feedback is None:
-        raise HTTPException(404, "Similarity feedback not found")
+        raise HTTPException(404, "ไม่พบผลการค้นหาเคสที่คล้ายกัน กรุณาค้นหาใหม่")
     if feedback.created_by_id != user.id:
-        raise HTTPException(403, "You cannot use another user’s feedback")
+        raise HTTPException(403, "ใช้ผลค้นหาของผู้ใช้อื่นไม่ได้")
     return feedback
 
 
 def validate_choice(db, feedback, decision, chosen_id, ticket_id=None):
     if feedback.ticket_id is not None and feedback.ticket_id != ticket_id:
-        raise HTTPException(409, "Feedback already belongs to another case")
+        raise HTTPException(409, "การตัดสินใจนี้ผูกกับเคสอื่นแล้ว")
     if decision not in {"reuse", "link", "new"}:
         raise HTTPException(
             409, "Confirm a similarity decision before creating the case"
         )
     if decision == "new":
         if chosen_id is not None:
-            raise HTTPException(422, "New investigation must not include a chosen case")
+            raise HTTPException(422, "ถ้าเลือก \"เปิดสอบสวนใหม่\" ไม่ต้องเลือกเคสเดิม")
         return
     ids = {item["ticket_id"] for item in feedback.suggested or []}
     if chosen_id not in ids or chosen_id == ticket_id:
-        raise HTTPException(422, "Select a different suggested case")
+        raise HTTPException(422, "กรุณาเลือกเคสอื่น")
     selected = db.get(Ticket, chosen_id)
     if selected is None or selected.status in {"DRAFT", "DUPLICATE", "CANCELLED"}:
         raise HTTPException(
@@ -99,5 +99,5 @@ def require_publish_decision(db, ticket):
     if items and any(item["score"] >= DECISION_THRESHOLD for item in items):
         raise HTTPException(
             409,
-            "Search similar cases and confirm a decision before publishing the draft",
+            "กรุณาตรวจเคสที่คล้ายกันและเลือกวิธีดำเนินการก่อนส่งเคสร่าง",
         )

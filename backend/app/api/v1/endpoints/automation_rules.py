@@ -16,14 +16,14 @@ router = APIRouter(prefix="/admin/automation-rules", tags=["Automation Rules"])
 def _get_or_404(db: Session, rule_id: int) -> AutomationRule:
     rule = db.get(AutomationRule, rule_id)
     if rule is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Automation rule not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบกฎอัตโนมัตินี้")
     return rule
 
 
 def _get_team_or_404(db: Session, team_id: int) -> Team:
     team = db.get(Team, team_id)
     if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Action team not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ไม่พบทีมที่กำหนดในกฎ")
     return team
 
 

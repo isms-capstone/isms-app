@@ -30,7 +30,7 @@ def commit(db, record):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, "Conflicting registry entry or invalid reference") from None
+        raise HTTPException(409, "ข้อมูลซ้ำกับที่มีอยู่ หรืออ้างอิงข้อมูลที่ไม่มีแล้ว") from None
     db.refresh(record)
     return record
 
@@ -38,7 +38,7 @@ def commit(db, record):
 def scoped_record(db, model, organization_id, record_id):
     record = get_record(db, model, record_id)
     if record.organization_id != organization_id:
-        raise HTTPException(404, "Record not found in this organization")
+        raise HTTPException(404, "ไม่พบข้อมูลในองค์กรนี้")
     return record
 
 
@@ -47,7 +47,7 @@ def named_values(body):
     values["name"] = unicodedata.normalize("NFC", " ".join(body.name.split()))
     values["name_key"] = normalized_name(body.name)
     if len(values["name_key"]) > 255:
-        raise HTTPException(422, "Normalized name exceeds 255 characters")
+        raise HTTPException(422, "ชื่อยาวเกิน 255 ตัวอักษร")
     return values
 
 
@@ -103,7 +103,7 @@ def create_course(organization_id: int, body: CourseInput, response: Response, d
     existing = db.scalar(query)
     if existing:
         if existing.is_active != body.is_active:
-            raise HTTPException(409, "Entry exists with a different active state; update it explicitly")
+            raise HTTPException(409, "มีรายการนี้อยู่แล้วแต่สถานะเปิด/ปิดต่างกัน กรุณาแก้ไขรายการเดิม")
         response.status_code = 200
         return existing
     record = CourseOrExam(organization_id=organization_id, **values)
@@ -117,7 +117,7 @@ def create_course(organization_id: int, body: CourseInput, response: Response, d
         if existing and existing.is_active == body.is_active:
             response.status_code = 200
             return existing
-        raise HTTPException(409, "Conflicting course/exam registry entry") from None
+        raise HTTPException(409, "มีรายวิชา/การสอบชื่อนี้อยู่แล้ว") from None
     db.refresh(record)
     return record
 
@@ -143,7 +143,7 @@ def update_contract(organization_id: int, body: ContractPatch, db: Session = Dep
     start = values.get("contract_start_date", record.contract_start_date)
     end = values.get("contract_end_date", record.contract_end_date)
     if start is not None and end is not None and end < start:
-        raise HTTPException(422, "Contract end must be on or after start")
+        raise HTTPException(422, "วันสิ้นสุดสัญญาต้องไม่ก่อนวันเริ่ม")
     for key, value in values.items():
         setattr(record, key, value)
     return commit(db, record)
@@ -172,7 +172,7 @@ def exam_windows(organization_id: int, active_at: datetime | None = None,
         query = query.where(ExamWindow.is_active == is_active)
     if active_at is not None:
         if active_at.tzinfo is None or active_at.utcoffset() is None:
-            raise HTTPException(422, "active_at must include timezone offset")
+            raise HTTPException(422, "เวลาที่ส่งมาต้องระบุเขตเวลา")
         moment = active_at.astimezone(timezone.utc).replace(tzinfo=None)
         query = query.where(ExamWindow.is_active.is_(True), ExamWindow.starts_at <= moment, ExamWindow.ends_at > moment)
     return db.scalars(query.order_by(ExamWindow.starts_at, ExamWindow.id).offset(offset).limit(limit)).all()

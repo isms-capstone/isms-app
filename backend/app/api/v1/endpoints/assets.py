@@ -17,7 +17,7 @@ def read_assets(db: Session = Depends(get_db)):
 def create_asset(asset_in: AssetCreate, db: Session = Depends(get_db)):
     db_asset = db.query(Asset).filter(Asset.asset_code == asset_in.asset_code).first()
     if db_asset:
-        raise HTTPException(status_code=400, detail="Asset code already exists")
+        raise HTTPException(status_code=400, detail="รหัสทรัพย์สินนี้มีอยู่แล้ว")
     asset = Asset(**asset_in.model_dump())
     db.add(asset)
     db.commit()

@@ -63,7 +63,7 @@ def add_link(db, source_id, target_id, kind, actor_id, reason):
 
 def lock_pair(db, source_id, target_id):
     if source_id == target_id:
-        raise HTTPException(422, "A case cannot be linked to itself")
+        raise HTTPException(422, "ผูกเคสกับตัวเองไม่ได้")
     rows = db.scalars(
         select(Ticket)
         .where(Ticket.id.in_((source_id, target_id)))
@@ -73,7 +73,7 @@ def lock_pair(db, source_id, target_id):
     ).all()
     tickets = {row.id: row for row in rows}
     if source_id not in tickets or target_id not in tickets:
-        raise HTTPException(404, "Case not found")
+        raise HTTPException(404, "ไม่พบเคส")
     return tickets[source_id], tickets[target_id]
 
 
@@ -105,7 +105,7 @@ def move_duplicate_data(db, source, master, actor_id, reason):
             422, "Merge duplicate data within the same customer organization"
         )
     if master.status in {"DRAFT", "CANCELLED", "DUPLICATE"}:
-        raise HTTPException(422, "Select an active or closed published master case")
+        raise HTTPException(422, "กรุณาเลือกเคสหลักที่บันทึกแล้ว (เปิดอยู่หรือปิดแล้ว)")
     if source.master_ticket_id == master.id and find_link(
         db, source.id, master.id, "duplicate"
     ):
@@ -134,7 +134,7 @@ def move_duplicate_data(db, source, master, actor_id, reason):
     if source.master_ticket_id and find_link(
         db, source.id, source.master_ticket_id, "duplicate"
     ):
-        raise HTTPException(409, "This case is already merged into another master")
+        raise HTTPException(409, "เคสนี้ถูกรวมเข้ากับเคสหลักอื่นแล้ว")
     if (
         db.scalar(
             select(TicketLink.id)

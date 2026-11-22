@@ -17,7 +17,7 @@ from app.schemas.product import (
 
 def require_product_admin(user: User = Depends(get_current_user)):
     if not user.role or user.role.name != "Admin":
-        raise HTTPException(403, "Only Admin can change the product catalogue")
+        raise HTTPException(403, "เฉพาะผู้ดูแลระบบแก้ไขทะเบียนผลิตภัณฑ์ได้")
     return user
 
 
@@ -30,7 +30,7 @@ def save_product_record(db: Session, record):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, "Code already exists in this registry scope") from None
+        raise HTTPException(409, "รหัสนี้ถูกใช้แล้ว") from None
     db.refresh(record)
     return record
 
@@ -96,7 +96,7 @@ def create_module(product_id: int, body: ModuleCreate, db: Session = Depends(get
 def update_module(product_id: int, module_id: int, body: ModuleCreate, db: Session = Depends(get_db)):
     record = get_record(db, ProductModule, module_id)
     if record.product_id != product_id:
-        raise HTTPException(404, "Record not found")
+        raise HTTPException(404, "ไม่พบข้อมูล")
     return replace_record(db, record, body)
 
 

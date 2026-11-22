@@ -26,7 +26,7 @@ def test_transition_to_duplicate_missing_master_fails():
             ticket_data=ticket_data
         )
     assert exc_info.value.status_code == 422
-    assert "master_ticket_id" in exc_info.value.detail
+    assert "เคสหลัก" in exc_info.value.detail
 
 
 # 3. ทดสอบเปลี่ยนเป็น CANCELLED โดยระบุ cancel_reason (สำเร็จ)
@@ -51,4 +51,4 @@ def test_transition_to_cancelled_missing_reason_fails():
             ticket_data=ticket_data
         )
     assert exc_info.value.status_code == 422
-    assert "Cancellation reason" in exc_info.value.detail
+    assert "เหตุผลการยกเลิก" in exc_info.value.detail

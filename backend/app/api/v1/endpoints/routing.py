@@ -1,5 +1,6 @@
 """ESC API: policy/configuration, audited mutations, workload and in-app alerts."""
 
+from app.core.labels import model_label
 from typing import Annotated
 
 from app.api.deps import RoleChecker, get_current_user, require_admin
@@ -52,7 +53,7 @@ def commit(db):
 def existing(db, model, record_id):
     row = db.get(model, record_id)
     if row is None:
-        raise HTTPException(404, f"{model.__name__} not found")
+        raise HTTPException(404, f"ไม่พบ{model_label(model.__name__)}")
     return row
 
 
@@ -121,7 +122,7 @@ def config(db: Database):
 def set_route(body: RouteInput, db: Database):
     product = existing(db, Product, body.product_id)
     if not product.is_active:
-        raise HTTPException(422, "Product is inactive")
+        raise HTTPException(422, "ผลิตภัณฑ์นี้ถูกปิดใช้งาน")
     existing(db, Team, body.team_id)
     route = db.scalar(
         select(ProductTierRoute).where(
@@ -146,7 +147,7 @@ def set_leader(team_id: int, body: LeaderInput, db: Database):
         or leader.team_id != team_id
         or service.role(leader) not in service.SUPPORT_ROLES
     ):
-        raise HTTPException(422, "Leader must be an active support member of that team")
+        raise HTTPException(422, "หัวหน้าทีมต้องเป็นสมาชิกที่ใช้งานอยู่ในทีมนั้น")
     config = db.get(TeamRouting, team_id)
     if config:
         config.leader_id = leader.id
@@ -169,7 +170,7 @@ def set_policy(body: PolicyInput, db: Database):
     if body.business_calendar_id:
         calendar = existing(db, BusinessCalendar, body.business_calendar_id)
         if not calendar.is_active:
-            raise HTTPException(422, "Business calendar is inactive")
+            raise HTTPException(422, "ปฏิทินเวลาทำการนี้ถูกปิดใช้งาน")
     policy = db.get(RoutingPolicy, 1)
     if policy is None:
         policy = RoutingPolicy(id=1)
@@ -354,7 +355,7 @@ def respond(
     ticket = service.lock_case(db, ticket_id, body.expected_version)
     service.authorize(db, ticket, user)
     if ticket.first_response_at is not None:
-        raise HTTPException(409, "Response was already recorded")
+        raise HTTPException(409, "บันทึกการตอบสนองครั้งแรกไปแล้ว")
     service.claim_version(db, ticket, body.expected_version)
     ticket.first_response_at = service.utcnow()
     from app.services.sla_engine import sync_clock, update_breach
@@ -407,7 +408,7 @@ def read_notification(
         )
     )
     if row is None:
-        raise HTTPException(404, "Notification not found")
+        raise HTTPException(404, "ไม่พบการแจ้งเตือน")
     row.read_at = row.read_at or service.utcnow()
     commit(db)
     return {"id": row.id, "read_at": row.read_at}

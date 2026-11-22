@@ -1,4 +1,5 @@
 """SRS 13.1 and category audit/usage shared by capture and later edits."""
+from app.core.labels import field_label
 from fastapi import HTTPException
 from sqlalchemy import select
 
@@ -24,17 +25,17 @@ def validate_assessment(values, db, allow_legacy=False):
     if impact:
         suggested = suggest_severity(impact, values['is_exam_window'])
         if severity and severity != suggested and not values.get('severity_overridden_reason'):
-            raise HTTPException(422, 'A reason is required when overriding the suggested severity')
+            raise HTTPException(422, 'กรุณาระบุเหตุผลเมื่อเลือกความรุนแรงต่างจากที่ระบบเสนอ')
         values['severity'] = severity or suggested
         if values['severity'] == suggested:
             values['severity_overridden_reason'] = None
     elif (severity or values.get('severity_overridden_reason')) and not allow_legacy:
-        raise HTTPException(422, 'Select impact scope before assessing severity')
+        raise HTTPException(422, 'กรุณาเลือกขอบเขตผลกระทบก่อนประเมินความรุนแรง')
     for field, model in [('root_cause_code_id', CauseCode), ('resolution_code_id', SolutionCode)]:
         if values.get(field) is not None:
             row = db.get(model, values[field])
             if row is None or (not row.is_active and not allow_legacy):
-                raise HTTPException(422, f'{field} is missing or inactive')
+                raise HTTPException(422, f'ไม่พบ{field_label(field)} หรือถูกปิดใช้งาน')
 
 
 def snapshot(db, ticket):

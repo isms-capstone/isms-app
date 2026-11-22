@@ -37,7 +37,7 @@ def test_reopen_exceed_14_days_fails():
             ticket_data=ticket_data
         )
     assert exc_info.value.status_code == 400
-    assert "cannot be reopened after 14 days" in exc_info.value.detail
+    assert "เกิน 14 วัน" in exc_info.value.detail
 
 
 # 3. ทดสอบ Reopen แบบขาดเหตุผล (ต้องโยน HTTP 422)

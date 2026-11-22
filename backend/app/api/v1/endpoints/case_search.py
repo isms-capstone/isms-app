@@ -148,7 +148,7 @@ def list_views(db: Session = Depends(get_db), user=Depends(search_user)):
 def save_view(body: SavedViewInput, db: Session = Depends(get_db), user=Depends(search_user)):
     team = getattr(user, 'team_id', None) if body.scope == 'team' else None
     if body.scope == 'team' and not team:
-        raise HTTPException(403, 'A team membership is required')
+        raise HTTPException(403, 'บัญชีนี้ยังไม่อยู่ในทีม กรุณาติดต่อผู้ดูแลระบบ')
     row = CaseSearchView(name=body.name, owner_id=user.id, team_id=team,
                          filters=body.filters.model_dump(mode='json'))
     db.add(row)
@@ -172,7 +172,7 @@ def export_cases(file_format: Literal['csv', 'xlsx'], filters: SearchFilters,
     query = matching_cases(filters, user).order_by(Ticket.reported_at.desc(), Ticket.id.desc())
     tickets = list(db.scalars(query.limit(MAX_EXPORT + 1)))
     if len(tickets) > MAX_EXPORT:
-        raise HTTPException(422, 'Narrow the filters to at most 10000 cases before exporting')
+        raise HTTPException(422, 'ผลลัพธ์เกิน 10,000 เคส กรุณาเพิ่มตัวกรองก่อนส่งออก')
     fields = ('ticket_no', 'subject', 'status', 'severity', 'organization_id', 'assignee_id', 'reported_at')
     rows = [fields]
     for ticket in tickets:

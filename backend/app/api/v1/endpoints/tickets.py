@@ -1,4 +1,5 @@
 """Minimal case capture; lifecycle transitions belong to the lifecycle tasks."""
+from app.core.labels import field_label, model_label
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
@@ -117,14 +118,14 @@ def next_ticket_number(db: Session, now: datetime):
     db.execute(statement)
     value = db.scalar(select(table.c.value).where(table.c.period == period).with_for_update())
     if value > 99999:
-        raise HTTPException(409, 'Monthly ticket number capacity exceeded')
+        raise HTTPException(409, 'เลขเคสของเดือนนี้เต็มแล้ว กรุณาติดต่อผู้ดูแลระบบ')
     return f'DVHT-{period}-{value:05d}'
 
 
 def active_record(db, model, record_id):
     record = get_record(db, model, record_id)
     if not record.is_active:
-        raise HTTPException(422, f'{model.__name__} is inactive')
+        raise HTTPException(422, f'{model_label(model.__name__)}ถูกปิดใช้งาน')
     return record
 
 
@@ -137,12 +138,12 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
-        raise HTTPException(422, 'reported_at must be within the last 7 days')
+        raise HTTPException(422, 'เวลาที่ลูกค้าแจ้งต้องอยู่ภายใน 7 วันที่ผ่านมา และไม่เกินเวลาปัจจุบัน')
     organization_id = body.organization_id
     if body.contact_id is not None:
         contact = active_record(db, Contact, body.contact_id)
         if organization_id is not None and contact.organization_id != organization_id:
-            raise HTTPException(422, 'Contact belongs to another organization')
+            raise HTTPException(422, 'ผู้แจ้งรายนี้อยู่องค์กรอื่น')
         organization_id = contact.organization_id
     if organization_id is not None:
         active_record(db, Organization, organization_id)
@@ -152,7 +153,7 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
         if record_id is not None:
             record = active_record(db, model, record_id)
             if organization_id is None or record.organization_id != organization_id:
-                raise HTTPException(422, f'{field} must belong to the selected organization')
+                raise HTTPException(422, f'{field_label(field)}ต้องเป็นของลูกค้าที่เลือก')
     if body.ticket_type_id is not None:
         active_record(db, TicketType, body.ticket_type_id)
     selection = CaseOptionsSelection(module_id=body.module_id, symptom_id=body.symptom_id,
@@ -167,7 +168,7 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
             policy = db.get(SlaPolicy, product.sla_policy_id)
             policy_id = policy.id if policy and policy.is_active else None
     elif any(selection.model_dump().values()):
-        raise HTTPException(422, 'Select a product instance before category options')
+        raise HTTPException(422, 'กรุณาเลือกระบบของลูกค้าก่อนเลือกหมวดหมู่')
     exam = False
     if organization_id is not None:
         exam = db.scalar(select(ExamWindow.id).where(
@@ -217,22 +218,22 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         feedback = feedback_for_user(db, body.similarity_feedback_id, user)
         if (feedback.query != query or feedback.organization_id != values['organization_id']
                 or feedback.product_instance_id != body.product_instance_id):
-            raise HTTPException(409, 'Case details changed; search similar cases again')
+            raise HTTPException(409, 'ข้อมูลเคสเปลี่ยนไป กรุณาค้นหาเคสที่คล้ายกันอีกครั้ง')
         validate_choice(db, feedback, feedback.decision, feedback.chosen_ticket_id)
     elif complete and len(query) >= 10:
         # Enforce even when a caller bypasses the UI. Search failure remains fail-open.
         items = search_with_deadline(db.get_bind(), q=query,
             organization_id=values['organization_id'], product_instance_id=body.product_instance_id)
         if items and any(item['score'] >= DECISION_THRESHOLD for item in items):
-            raise HTTPException(409, 'Search similar cases and confirm a decision before creating the case')
+            raise HTTPException(409, 'กรุณาตรวจเคสที่คล้ายกันและเลือกวิธีดำเนินการก่อนสร้างเคส')
     owner_id = user.id
     if body.created_for_user_id is not None:
         target = db.get(User, body.created_for_user_id)
         if target is None or not target.is_active:
-            raise HTTPException(422, 'Target team member is missing or inactive')
+            raise HTTPException(422, 'ไม่พบผู้รับในทีมปลายทาง หรือบัญชีถูกปิดใช้งาน')
         role = user.role.name if user.role else None
         if role != 'Admin' and (user.team_id is None or target.team_id != user.team_id):
-            raise HTTPException(403, 'You may create a case only for a member of your own team')
+            raise HTTPException(403, 'สร้างเคสแทนได้เฉพาะสมาชิกในทีมเดียวกัน')
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
@@ -281,7 +282,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
     except IntegrityError as exc:
         db.rollback()
         logging.getLogger(__name__).error('create_ticket IntegrityError: %s', exc.orig)
-        raise HTTPException(409, 'Case data changed; reload and try again') from None
+        raise HTTPException(409, 'เคสถูกแก้ไขโดยผู้อื่น กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
     ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
@@ -293,9 +294,9 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
     """CAP-09: create a linked follow-up while preserving the source case unchanged."""
     source = db.get(Ticket, ticket_id)
     if source is None:
-        raise HTTPException(404, 'Source case not found')
+        raise HTTPException(404, 'ไม่พบเคสต้นทาง')
     if source.status in ('DRAFT', 'DUPLICATE', 'CANCELLED'):
-        raise HTTPException(409, 'A follow-up requires a published, non-cancelled case')
+        raise HTTPException(409, 'สร้างเคสต่อเนื่องได้จากเคสที่บันทึกแล้วและไม่ถูกยกเลิกเท่านั้น')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     values = {
         field: getattr(source, field) for field in (
@@ -346,7 +347,7 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         raise
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, 'Unable to create follow-up; reload and try again') from None
+        raise HTTPException(409, 'สร้างเคสต่อเนื่องไม่สำเร็จ กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
     ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
@@ -355,16 +356,16 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
 def editable_ticket(db, ticket_id, user, draft_only=False):
     ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
     if ticket is None:
-        raise HTTPException(404, 'Ticket not found')
+        raise HTTPException(404, 'ไม่พบเคส')
     if draft_only:
         if ticket.created_by_id != user.id:
-            raise HTTPException(403, 'Only the creator can edit this draft')
+            raise HTTPException(403, 'แก้ไขเคสร่างได้เฉพาะผู้สร้าง')
         if ticket.status != 'DRAFT':
-            raise HTTPException(409, 'Only DRAFT tickets support inline edits')
+            raise HTTPException(409, 'แก้ไขทีละช่องได้เฉพาะเคสร่าง')
     else:
         role = user.role.name if user.role else None
         if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
-            raise HTTPException(403, 'Only the case creator, owner or assignee can edit its reported time')
+            raise HTTPException(403, 'แก้เวลาที่ลูกค้าแจ้งได้เฉพาะผู้สร้าง เจ้าของเคส หรือผู้ดำเนินการ')
     return ticket
 
 
@@ -378,7 +379,7 @@ def commit_edit(db, ticket):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, 'Case data changed; reload and try again') from None
+        raise HTTPException(409, 'เคสถูกแก้ไขโดยผู้อื่น กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
     ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
@@ -448,7 +449,7 @@ def edit_ticket_details(
     if ticket.status != 'NEW':
         raise HTTPException(
             409,
-            'Only NEW tickets support detail editing',
+            'แก้ไขข้อมูลรับเรื่องได้เฉพาะเคสสถานะใหม่',
         )
 
     from app.services.categorization import snapshot, record_categories
@@ -549,7 +550,7 @@ def edit_ticket_details(
     if not complete:
         raise HTTPException(
             422,
-            'A NEW ticket must have Organization, Subject and Channel',
+            'เคสใหม่ต้องมีลูกค้า หัวข้อ และช่องทาง',
         )
 
     # 7. Update business fields only.
@@ -599,7 +600,7 @@ def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = D
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None)
     if reported > now or reported < now - timedelta(days=7):
-        raise HTTPException(422, 'reported_at must be within the last 7 days')
+        raise HTTPException(422, 'เวลาที่ลูกค้าแจ้งต้องอยู่ภายใน 7 วันที่ผ่านมา และไม่เกินเวลาปัจจุบัน')
     ticket.reported_at = reported
     ticket.is_exam_window = ticket.organization_id is not None and db.scalar(select(ExamWindow.id).where(
         ExamWindow.organization_id == ticket.organization_id, ExamWindow.is_active.is_(True),
@@ -682,7 +683,7 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         ))
     if ticket_status is not None:
         if ticket_status not in TICKET_STATUSES:
-            raise HTTPException(422, 'Unknown ticket status')
+            raise HTTPException(422, 'ไม่รู้จักสถานะนี้')
         query = query.where(Ticket.status == ticket_status)
     if today_only:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -734,7 +735,7 @@ def search_similar_tickets(
     if len(query) < 10:
         raise HTTPException(
             status_code=422,
-            detail="Search query must contain at least 10 characters",
+            detail="พิมพ์อย่างน้อย 10 ตัวอักษรเพื่อค้นหาเคสที่คล้ายกัน",
         )
 
     if ticket_id is not None:
@@ -813,21 +814,21 @@ def save_similarity_feedback(
 
     feedback = feedback_for_user(db, feedback_id, user)
     if feedback.ticket_id is not None:
-        raise HTTPException(409, 'This decision has already been applied; search again')
+        raise HTTPException(409, 'บันทึกการตัดสินใจนี้ไปแล้ว กรุณาค้นหาใหม่')
     validate_choice(db, feedback, body.decision, body.chosen_ticket_id, body.ticket_id)
     feedback.decision = body.decision
     feedback.chosen_ticket_id = body.chosen_ticket_id
     reuse = None
     if body.decision == 'reuse':
         if body.reuse_values is None:
-            raise HTTPException(422, 'Review the reusable fields first')
+            raise HTTPException(422, 'กรุณาตรวจข้อมูลที่จะนำมาใช้ซ้ำก่อน')
         reuse = body.reuse_values.model_dump()
         # Reuse follows the destination customer and normal product/category validation.
         assessed, _, _ = capture_values(TicketCreate(organization_id=feedback.organization_id, **reuse), db)
         for field in ('severity', 'is_exam_window', 'severity_overridden_reason'):
             reuse[field] = assessed[field]
     elif body.reuse_values is not None:
-        raise HTTPException(422, 'Reusable fields are only valid for reuse')
+        raise HTTPException(422, 'ข้อมูลที่ใช้ซ้ำใช้ได้เฉพาะเมื่อเลือก "ใช้วิธีแก้เดิม"')
     if body.ticket_id is not None:
         from app.services.lifecycle import authorize_case
         row = get_record(db, Ticket, body.ticket_id)
@@ -835,7 +836,7 @@ def save_similarity_feedback(
         query = f'{row.subject or chr(32)} {row.description or chr(32)}'.strip()
         if (feedback.query != query or feedback.organization_id != row.organization_id
                 or feedback.product_instance_id != row.product_instance_id):
-            raise HTTPException(409, 'Case details changed; search again')
+            raise HTTPException(409, 'ข้อมูลเคสเปลี่ยนไป กรุณาค้นหาใหม่')
         if reuse is not None:
             from app.services.categorization import snapshot, record_categories
             before = snapshot(db, row)
@@ -917,7 +918,7 @@ def _attachment_ticket(db, ticket_id, user):
     ticket = get_record(db, Ticket, ticket_id)
     role = user.role.name if user.role else None
     if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
-        raise HTTPException(403, 'You cannot access attachments for this case')
+        raise HTTPException(403, 'คุณไม่มีสิทธิ์เปิดไฟล์แนบของเคสนี้')
     return ticket
 
 
@@ -925,7 +926,7 @@ def _attachment_record(db, ticket_id, attachment_id):
     row = db.scalar(select(TicketAttachment).where(
         TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
     if row is None:
-        raise HTTPException(404, 'Attachment not found')
+        raise HTTPException(404, 'ไม่พบไฟล์แนบ')
     return row
 
 
@@ -979,7 +980,7 @@ def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...),
         if isinstance(exc, HTTPException):
             raise
         logging.exception('Attachment upload failed')
-        raise HTTPException(503, 'Unable to store attachment') from None
+        raise HTTPException(503, 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่') from None
     db.refresh(row)
     return _attachment_json(row, user)
 
@@ -1005,17 +1006,17 @@ def download_ticket_attachment(
         ):
             raise JWTError('Invalid attachment scope')
     except JWTError:
-        raise HTTPException(403, 'Attachment link is invalid or expired') from None
+        raise HTTPException(403, 'ลิงก์ไฟล์หมดอายุหรือไม่ถูกต้อง กรุณาเปิดเคสใหม่อีกครั้ง') from None
     row = _attachment_record(db, ticket_id, attachment_id)
     if mode != 'download' and row.content_type not in objects.IMAGE_TYPES.values():
-        raise HTTPException(415, 'Preview is available for images')
+        raise HTTPException(415, 'ดูตัวอย่างได้เฉพาะไฟล์ภาพ')
     mime = 'image/webp' if mode == 'thumbnail' else row.content_type
     disposition = 'attachment' if mode == 'download' else 'inline'
     headers = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}
     if not row.stored_name.startswith('minio/'):
         target = ATTACHMENT_DIR / Path(row.stored_name).name
         if not target.is_file():
-            raise HTTPException(404, 'Attachment file is missing from storage')
+            raise HTTPException(404, 'ไม่พบไฟล์ในที่จัดเก็บ กรุณาติดต่อผู้ดูแลระบบ')
         if mode == 'thumbnail':
             with target.open('rb') as stream:
                 _, thumbnail = objects.image_thumbnail(stream)
@@ -1029,11 +1030,11 @@ def download_ticket_attachment(
         result = objects.storage().get_object(objects.BUCKET, key)
     except S3Error as exc:
         if exc.code == 'NoSuchKey':
-            raise HTTPException(404, 'Attachment file is missing from storage') from None
+            raise HTTPException(404, 'ไม่พบไฟล์ในที่จัดเก็บ กรุณาติดต่อผู้ดูแลระบบ') from None
         logging.exception('Attachment read failed')
-        raise HTTPException(503, 'Attachment storage is unavailable') from None
+        raise HTTPException(503, 'ที่จัดเก็บไฟล์ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่') from None
     except OSError:
-        raise HTTPException(503, 'Attachment storage is unavailable') from None
+        raise HTTPException(503, 'ที่จัดเก็บไฟล์ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่') from None
 
     def chunks():
         try:

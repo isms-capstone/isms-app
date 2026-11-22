@@ -47,7 +47,7 @@ def utc(value):
 def locked_ticket(db, ticket_id, user):
     ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
     if ticket is None:
-        raise HTTPException(404, 'Case not found')
+        raise HTTPException(404, 'ไม่พบเคส')
     authorize_case(ticket, user)
     return ticket
 
@@ -239,7 +239,7 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     ticket = locked_ticket(db, ticket_id, user)
     case_type = db.get(TicketType, ticket.ticket_type_id) if ticket.ticket_type_id else None
     if not case_type or case_type.name != 'Request':
-        raise HTTPException(409, 'This workflow is only available for Request cases')
+        raise HTTPException(409, 'ขั้นตอนนี้ใช้ได้เฉพาะเคสประเภทคำขอ (Request)')
     changes = {'status': {'start': 'IN_PROGRESS', 'fulfil': 'RESOLVED', 'confirm': 'CLOSED'}[body.action]}
     if body.action == 'confirm' and body.sla_breach_reason is not None:
         changes['sla_breach_reason'] = body.sla_breach_reason
@@ -248,7 +248,7 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     if body.action == 'fulfil':
         detail = (body.fulfilment_detail or '').strip()
         if not detail:
-            raise HTTPException(422, 'Describe the delivered service before fulfilling the request')
+            raise HTTPException(422, 'กรุณาบันทึกสิ่งที่ดำเนินการให้ก่อนส่งมอบคำขอ')
         changes['resolution_detail'] = detail
     transition(db, ticket, changes, user)
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='request_' + body.action,
@@ -266,7 +266,7 @@ def search_audit(
     limit: int = Query(50, ge=1, le=100),
 ):
     if start and end and start > end:
-        raise HTTPException(422, 'Start date must be before end date')
+        raise HTTPException(422, 'วันเริ่มต้องก่อนวันสิ้นสุด')
     query = (select(TicketAudit, Ticket.ticket_no, User.username)
              .join(Ticket, Ticket.id == TicketAudit.ticket_id)
              .outerjoin(User, User.id == TicketAudit.actor_id))

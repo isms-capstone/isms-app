@@ -20,7 +20,7 @@ def storage():
     endpoint = os.getenv('MINIO_ENDPOINT')
     key, secret = os.getenv('MINIO_ACCESS_KEY'), os.getenv('MINIO_SECRET_KEY')
     if not (endpoint and key and secret):
-        raise HTTPException(503, 'Attachment storage is not configured')
+        raise HTTPException(503, 'ยังไม่ได้ตั้งค่าที่จัดเก็บไฟล์ กรุณาติดต่อผู้ดูแลระบบ')
     return Minio(endpoint, access_key=key, secret_key=secret,
                  secure=os.getenv('MINIO_SECURE', 'true').lower() == 'true')
 
@@ -48,7 +48,7 @@ def store_attachment(db, ticket_id, stream, original_name, uploaded_by_id, allow
 
     size, mime, thumbnail = inspect_file(stream, original_name)
     if allowed_types is not None and mime not in allowed_types:
-        raise HTTPException(415, 'Unsupported attachment type')
+        raise HTTPException(415, 'ไม่รองรับไฟล์ประเภทนี้')
     key = f'{ticket_id}/{uuid4().hex}'
     written = []
     try:
@@ -83,14 +83,14 @@ def image_thumbnail(stream):
         with Image.open(stream) as image:
             mime = IMAGE_TYPES.get(image.format)
             if not mime or image.width * image.height > 24_000_000:
-                raise HTTPException(415, 'Unsupported image type or dimensions')
+                raise HTTPException(415, 'ไม่รองรับภาพประเภทนี้ หรือภาพมีขนาดใหญ่เกินไป')
             image = ImageOps.exif_transpose(image)
             image.thumbnail((320, 320))
             buffer = io.BytesIO()
             image.save(buffer, format='WEBP')
             return mime, buffer.getvalue()
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError):
-        raise HTTPException(415, 'Invalid image attachment') from None
+        raise HTTPException(415, 'ไฟล์ภาพเสียหายหรือไม่ใช่ภาพจริง') from None
     finally:
         stream.seek(0)
 
@@ -99,9 +99,9 @@ def inspect_file(stream, name):
     stream.seek(0, os.SEEK_END)
     size = stream.tell()
     if size > MAX_BYTES:
-        raise HTTPException(413, 'Maximum attachment size is 25 MB')
+        raise HTTPException(413, 'ไฟล์ต้องมีขนาดไม่เกิน 25 MB')
     if not size:
-        raise HTTPException(422, 'Attachment is empty')
+        raise HTTPException(422, 'ไฟล์ว่างเปล่า กรุณาเลือกไฟล์ใหม่')
     stream.seek(0)
     head = stream.read(4096)
     stream.seek(0)
@@ -127,4 +127,4 @@ def inspect_file(stream, name):
             pass
         finally:
             stream.seek(0)
-    raise HTTPException(415, 'Unsupported or invalid attachment type')
+    raise HTTPException(415, 'ไม่รองรับไฟล์ประเภทนี้ (รองรับภาพ PDF วิดีโอ MP4/WebM และไฟล์ log แบบบีบอัด)')

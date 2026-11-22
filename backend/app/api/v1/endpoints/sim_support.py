@@ -77,12 +77,12 @@ def create_link(
     authorize_case(source, user)
     kind = body.relationship_type
     if find_link(db, source.id, target.id, kind):
-        raise HTTPException(409, "This case relationship already exists")
+        raise HTTPException(409, "มีความสัมพันธ์นี้อยู่แล้ว")
     if kind == "child-of":
         if source.status in FINAL_STATUSES | {
             "DRAFT"
         } or target.status in FINAL_STATUSES | {"DRAFT"}:
-            raise HTTPException(422, "Select two active published cases")
+            raise HTTPException(422, "กรุณาเลือกเคสที่บันทึกแล้ว 2 เคส")
         require_flat_incident(db, source, target)
     link = add_link(
         db, source.id, target.id, kind, user.id, body.reason or "Manual relationship"
@@ -108,11 +108,11 @@ def merge_duplicate(
     authorize_case(source, user)
     authorize_case(master, user)
     if not body.reason.strip():
-        raise HTTPException(422, "Enter a reason")
+        raise HTTPException(422, "กรุณาระบุเหตุผล")
     if source.status == "DUPLICATE" and source.master_ticket_id == master.id:
         return {"status": source.status}
     if source.status in FINAL_STATUSES | {"DRAFT"}:
-        raise HTTPException(422, "Select an active published source case")
+        raise HTTPException(422, "กรุณาเลือกเคสต้นทางที่บันทึกแล้วและยังใช้งานอยู่")
     move_duplicate_data(db, source, master, user.id, body.reason.strip())
     if master.status == "CLOSED":
         close_linked_case(
