@@ -153,6 +153,7 @@ def create_case(request: Request, token: str = Form(...), subject: str = Form(..
         # Same intake rules as staff capture: exam-window priority, SLA clock, tier interval.
         sla_engine.apply_exam_window(db, ticket, now)
         sla_engine.sync_clock(db, ticket, now)
+        sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history.id)
         db.add(PortalSubmission(grant_key=grant_key, ticket_id=ticket.id))
         if screenshot is not None and screenshot.filename:

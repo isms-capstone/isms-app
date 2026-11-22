@@ -78,3 +78,6 @@ from app.api.v1.endpoints.portal import router as portal_router
 api_router.include_router(portal_router)
 from app.api.v1.endpoints.case_search import router as case_search_router
 api_router.include_router(case_search_router, tags=['Case Search and Export'])
+
+from app.api.v1.endpoints.case_queue import router as case_queue_router
+api_router.include_router(case_queue_router)

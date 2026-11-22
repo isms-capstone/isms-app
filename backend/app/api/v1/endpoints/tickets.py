@@ -272,6 +272,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         db.flush()
         sla_engine.apply_exam_window(db, ticket, now)
         sla_engine.sync_clock(db, ticket, now)
+        sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
         db.commit()
     except HTTPException:
@@ -335,6 +336,7 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         db.flush()
         sla_engine.apply_exam_window(db, ticket, now)
         sla_engine.sync_clock(db, ticket, now)
+        sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
         from app.services.ticket_relationships import add_link
         add_link(db, ticket.id, source.id, 'follow-up', user.id, 'Follow-up created from case')
@@ -372,6 +374,7 @@ def commit_edit(db, ticket):
         if ticket.status in OPEN_STATUSES:
             sla_engine.apply_exam_window(db, ticket, now)
             sla_engine.sync_clock(db, ticket, now)
+            sla_engine.update_breach(db, ticket, now)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -644,14 +647,11 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
     }
     result = db.execute(select(*(func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(name)
                                  for name, condition in conditions.items()))).mappings().one()
-    schedule = sla_engine.schedule_for(db)
-    risk = 0
-    configured = False
-    for ticket in db.scalars(select(Ticket).where(opened)):
-        state = sla_engine.measurement(db, ticket, now, schedule)
-        configured |= state is not None
-        if state and state['remaining_ratio'] is not None and state['remaining_ratio'] < 0.25:
-            risk += 1
+    from app.api.v1.endpoints.case_queue import sla_condition
+    from app.db.models.master_data import SlaPolicyRule
+    risk = db.scalar(select(func.count(Ticket.id)).where(
+        opened, or_(sla_condition('risk', now), sla_condition('breached', now))))
+    configured = db.scalar(select(SlaPolicyRule.id).where(SlaPolicyRule.is_active.is_(True)).limit(1)) is not None
     return dict(result) | {'sla_at_risk': risk if configured else None}
 
 

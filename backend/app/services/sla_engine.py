@@ -1,5 +1,5 @@
 """SLA clock, policy selection and scheduled in-app notifications."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
@@ -176,9 +176,39 @@ def measurement(db, ticket, now=None, schedule=None):
             "breached": bool(ticket.sla_breached or response["breached"] or resolution["breached"])}
 
 
-def update_breach(db, ticket, now):
-    state = measurement(db, ticket, now)
+RISK_RATIO = 0.25
+
+
+def refresh_deadlines(ticket, state, now, schedule):
+    """Store when the earliest running clock reaches its risk point and its due
+    time. Queues sort and filter on these columns in SQL instead of measuring
+    every case on every request. Paused, finished and unmeasured cases store NULL."""
+    due = risk = None
+    running = [] if not state or state["paused"] else [
+        clock for clock in (state["first_response"], state["resolution"]) if not clock["finished"]]
+    business = ticket.severity != "S1"
+    for clock in running:
+        remaining, target = clock["remaining_seconds"], clock["target_seconds"]
+        try:
+            if business:
+                clock_due = schedule.add(now, max(remaining, 0)) if remaining > 0 else now + timedelta(seconds=remaining)
+                left = remaining - RISK_RATIO * target
+                clock_risk = schedule.add(now, left) if left > 0 else now
+            else:
+                clock_due = now + timedelta(seconds=remaining)
+                clock_risk = now + timedelta(seconds=max(0, remaining - RISK_RATIO * target))
+        except ValueError:  # calendar without any working time
+            continue
+        due = clock_due if due is None else min(due, clock_due)
+        risk = clock_risk if risk is None else min(risk, clock_risk)
+    ticket.sla_due_at, ticket.sla_risk_at = due, risk
+
+
+def update_breach(db, ticket, now, schedule=None):
+    schedule = schedule or schedule_for(db)
+    state = measurement(db, ticket, now, schedule)
     ticket.sla_breached = ticket.sla_breached or bool(state and state["breached"])
+    refresh_deadlines(ticket, state, now, schedule)
     return ticket.sla_breached
 
 
@@ -201,6 +231,7 @@ def run_sla_checks(db, now=None):
         responsible_id = ticket.assignee_id or ticket.owner_id
         responsible = db.get(User, responsible_id) if responsible_id else None
         recipients = list({user.id: user for user in [*recipients, responsible] if user and user.is_active}.values())
+        refresh_deadlines(ticket, state, now, schedule)
         if state:
             ticket.sla_breached = ticket.sla_breached or state["breached"]
             for name in ("first_response", "resolution"):

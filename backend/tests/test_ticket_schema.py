@@ -34,9 +34,12 @@ def test_ticket_migration_round_trip():
                 "pending_customer_reason",
                 "sla_breach_reason",
                 "sla_exam_base_severity",
+                "sla_due_at",
+                "sla_risk_at",
             }
         )
-        assert {i['name'] for i in inspector.get_indexes('ticket')} == {i.name for i in Ticket.__table__.indexes}
+        assert {i['name'] for i in inspector.get_indexes('ticket')} == {i.name for i in Ticket.__table__.indexes} - {
+            'ix_ticket_sla_due_at', 'ix_ticket_sla_risk_at'}  # added by sla02_deadlines
         assert len(inspector.get_foreign_keys('ticket')) == 17
         migration.downgrade()
         assert 'ticket' not in inspect(connection).get_table_names()

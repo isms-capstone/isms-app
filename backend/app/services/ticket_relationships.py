@@ -219,13 +219,14 @@ def close_linked_case(db, child, master, target, actor_id, now):
             details={"master_ticket_id": master.id, "reason": "master case closed"},
         )
     )
-    from app.services.sla_engine import sync_clock
+    from app.services.sla_engine import sync_clock, update_breach
 
     sync_clock(db, child, now)
     child.status = target
     child.closed_at = now
     child.routing_version += 1
     sync_clock(db, child, now)
+    update_breach(db, child, now)
     queue_closure_notice(db, child, master.id, actor_id)
 
 

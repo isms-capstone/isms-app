@@ -35,6 +35,7 @@ def run_auto_close_resolved_tickets(db: Session, allowed_business_days: int = 3)
             ticket.status = TicketStatus.CLOSED
             ticket.closed_at = now
             sync_clock(db, ticket, now)
+            update_breach(db, ticket, now)
             from app.services.ticket_relationships import close_relationships
             close_relationships(db, ticket, ticket.owner_id or ticket.created_by_id, now)
             closed_count += 1

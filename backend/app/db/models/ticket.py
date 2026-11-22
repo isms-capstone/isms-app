@@ -92,6 +92,9 @@ class Ticket(Base):
     pending_customer_reason: Mapped[str | None] = mapped_column(Text)
     sla_breach_reason: Mapped[str | None] = mapped_column(Text)
     sla_exam_base_severity: Mapped[str | None] = mapped_column(String(2))
+    # Earliest risk point / due time of the running SLA clocks (UTC); NULL when paused or done.
+    sla_due_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    sla_risk_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     pending_external_reason: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(Text)
     routing_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

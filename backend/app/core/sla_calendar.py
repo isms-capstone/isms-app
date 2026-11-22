@@ -17,6 +17,27 @@ class Schedule:
         return int((datetime.combine(datetime.min, self.end) -
                     datetime.combine(datetime.min, self.start)).total_seconds())
 
+    def add(self, start, seconds):
+        """UTC datetime reached after `seconds` of business time from `start`."""
+        if seconds <= 0:
+            return start
+        zone = ZoneInfo(self.zone)
+        remaining = timedelta(seconds=seconds)
+        day = start.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        for _ in range(3660):  # ten years of calendar days is a hard upper bound
+            if self.weekdays[day.weekday()] and day not in self.holidays:
+                opening, closing = (
+                    datetime.combine(day, hour, zone).astimezone(timezone.utc).replace(tzinfo=None)
+                    for hour in (self.start, self.end)
+                )
+                begin = max(start, opening)
+                if begin < closing:
+                    if begin + remaining <= closing:
+                        return begin + remaining
+                    remaining -= closing - begin
+            day += timedelta(days=1)
+        raise ValueError("Business calendar has no working time")
+
     def seconds(self, start, end):
         if end <= start:
             return 0
