@@ -19,6 +19,7 @@ from app.db.models.master_data import Product
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import Ticket, TicketStatus
 from app.db.models.user import User
+from app.db.models.work_category import TicketWorklog
 from app.db.session import get_db
 from app.schemas.ticket import TicketOut
 from app.services.case_search_index import search_tokens
@@ -87,18 +88,26 @@ def matching_cases(filters, user):
     if filters.reported_before:
         query = query.where(Ticket.reported_at < filters.reported_before.astimezone(timezone.utc).replace(tzinfo=None))
     if filters.q.strip():
+        text = filters.q.strip()
         terms = search_tokens(filters.q)
-        match_number = Ticket.ticket_no.contains(filters.q.strip(), autoescape=True)
+        # Thai word segmentation is not stable across contexts (e.g. "ขอส่งออกข้อสอบ"
+        # splits as "ส่ง" + "ออกข้อสอบ"), so a plain substring match on the case
+        # text and work log complements the token index (SEA-01).
+        matches = [
+            Ticket.ticket_no.contains(text, autoescape=True),
+            Ticket.subject.contains(text, autoescape=True),
+            Ticket.description.contains(text, autoescape=True),
+            Ticket.id.in_(select(TicketWorklog.ticket_id)
+                          .where(TicketWorklog.message.contains(text, autoescape=True))),
+        ]
         if terms:
-            indexed = (
+            matches.append(Ticket.id.in_(
                 select(CaseSearchToken.ticket_id)
                 .where(CaseSearchToken.token.in_(terms))
                 .group_by(CaseSearchToken.ticket_id)
                 .having(func.count(func.distinct(CaseSearchToken.token)) == len(terms))
-            )
-            query = query.where(or_(match_number, Ticket.id.in_(indexed)))
-        else:
-            query = query.where(match_number)
+            ))
+        query = query.where(or_(*matches))
     return query
 
 
