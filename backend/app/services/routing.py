@@ -39,6 +39,17 @@ def product_id(db, ticket):
     return instance.product_id if instance else None
 
 
+def rule_values(db, ticket):
+    """Case fields that ADM-06 automation rules can match on."""
+    values = {
+        name: getattr(ticket, name, None)
+        for name in ("severity", "status", "channel", "module_id", "symptom_id", "service_stage_id",
+                     "ticket_type_id")
+    }
+    values.update(product_id=product_id(db, ticket), problem_type_id=ticket.category_id)
+    return values
+
+
 def route_team(db, ticket, tier=None):
     tier = ticket.current_tier if tier is None else tier
     product = product_id(db, ticket)
@@ -56,19 +67,7 @@ def route_team(db, ticket, tier=None):
     if tier == 2:
         from app.services.automation_rules import apply_automation_rules
 
-        values = {
-            name: getattr(ticket, name, None)
-            for name in (
-                "severity",
-                "status",
-                "channel",
-                "module_id",
-                "symptom_id",
-                "service_stage_id",
-                "ticket_type_id",
-            )
-        }
-        values.update(product_id=product, problem_type_id=ticket.category_id)
+        values = rule_values(db, ticket)
         automated = apply_automation_rules(db, values)
         if automated.get("team_id"):
             return automated["team_id"]
@@ -253,6 +252,7 @@ def record(
     ticket.current_tier = tier
     if old_tier != tier:
         initialize_interval(db, ticket, now, history.id)
+    assign_responsible_team(db, ticket, actor.id if actor else None, now)
     db.flush()
     # owner_id, ticket_no, status and created_at deliberately stay unchanged.
     return event
@@ -501,3 +501,29 @@ def summary(db, ticket, now=None):
             for row in events
         ],
     }
+
+
+def assign_responsible_team(db, ticket, actor_id=None, now=None):
+    """ADM-03 / P1-ADM-06: keep the case's responsible team current whenever it is
+    created or its product/category/severity/channel changes, and record which
+    automation rules decided it. Precedence is unchanged from ESC: an explicit
+    product/tier route, then automation rules, then the product default team."""
+    from app.db.models.work_category import TicketAudit
+    from app.services.automation_rules import apply_automation_rules
+
+    tier = ticket.current_tier if ticket.current_tier is not None else 2
+    team_id = route_team(db, ticket, tier)
+    if team_id == ticket.team_id:
+        return team_id
+    applied = []
+    if tier == 2:
+        automated = apply_automation_rules(db, rule_values(db, ticket))
+        if automated.get("team_id") == team_id:
+            applied = automated["automation_rule_ids"]
+    previous, ticket.team_id = ticket.team_id, team_id
+    if applied or previous is not None:
+        db.add(TicketAudit(ticket_id=ticket.id, actor_id=actor_id, event="team_assigned",
+                           changes={"team_id": {"old": previous, "new": team_id},
+                                    "automation_rule_ids": applied},
+                           created_at=now or utcnow()))
+    return team_id

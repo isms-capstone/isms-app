@@ -50,6 +50,7 @@ from app.schemas.ticket import (
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket import TicketStatus
 from app.services import sla_engine
+from app.services.routing import assign_responsible_team
 from app.services.auto_close import run_auto_close_resolved_tickets
 
 
@@ -275,6 +276,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         sla_engine.sync_clock(db, ticket, now)
         sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
+        assign_responsible_team(db, ticket, user.id, now)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -339,6 +341,7 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         sla_engine.sync_clock(db, ticket, now)
         sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
+        assign_responsible_team(db, ticket, user.id, now)
         from app.services.ticket_relationships import add_link
         add_link(db, ticket.id, source.id, 'follow-up', user.id, 'Follow-up created from case')
         db.commit()
@@ -376,6 +379,7 @@ def commit_edit(db, ticket):
             sla_engine.apply_exam_window(db, ticket, now)
             sla_engine.sync_clock(db, ticket, now)
             sla_engine.update_breach(db, ticket, now)
+            assign_responsible_team(db, ticket, db.info.get('ticket_actor_id'), now)
         db.commit()
     except IntegrityError:
         db.rollback()

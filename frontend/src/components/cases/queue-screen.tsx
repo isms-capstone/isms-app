@@ -20,7 +20,7 @@ import { CaseTable } from "./case-table";
 import { DraftList } from "./draft-list";
 import { emptyFilters, FilterDrawer, type Filters } from "./filters";
 
-type Scope = "open" | "all" | "mine" | "unassigned" | "today" | "risk";
+type Scope = "open" | "all" | "mine" | "team" | "unassigned" | "today" | "risk";
 const EXPORT_ROLES = new Set(["Admin", "Team Lead", "Executive"]);
 
 function useDebounced<T>(value: T, delay: number) {
@@ -350,6 +350,7 @@ export function QueueScreen({
                     : [
                         { value: "open", label: "ทั้งหมด" },
                         { value: "mine", label: "ของฉัน" },
+                        { value: "team", label: "ทีมของฉัน" },
                         { value: "unassigned", label: "ยังไม่มีผู้รับ" },
                       ]
                 }

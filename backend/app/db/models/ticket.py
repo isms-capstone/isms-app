@@ -93,6 +93,8 @@ class Ticket(Base):
     sla_breach_reason: Mapped[str | None] = mapped_column(Text)
     sla_exam_base_severity: Mapped[str | None] = mapped_column(String(2))
     # Earliest risk point / due time of the running SLA clocks (UTC); NULL when paused or done.
+    # Responsible team (ADM-06 rules / product routes); kept current on create and edit.
+    team_id: Mapped[int | None] = mapped_column(ForeignKey('teams.id'), index=True)
     sla_due_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     sla_risk_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     pending_external_reason: Mapped[str | None] = mapped_column(Text)

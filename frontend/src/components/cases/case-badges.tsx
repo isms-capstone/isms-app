@@ -163,7 +163,10 @@ export function Assignee({ row }: { row: CaseRow }) {
   return (
     <span className={cx("assignee", !row.assignee_id && "unassigned")}>
       <span className="avatar">{row.assigneeInitials}</span>
-      <span>{row.assignee}</span>
+      <span>
+        {row.assignee}
+        {row.teamName && <small className="assignee-team">{row.teamName}</small>}
+      </span>
     </span>
   );
 }

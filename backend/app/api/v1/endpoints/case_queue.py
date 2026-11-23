@@ -19,13 +19,13 @@ from app.db.models.customer import Organization
 from app.db.models.master_data import Product
 from app.db.models.product import ProductInstance
 from app.db.models.ticket import OPEN_STATUSES, TICKET_STATUSES, Ticket
-from app.db.models.user import User
+from app.db.models.user import Team, User
 from app.db.session import get_db
 from app.services import sla_engine
 
 router = APIRouter(tags=["Case queue"])
 BANGKOK = ZoneInfo("Asia/Bangkok")
-Scope = Literal["open", "all", "mine", "unassigned", "today", "risk"]
+Scope = Literal["open", "all", "mine", "team", "unassigned", "today", "risk"]
 SlaState = Literal["breached", "risk", "safe", "none"]
 Sort = Literal["sla", "newest", "oldest"]
 
@@ -55,6 +55,7 @@ class QueueRow(BaseModel):
     assignee_id: int | None
     assignee: str | None
     owner_id: int | None
+    team: str | None = None
     sla: QueueSla | None
 
 
@@ -103,11 +104,13 @@ def case_queue(
     now = utcnow()
     assignee_user = aliased(User)
     query = (
-        select(Ticket, Organization.name, Product.id, Product.name, assignee_user.full_name, assignee_user.username)
+        select(Ticket, Organization.name, Product.id, Product.name, assignee_user.full_name, assignee_user.username,
+               Team.name)
         .outerjoin(Organization, Organization.id == Ticket.organization_id)
         .outerjoin(ProductInstance, ProductInstance.id == Ticket.product_instance_id)
         .outerjoin(Product, Product.id == ProductInstance.product_id)
         .outerjoin(assignee_user, assignee_user.id == Ticket.assignee_id)
+        .outerjoin(Team, Team.id == Ticket.team_id)
         .where(Ticket.status != "DRAFT")  # drafts belong to their creator's draft list
     )
     statuses = [value for value in status if value in TICKET_STATUSES]
@@ -115,6 +118,8 @@ def case_queue(
         query = query.where(Ticket.status.in_(statuses))
     elif scope != "all":
         query = query.where(Ticket.status.in_(OPEN_STATUSES))
+    if scope == "team":
+        query = query.where(Ticket.team_id == user.team_id) if user.team_id else query.where(False)
     if scope == "mine" or assignee == "mine":
         query = query.where(Ticket.assignee_id == user.id)
     if scope == "unassigned" or assignee == "unassigned":
@@ -155,7 +160,7 @@ def case_queue(
 
     schedule = sla_engine.schedule_for(db)
     items = []
-    for ticket, customer, product_id, product_name, full_name, username in rows:
+    for ticket, customer, product_id, product_name, full_name, username, team in rows:
         state = sla_engine.measurement(db, ticket, now, schedule)
         items.append(QueueRow(
             id=ticket.id, ticket_no=ticket.ticket_no, subject=ticket.subject, status=ticket.status,
@@ -163,7 +168,7 @@ def case_queue(
             created_at=ticket.created_at, reported_at=ticket.reported_at,
             organization_id=ticket.organization_id, customer=customer, product_id=product_id,
             product=product_name, assignee_id=ticket.assignee_id, assignee=full_name or username,
-            owner_id=ticket.owner_id,
+            owner_id=ticket.owner_id, team=team,
             sla=QueueSla(remaining_seconds=state["remaining_seconds"], remaining_ratio=state["remaining_ratio"],
                          paused=state["paused"], breached=state["breached"], due_at=ticket.sla_due_at)
             if state else None,

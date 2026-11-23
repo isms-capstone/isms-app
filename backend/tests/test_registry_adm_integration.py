@@ -18,7 +18,7 @@ def test_merged_adm_cap_migration_graph_roundtrip():
     config = Config()
     config.set_main_option('script_location', str(directory))
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["core03_auto_close_policy"]
+    assert script.get_heads() == ["adm06_ticket_team"]
 
     engine = create_engine('sqlite://')
 

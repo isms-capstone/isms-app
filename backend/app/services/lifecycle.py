@@ -131,6 +131,8 @@ def transition(db, ticket, changes, user):
         sla_engine.apply_exam_window(db, ticket, now)
     sla_engine.sync_clock(db, ticket, now)
     sla_engine.update_breach(db, ticket, now)
+    from app.services.routing import assign_responsible_team
+    assign_responsible_team(db, ticket, user.id, now)
     if category_before is not None:
         record_categories(db, ticket, user, category_before['tags'], category_before)
     return ticket

@@ -36,10 +36,11 @@ def test_ticket_migration_round_trip():
                 "sla_exam_base_severity",
                 "sla_due_at",
                 "sla_risk_at",
+                "team_id",
             }
         )
         assert {i['name'] for i in inspector.get_indexes('ticket')} == {i.name for i in Ticket.__table__.indexes} - {
-            'ix_ticket_sla_due_at', 'ix_ticket_sla_risk_at'}  # added by sla02_deadlines
+            'ix_ticket_sla_due_at', 'ix_ticket_sla_risk_at', 'ix_ticket_team_id'}  # added by later migrations
         assert len(inspector.get_foreign_keys('ticket')) == 17
         migration.downgrade()
         assert 'ticket' not in inspect(connection).get_table_names()

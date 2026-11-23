@@ -119,6 +119,8 @@ def open_case(db, *, actor, contact, instance, subject, description, user_agent,
         sla_engine.sync_clock(db, ticket, now)
         sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history.id)
+        from app.services.routing import assign_responsible_team
+        assign_responsible_team(db, ticket, None, now)
         if grant_key:
             db.add(PortalSubmission(grant_key=grant_key, ticket_id=ticket.id))
         if screenshot is not None and screenshot.filename:

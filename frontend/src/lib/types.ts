@@ -88,6 +88,7 @@ export type CaseRow = Ticket & {
   slaRatio: number | null;
   slaPaused?: boolean;
   slaDueAt?: string | null;
+  teamName?: string | null;
   typeName?: string;
 };
 /** One row of GET /case-queue (filtered, ordered and paged by the server). */
@@ -108,6 +109,7 @@ export type QueueRow = {
   assignee_id: number | null;
   assignee: string | null;
   owner_id: number | null;
+  team?: string | null;
   sla: {
     remaining_seconds: number | null;
     remaining_ratio: number | null;

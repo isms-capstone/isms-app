@@ -3240,3 +3240,9 @@ textarea:focus {
     text-align: left;
   }
 }
+
+.assignee-team {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}

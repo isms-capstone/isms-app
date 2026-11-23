@@ -145,6 +145,7 @@ class SlaMeasurement(BaseModel):
 
 
 class TicketOut(BaseModel):
+    team_id: int | None = None
     sla: SlaMeasurement | None = None
     sla_breached: bool = False
     sla_breach_reason: str | None = None

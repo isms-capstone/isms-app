@@ -16,6 +16,19 @@ from app.services.sla_engine import run_sla_checks
 logger = logging.getLogger(__name__)
 
 
+def backfill_teams(db, batch=500):
+    """Give open cases created before ADM-06 their responsible team."""
+    from sqlalchemy import select
+
+    from app.db.models.ticket import OPEN_STATUSES, Ticket
+    from app.services.routing import assign_responsible_team
+
+    for ticket in db.scalars(select(Ticket).where(Ticket.team_id.is_(None), Ticket.status.in_(OPEN_STATUSES))
+                             .limit(batch)):
+        assign_responsible_team(db, ticket)
+    db.commit()
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     stop = Event()
@@ -34,6 +47,11 @@ def main():
                 logger.info("SLA notifications: %s", run_sla_checks(db))
         except Exception:
             logger.exception("SLA checks failed")
+        try:
+            with SessionLocal() as db:
+                backfill_teams(db)
+        except Exception:
+            logger.exception("Team backfill failed")
         try:
             from app.services.auto_close import run_auto_close_resolved_tickets
             with SessionLocal() as db:

@@ -109,6 +109,7 @@ export function queueRow(row: QueueRow): CaseRow {
     slaRatio: row.sla?.remaining_ratio ?? null,
     slaPaused: row.sla?.paused ?? false,
     slaDueAt: row.sla?.due_at ?? null,
+    teamName: row.team ?? null,
   };
 }
 /** One server-side page of the work queue plus the side data the screen needs. */
