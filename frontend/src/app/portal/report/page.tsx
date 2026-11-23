@@ -76,6 +76,9 @@ export default function ReportPage() {
             <h1>แจ้งปัญหาจากผลิตภัณฑ์</h1>
             <p>ส่งรายละเอียดให้ทีมสนับสนุนและติดตามข้อความตอบกลับ</p>
           </div>
+          <a href="/portal" className="button button-secondary">
+            ดูเคสทั้งหมดของฉัน
+          </a>
         </div>
         <div className="grid items-start gap-5 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <section className="surface detail-card min-w-0">

@@ -20,6 +20,7 @@ import {
   Zap,
   History,
   ChevronsLeft,
+  Megaphone,
   ChevronsUpDown,
   MonitorCog,
   ShieldCheck,
@@ -126,7 +127,12 @@ export function Sidebar({
       : []),
     {
       title: "ลูกค้า",
-      items: [{ label: "ทะเบียนลูกค้า", path: "/customers", icon: Users }],
+      items: [
+        { label: "ทะเบียนลูกค้า", path: "/customers", icon: Users },
+        ...(!preview && session && ["Admin", "Team Lead"].includes(session.role)
+          ? [{ label: "ประกาศสถานะระบบ", path: "/announcements", icon: Megaphone }]
+          : []),
+      ],
     },
     ...(isAdmin
       ? [

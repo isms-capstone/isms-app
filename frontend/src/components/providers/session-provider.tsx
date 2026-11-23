@@ -29,7 +29,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       preview ||
       pathname === "/login" ||
       pathname === "/por-demo" ||
-      pathname.startsWith("/portal/")
+      pathname.startsWith("/portal")
     )
       return;
     let active = true;

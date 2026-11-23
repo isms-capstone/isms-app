@@ -4,6 +4,7 @@ import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { PortalContacts } from "@/components/customers/portal-contacts";
 import { useSession } from "@/components/providers/session-provider";
 import { all, api } from "@/lib/api";
 import {
@@ -68,6 +69,7 @@ export function CustomerHistory({ id }: { id: number }) {
           <h1>{customer?.name ?? "ประวัติเคสลูกค้า"}</h1>
         </div>
       </div>
+      <PortalContacts organizationId={id} />
       <section className="surface detail-card">
         <div className="detail-grid mb-4">
           <label>

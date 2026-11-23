@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { setPortalSession } from "@/lib/portal-server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +14,14 @@ export async function POST(request: NextRequest) {
       redirect: "error",
     });
     if (!response.ok) throw new Error();
+    // Also open a portal session so "ดูเคสทั้งหมดของฉัน" works without signing in again.
+    const portal = await fetch(`${backend}/api/v1/portal/session`, {
+      method: "POST",
+      body: new URLSearchParams({ token }),
+      signal: AbortSignal.timeout(10000),
+      redirect: "error",
+    });
+    const session = portal.ok ? await portal.json() : null;
     const result = new NextResponse(null, {
       status: 303,
       headers: { Location: "/portal/report" },
@@ -24,6 +33,7 @@ export async function POST(request: NextRequest) {
       path: "/api/portal",
       maxAge: 300,
     });
+    if (session) setPortalSession(result, request, session.session, session.max_age);
     result.headers.set("Cache-Control", "no-store");
     return result;
   } catch {
