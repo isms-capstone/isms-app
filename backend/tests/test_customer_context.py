@@ -182,8 +182,10 @@ def test_complete_migration_chain_and_database_scope_constraints():
         registry_tables = {'organization', 'contact', 'channel_identity', 'products',
                            'modules', 'product_instance', 'department', 'course_or_exam', 'exam_window'}
         context = MigrationContext.configure(connection, opts={
+            # contact.portal_scope is added later by por_portal02, outside this chain.
             'include_object': lambda obj, name, type_, reflected, compare_to:
-                type_ != 'table' or name in registry_tables,
+                (type_ != 'table' or name in registry_tables)
+                and not (type_ == 'column' and name == 'portal_scope'),
         })
         assert compare_metadata(context, Base.metadata) == [], 'Registry ORM and migrated schema differ'
     with Session(engine) as db:

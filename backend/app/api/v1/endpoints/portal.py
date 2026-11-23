@@ -3,31 +3,23 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field, ValidationError
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select
 
-from app.api.v1.endpoints import tickets
-from app.db.models.customer import ChannelIdentity, Contact, Organization
+from app.db.models.customer import Contact, Organization
 from app.db.models.product import Product, ProductInstance, ProductModule
-from app.db.models.portal import PortalIdentity, PortalSubmission
+from app.db.models.portal import PortalIdentity
 from app.services.external_communication import external_replies
 from app.db.models.ticket import Ticket
-from app.db.models.ticket_history import TicketStatusHistory
-from app.db.models.user import User
 from app.db.session import get_db
-from app.services import attachment_storage, sla_engine
-from app.services.categorization import suggest_severity
+from app.services import portal_access, portal_intake
 
 router = APIRouter(prefix="/portal", tags=["Product SSO"])
 AUDIENCE = "isms-portal"
-IMAGES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
-MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
 
 
 class Grant(BaseModel):
@@ -92,85 +84,33 @@ def create_case(request: Request, token: str = Form(...), subject: str = Form(..
                 description: str = Form(""), screenshot: UploadFile | None = File(None),
                 db=Depends(get_db)):
     claims, config = verified(token, db)
-    subject = subject.strip()
-    if not subject or len(subject) > 255 or len(description) > 20000:
-        raise HTTPException(422, "กรุณาตรวจสอบหัวข้อและรายละเอียด")
-    actor = db.get(User, config["intake_user_id"])
-    if not actor or not actor.is_active:
-        raise HTTPException(503, "ช่องทางแจ้งปัญหายังไม่พร้อม")
-    if screenshot is not None and (screenshot.size or 0) > MAX_SCREENSHOT_BYTES:
-        raise HTTPException(422, "รองรับภาพ PNG, JPEG หรือ WebP ขนาดไม่เกิน 10 MB")
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    actor = portal_intake.intake_actor(db, config["intake_user_id"])
+    portal_intake.check_screenshot(screenshot)
     grant_key = hashlib.sha256(json.dumps([claims.iss, claims.sub, claims.organization_id,
                                            claims.instance_id, claims.jti]).encode()).hexdigest()
-    identity_key = hashlib.sha256(f"{claims.iss}:{claims.sub}".encode()).hexdigest()
-    from app.services.routing import initialize_interval
-
-    db.scalar(select(Organization).where(Organization.id == claims.organization_id).with_for_update())
-    submission = db.get(PortalSubmission, grant_key)
-    if submission:
-        existing = db.get(Ticket, submission.ticket_id)
+    portal_intake.lock_organization(db, claims.organization_id)
+    existing = portal_intake.existing_submission(db, grant_key)
+    if existing:  # retrying the same grant returns the case it already created
         return {"ticket_no": existing.ticket_no}
-    link = db.get(PortalIdentity, (claims.organization_id, identity_key))
-    if link:
-        contact = db.get(Contact, link.contact_id)
-        if not contact or not contact.is_active or contact.organization_id != claims.organization_id:
-            raise HTTPException(403, "กรุณาติดต่อทีมสนับสนุนเพื่อยืนยันข้อมูลผู้ติดต่อ")
-    else:
-        email = str(claims.email).lower()
-        matches = db.scalars(select(Contact).join(ChannelIdentity).where(
-            Contact.organization_id == claims.organization_id,
-            ChannelIdentity.channel_type == "email", func.lower(ChannelIdentity.value) == email,
-        ).distinct()).all()
-        if len(matches) > 1 or (matches and not matches[0].is_active):
-            raise HTTPException(409, "กรุณาติดต่อทีมสนับสนุนเพื่อยืนยันข้อมูลผู้ติดต่อ")
-        contact = matches[0] if matches else Contact(organization_id=claims.organization_id, name=claims.name)
-        if not matches:
-            db.add(contact)
-            db.flush()
-            db.add(ChannelIdentity(contact_id=contact.id, channel_type="email", value=email))
-        db.add(PortalIdentity(organization_id=claims.organization_id, identity_key=identity_key, contact_id=contact.id))
-    instance = db.get(ProductInstance, claims.instance_id)
-    product = db.get(Product, instance.product_id)
-    source = urlsplit(claims.source_url)
-    ticket = Ticket(ticket_no=tickets.next_ticket_number(db, now), subject=subject, description=description,
-                    status="NEW", channel="portal", organization_id=claims.organization_id,
-                    contact_id=contact.id, product_instance_id=claims.instance_id, module_id=claims.module_id,
-                    created_by_id=actor.id, current_tier=2, reported_at=now, created_at=now,
-                    sla_policy_id=product.sla_policy_id if product.sla_policy_id else None,
-                    impact_scope="single_user", severity=suggest_severity("single_user", False),
-                    source_url=source._replace(query="", fragment="").geturl(),
-                    browser_device=request.headers.get("user-agent", "")[:255],
-                    exam_or_course_context=claims.exam_or_course_context)
-    written = []
-    try:
-        db.add(ticket)
-        db.flush()
-        history = TicketStatusHistory(ticket_id=ticket.id, from_status="NEW", to_status="NEW",
-                                      created_at=now, details={"event": "CASE_CREATED", "source": "product_sso"})
-        db.add(history)
-        db.flush()
-        # Same intake rules as staff capture: exam-window priority, SLA clock, tier interval.
-        sla_engine.apply_exam_window(db, ticket, now)
-        sla_engine.sync_clock(db, ticket, now)
-        sla_engine.update_breach(db, ticket, now)
-        initialize_interval(db, ticket, now, history.id)
-        db.add(PortalSubmission(grant_key=grant_key, ticket_id=ticket.id))
-        if screenshot is not None and screenshot.filename:
-            suffix = PurePosixPath(screenshot.filename.lower()).suffix
-            suffix = suffix if suffix in {".png", ".jpg", ".jpeg", ".webp"} else IMAGES.get(screenshot.content_type, "")
-            _, written = attachment_storage.store_attachment(
-                db, ticket.id, screenshot.file, "screenshot" + suffix, actor.id, allowed_types=set(IMAGES))
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        attachment_storage.discard(written)
-        if isinstance(exc, IntegrityError):
-            raise HTTPException(409, "บันทึกไม่สำเร็จ กรุณาเปิดฟอร์มใหม่จากผลิตภัณฑ์") from None
-        if isinstance(exc, HTTPException) and exc.status_code in (413, 415, 422):
-            raise HTTPException(422, "รองรับภาพ PNG, JPEG หรือ WebP ขนาดไม่เกิน 10 MB") from None
-        raise
+    contact = portal_intake.resolve_product_identity(
+        db, claims.organization_id, claims.iss, claims.sub, claims.name, claims.email)
+    ticket = portal_intake.open_case(
+        db, actor=actor, contact=contact, instance=db.get(ProductInstance, claims.instance_id),
+        module_id=claims.module_id, subject=subject, description=description, screenshot=screenshot,
+        user_agent=request.headers.get("user-agent"), source_url=claims.source_url,
+        exam_context=claims.exam_or_course_context, source="product_sso", grant_key=grant_key)
     return {"ticket_no": ticket.ticket_no}
+
+
+@router.post("/session")
+def session_from_grant(token: str = Form(...), db=Depends(get_db)):
+    """Exchange a product grant for a self-service portal session (POR-07 via SSO)."""
+    claims, _ = verified(token, db)
+    portal_intake.lock_organization(db, claims.organization_id)
+    contact = portal_intake.resolve_product_identity(
+        db, claims.organization_id, claims.iss, claims.sub, claims.name, claims.email)
+    db.commit()
+    return portal_access.session_response(contact)
 
 
 @router.post("/status")

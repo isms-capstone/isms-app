@@ -45,4 +45,5 @@ class ContactResponse(ContactCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     organization_id: int
+    portal_scope: str = "own"
     channels: list[ChannelResponse]

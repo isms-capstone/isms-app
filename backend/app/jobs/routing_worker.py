@@ -35,9 +35,11 @@ def main():
         except Exception:
             logger.exception("SLA checks failed")
         try:
+            from app.services.portal_access import purge_expired_links
             from app.services.portal_mail import deliver_replies
             with SessionLocal() as db:
-                deliver_replies(db)
+                logger.info("Portal e-mails sent: %s", deliver_replies(db))
+                purge_expired_links(db)
         except Exception:
             logger.exception("Portal email delivery failed")
         stop.wait(300)
