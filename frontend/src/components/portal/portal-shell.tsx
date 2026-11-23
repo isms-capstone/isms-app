@@ -67,7 +67,7 @@ export function PortalShell({
   }
   return (
     <main id="main-content" className="portal-page min-h-screen">
-      <header className="top-bar portal-top-bar">
+      <header className="portal-top-bar">
         <Link href="/portal" className="portal-brand">
           <CompanyMark />
           <span>

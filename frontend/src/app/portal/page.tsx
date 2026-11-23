@@ -58,7 +58,7 @@ export default function PortalHome() {
           value={filter}
           onChange={(value) => setFilter(String(value))}
           options={[
-            { value: "open", label: "กำลังดำเนินการ" },
+            { value: "open", label: "ยังไม่เสร็จ" },
             { value: "closed", label: "เสร็จแล้ว" },
             { value: "all", label: "ทั้งหมด" },
           ]}

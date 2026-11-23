@@ -100,7 +100,7 @@ export default function AnnouncementsPage() {
       ) : (
         <>
           <section className="surface detail-card">
-            <h2>
+            <h2 className="flex items-center gap-2">
               <Megaphone size={17} aria-hidden /> ประกาศใหม่
             </h2>
             <form className="grid gap-3" onSubmit={publish}>

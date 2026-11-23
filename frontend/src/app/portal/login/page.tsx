@@ -71,7 +71,7 @@ function PortalLoginForm() {
               </p>
             )}
             {sent ? (
-              <p className="form-message" role="status">
+              <p className="form-message flex items-center gap-2" role="status">
                 <Mail size={16} aria-hidden /> {sent}
               </p>
             ) : null}

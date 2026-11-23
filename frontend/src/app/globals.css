@@ -3038,6 +3038,9 @@ textarea:focus {
   background: var(--soft);
 }
 .portal-top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

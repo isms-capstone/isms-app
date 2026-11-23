@@ -914,11 +914,17 @@ def auto_close_resolved_tickets(
 ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", "/app/uploads/ticket-attachments"))
 
 
-def _attachment_ticket(db, ticket_id, user):
+ATTACHMENT_READERS = {'Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead', 'Executive'}
+
+
+def _attachment_ticket(db, ticket_id, user, write=False):
+    """SRS 3.2: support staff may read every case (including evidence) to triage
+    unassigned work; only Admin or a case participant may add files."""
     ticket = get_record(db, Ticket, ticket_id)
     role = user.role.name if user.role else None
-    if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
-        raise HTTPException(403, 'คุณไม่มีสิทธิ์เปิดไฟล์แนบของเคสนี้')
+    participant = role == 'Admin' or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id)
+    if not participant and (write or role not in ATTACHMENT_READERS):
+        raise HTTPException(403, 'คุณไม่มีสิทธิ์เพิ่มไฟล์ในเคสนี้' if write else 'คุณไม่มีสิทธิ์เปิดไฟล์แนบของเคสนี้')
     return ticket
 
 
@@ -968,7 +974,7 @@ def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...),
                              db: Session = Depends(get_db), user: User = Depends(require_capture)):
     from app.services import attachment_storage as objects
 
-    _attachment_ticket(db, ticket_id, user)
+    _attachment_ticket(db, ticket_id, user, write=True)
     original_name = Path((file.filename or 'attachment').replace('\\', '/')).name[:255]
     written = []
     try:

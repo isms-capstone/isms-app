@@ -37,7 +37,7 @@ export function Announcements({ compact = false }: { compact?: boolean }) {
           <AlertTriangle size={18} aria-hidden />
           <div>
             <strong>
-              {notice.product ? `${notice.product}: ` : ""}
+              {notice.product && !notice.title.includes(notice.product) ? `${notice.product}: ` : ""}
               {notice.title}
             </strong>
             <p>{notice.message}</p>

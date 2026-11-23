@@ -88,7 +88,7 @@ export default function PortalNewCase() {
                 <option value="">เลือกระบบ</option>
                 {me?.systems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.product} · {item.name}
+                    {item.name.startsWith(item.product) ? item.name : `${item.product} · ${item.name}`}
                   </option>
                 ))}
               </SelectControl>

@@ -62,3 +62,12 @@ def test_private_attachment_thumbnail_and_expiry(capture, monkeypatch):
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
         id=ticket['created_by_id'] + 100, role=SimpleNamespace(name='Agent'))
     assert client.get(row['download_url']).status_code == 403
+    # SRS 3.2: another support agent can triage the evidence with their own link,
+    # but cannot add files to a case they do not take part in.
+    listed = client.get(path)
+    assert listed.status_code == 200
+    assert client.get(listed.json()[0]['download_url']).content == image.getvalue()
+    assert client.post(path, files={'file': ('more.png', image.getvalue(), 'image/png')}).status_code == 403
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
+        id=ticket['created_by_id'] + 101, role=SimpleNamespace(name='Auditor'))
+    assert client.get(path).status_code == 403

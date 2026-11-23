@@ -64,7 +64,11 @@ export default function PortalCase() {
             <dl className="portal-facts">
               <div>
                 <dt>ผลิตภัณฑ์</dt>
-                <dd>{[data.product, data.system].filter(Boolean).join(" · ") || "—"}</dd>
+                <dd>
+                  {data.system && data.product && data.system.startsWith(data.product)
+                    ? data.system
+                    : [data.product, data.system].filter(Boolean).join(" · ") || "—"}
+                </dd>
               </div>
               <div>
                 <dt>แจ้งเมื่อ</dt>
@@ -83,7 +87,7 @@ export default function PortalCase() {
                 </div>
               )}
             </dl>
-            <h2>
+            <h2 className="flex items-center gap-2">
               <MessageSquare size={17} aria-hidden /> ข้อความจากทีมสนับสนุน
             </h2>
             {data.replies.length === 0 ? (
