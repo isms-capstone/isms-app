@@ -17,6 +17,22 @@ class Schedule:
         return int((datetime.combine(datetime.min, self.end) -
                     datetime.combine(datetime.min, self.start)).total_seconds())
 
+    def add_business_days(self, start, days):
+        """UTC moment `days` working days after `start` (same local time of day),
+        skipping weekends and holidays of this calendar."""
+        zone = ZoneInfo(self.zone)
+        local = start.replace(tzinfo=timezone.utc).astimezone(zone)
+        day, counted = local.date(), 0
+        for _ in range(3660):
+            if counted >= days:
+                break
+            day += timedelta(days=1)
+            if self.weekdays[day.weekday()] and day not in self.holidays:
+                counted += 1
+        else:
+            raise ValueError("Business calendar has no working days")
+        return datetime.combine(day, local.time(), zone).astimezone(timezone.utc).replace(tzinfo=None)
+
     def add(self, start, seconds):
         """UTC datetime reached after `seconds` of business time from `start`."""
         if seconds <= 0:

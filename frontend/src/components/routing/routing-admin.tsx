@@ -17,6 +17,7 @@ import type { RoutingOptions } from "@/lib/routing-types";
 type Config = {
   policy: {
     s1_minutes: number;
+    auto_close_business_days?: number;
     enabled: boolean;
     business_calendar_id: number | null;
   };
@@ -303,7 +304,7 @@ export function RoutingAdmin() {
                 </section>
                 <section className="surface routing-panel">
                   <h2>
-                    <Clock3 size={18} /> การส่งต่อ S1 อัตโนมัติ
+                    <Clock3 size={18} /> งานอัตโนมัติ: ส่งต่อ S1 และปิดเคส
                   </h2>
                   <form
                     className="routing-form"
@@ -344,6 +345,29 @@ export function RoutingAdmin() {
                           })
                         }
                       />
+                    </label>
+                    <label>
+                      ปิดเคสอัตโนมัติหลังแก้ไขเสร็จ (วันทำการ)
+                      <Input
+                        aria-label="ปิดเคสอัตโนมัติหลังสถานะแก้ไขแล้วกี่วันทำการ"
+                        type="number"
+                        min={1}
+                        max={30}
+                        required
+                        value={String(config.policy.auto_close_business_days ?? 3)}
+                        onChange={(value) =>
+                          setConfig({
+                            ...config,
+                            policy: {
+                              ...config.policy,
+                              auto_close_business_days: Number(value),
+                            },
+                          })
+                        }
+                      />
+                      <small className="field-hint">
+                        ถ้าลูกค้าไม่แจ้งกลับภายในจำนวนวันนี้ ระบบปิดเคสให้ (นับเฉพาะวันทำการตามปฏิทิน)
+                      </small>
                     </label>
                     <label>
                       ปฏิทินเวลาทำการสำหรับแจ้งเตือนเคสใหม่ค้าง

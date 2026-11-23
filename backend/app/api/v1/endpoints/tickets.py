@@ -896,17 +896,17 @@ def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User 
 
 @router.post('/tickets/auto-close-resolved', status_code=200)
 def auto_close_resolved_tickets(
-    business_days: int = Query(3, ge=1, le=30),
+    business_days: int | None = Query(None, ge=1, le=30),
     db: Session = Depends(get_db),
     user: User = Depends(RoleChecker(['Admin']))
 ):
-    """Trigger สำหรับรัน Auto-close Job (รองรับการกำหนดจำนวนวันทำการ)"""
-    closed_count = run_auto_close_resolved_tickets(db, allowed_business_days=business_days)
-    return {
-        "message": f"Auto-close process completed successfully.",
-        "closed_tickets_count": closed_count,
-        "business_days_threshold": business_days
-    }
+    """Run the CORE-03 auto-close now. The worker also runs it every cycle; without
+    business_days the delay configured on the routing policy is used."""
+    from app.services.auto_close import configured_days
+    days = business_days or configured_days(db)
+    closed_count = run_auto_close_resolved_tickets(db, allowed_business_days=days)
+    return {"message": "ปิดเคสอัตโนมัติเรียบร้อย", "closed_tickets_count": closed_count,
+            "business_days_threshold": days}
 
 
 

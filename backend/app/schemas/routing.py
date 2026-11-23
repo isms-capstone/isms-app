@@ -28,6 +28,7 @@ class UserTierInput(Strict):
 
 class PolicyInput(Strict):
     s1_minutes: int = Field(ge=1, le=1440)
+    auto_close_business_days: int = Field(default=3, ge=1, le=30)
     enabled: bool = True
     business_calendar_id: int | None = Field(default=None, ge=1)
 

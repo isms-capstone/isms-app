@@ -35,6 +35,12 @@ def main():
         except Exception:
             logger.exception("SLA checks failed")
         try:
+            from app.services.auto_close import run_auto_close_resolved_tickets
+            with SessionLocal() as db:
+                logger.info("Cases closed automatically: %s", run_auto_close_resolved_tickets(db))
+        except Exception:
+            logger.exception("Automatic closure failed")
+        try:
             from app.services.portal_access import purge_expired_links
             from app.services.portal_mail import deliver_replies
             with SessionLocal() as db:

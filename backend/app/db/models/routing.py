@@ -39,9 +39,12 @@ class RoutingPolicy(Base):
     __tablename__ = "routing_policy"
     __table_args__ = (
         CheckConstraint("s1_minutes BETWEEN 1 AND 1440", name="ck_routing_s1_minutes"),
+        CheckConstraint("auto_close_business_days BETWEEN 1 AND 30", name="ck_routing_auto_close_days"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     s1_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    # CORE-03 / BR-06: RESOLVED cases close after this many business days.
+    auto_close_business_days: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     business_calendar_id: Mapped[int | None] = mapped_column(
         ForeignKey("business_calendars.id")

@@ -108,6 +108,7 @@ def config(db: Database):
         "worker": {"last_success_at": worker.last_success_at} if worker else None,
         "policy": {
             "s1_minutes": policy.s1_minutes if policy else 15,
+            "auto_close_business_days": policy.auto_close_business_days if policy else 3,
             "enabled": policy.enabled if policy else True,
             "business_calendar_id": policy.business_calendar_id if policy else None,
         },
