@@ -118,6 +118,11 @@ export function CaptureScreen() {
     [context, subject, channel, description, instance, department, course, categories, createdFor],
   );
   const dirty = !!(context || subject.trim() || description.trim() || channel);
+  // ADO-01 / CAP-04 evidence: time from the user's first input to saving.
+  const startedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (dirty && startedAt.current === null) startedAt.current = Date.now();
+  }, [dirty]);
   const persist = useCallback(() => {
     if (!draftKey || preview || !dirty || savedTicketId.current) return;
     try {
@@ -250,6 +255,10 @@ export function CaptureScreen() {
             body: JSON.stringify({
               save_as_draft: draft,
               similarity_feedback_id: similarFeedbackId,
+              capture_seconds:
+                startedAt.current === null
+                  ? null
+                  : Math.round((Date.now() - startedAt.current) / 1000),
               created_for_user_id: createdFor ? Number(createdFor) : null,
               subject,
               description,

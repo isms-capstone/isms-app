@@ -134,6 +134,19 @@ export function Sidebar({
           : []),
       ],
     },
+    ...(!preview && session && ["Admin", "Team Lead", "Executive"].includes(session.role)
+      ? [
+          {
+            title: "รายงาน",
+            items: [
+              { label: "เวลาที่ใช้สร้างเคส", path: "/reports/capture-time", icon: Clock3 },
+              ...(session.role === "Admin"
+                ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }]
+                : []),
+            ],
+          },
+        ]
+      : []),
     ...(isAdmin
       ? [
           {
@@ -145,7 +158,6 @@ export function Sidebar({
               { label: "การส่งต่อเคส (Tier)", path: "/routing/admin", icon: GitBranch },
               { label: "กฎอัตโนมัติ", path: "/administration/automation", icon: Zap },
               { label: "ประวัติการแก้ไขข้อมูล", path: "/administration/audit-log", icon: History },
-              { label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn },
             ],
           },
         ]

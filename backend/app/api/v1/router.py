@@ -83,3 +83,6 @@ from app.api.v1.endpoints.case_queue import router as case_queue_router
 api_router.include_router(case_queue_router)
 from app.api.v1.endpoints.portal_self_service import router as portal_self_service_router
 api_router.include_router(portal_self_service_router)
+
+from app.api.v1.endpoints.adoption import router as adoption_router
+api_router.include_router(adoption_router)

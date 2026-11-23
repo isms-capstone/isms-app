@@ -136,6 +136,7 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
     values.pop('similarity_feedback_id', None)
     values.pop('created_for_user_id', None)
     values.pop('tags', None)
+    values.pop('capture_seconds', None)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
@@ -268,6 +269,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
                 "owner_id": owner_id,
                 "assignee_id": values.get("assignee_id"),
                 "created_for_user_id": body.created_for_user_id,
+                "capture_seconds": body.capture_seconds,
             },
         )
         db.add(history)
@@ -397,7 +399,7 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
     data = {
     field: getattr(ticket, field)
     for field in TicketCreate.model_fields
-    if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
+    if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')
 }
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
@@ -465,7 +467,7 @@ def edit_ticket_details(
     data = {
         field: getattr(ticket, field)
         for field in TicketCreate.model_fields
-        if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
+        if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')
     }
 
     data.update({

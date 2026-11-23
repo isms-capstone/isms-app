@@ -196,7 +196,7 @@ def update_categorization(ticket_id: int, body: CategorizationUpdate,
     before = snapshot(db, ticket)
     changes = body.model_dump(exclude_unset=True)
     data = {field: getattr(ticket, field) for field in TicketCreate.model_fields
-            if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')}
+            if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')}
     # CAT does not edit intake channel. Older records may contain legacy values
     # such as WEB; do not revalidate those against today's capture-only enum.
     data.update(tags=before['tags'], save_as_draft=True, channel=None,

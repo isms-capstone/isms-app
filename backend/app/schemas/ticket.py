@@ -25,6 +25,8 @@ class TicketCreate(CategoryFields):
     ticket_type_id: int | None = Field(default=None, ge=1)
     reported_at: datetime | None = None
     similarity_feedback_id: int | None = Field(default=None, ge=1)
+    # ADO-01/CAP-04: seconds from the user's first input on the capture form to saving.
+    capture_seconds: int | None = Field(default=None, ge=0, le=86400)
 
     @field_validator('subject', 'description')
     @classmethod
