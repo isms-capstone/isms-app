@@ -78,6 +78,14 @@ const fieldLabels: Record<string, string> = {
   organization_id: "รหัสองค์กร",
   channel: "ช่องทาง",
 };
+const deliveryLabels: Record<string, string> = {
+  pending: "รอส่ง",
+  email: "ส่งอีเมลแล้ว",
+  portal: "แจ้งในศูนย์ช่วยเหลือแล้ว",
+  "email+portal": "ส่งอีเมลและแจ้งในศูนย์ช่วยเหลือแล้ว",
+  manual_follow_up: "ไม่มีช่องทางอัตโนมัติ — ทีมต้องแจ้งลูกค้าเอง",
+};
+
 export function WorklogPanel({ ticket }: { ticket: Ticket }) {
   const { session } = useSession();
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -237,7 +245,7 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                             ) : (
                               typeof change === "string"
                                 ? key === "relationship_type" ? relationshipTypes[change] ?? change
-                                  : key === "delivery_status" && change === "pending" ? "รอส่ง" : change
+                                  : key === "delivery_status" ? deliveryLabels[change] ?? change : change
                                 : change == null ? "–" : JSON.stringify(change)
                             )}
                           </dd>

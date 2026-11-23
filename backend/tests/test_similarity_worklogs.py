@@ -644,7 +644,8 @@ def test_duplicate_merge_moves_notes_preserves_customer_scope_and_closes(capture
         notices = db.scalars(select(TicketAudit).where(
             TicketAudit.event == "relationship_closure_notice")).all()
         assert {notice.ticket_id for notice in notices} == {source_id, master_id}
-        assert {notice.changes["delivery_status"] for notice in notices} == {"pending"}
+        # No e-mail on file and not a portal case: the team must follow up manually.
+        assert {notice.changes["delivery_status"] for notice in notices} == {"manual_follow_up"}
 
 
 def test_master_incident_closes_children_and_audit_search_retains_old_events(capture):
@@ -704,3 +705,37 @@ def test_customer_history_filters_and_orders_published_cases(capture):
     assert [row["id"] for row in response.json()] == [new_case, old_case]
     response = client.get("/api/v1/tickets", params=dict(params, ticket_status="CLOSED"))
     assert [row["id"] for row in response.json()] == [old_case]
+
+
+def test_master_incident_notifies_every_reporter_by_email_and_portal(capture):
+    """REL-03: closing the master sends one message to each child's reporter."""
+    from app.db.models.portal import PortalOutbox
+    from app.db.models.work_category import TicketWorklog
+    from app.services.ticket_relationships import close_relationships
+
+    client, _, factory, context, _ = capture
+    master_id = seed_case(factory, context, status="RESOLVED")
+    child_id = seed_case(factory, context, status="NEW")
+    assert client.post(f"/api/v1/customers/contacts/{context['contact_id']}/channels",
+                       json={"channel_type": "email", "value": "reporter@example.org"}).status_code == 201
+    with factory() as db:
+        child = db.get(Ticket, child_id)
+        child.channel, child.contact_id = "portal", context["contact_id"]
+        db.get(Ticket, master_id).resolution_detail = "Restarted the exam server"
+        db.commit()
+    assert client.post(f"/api/v1/tickets/{child_id}/links", json={
+        "related_ticket_id": master_id, "relationship_type": "child-of", "reason": "same outage"}).status_code == 201
+    with factory() as db:
+        master = db.get(Ticket, master_id)
+        master.status = "CLOSED"
+        close_relationships(db, master, master.owner_id)
+        db.commit()
+    with factory() as db:
+        notice = db.scalar(select(TicketAudit).where(TicketAudit.ticket_id == child_id,
+                                                     TicketAudit.event == "relationship_closure_notice"))
+        assert notice.changes["delivery_status"] == "email+portal"
+        mail = db.scalar(select(PortalOutbox).where(PortalOutbox.recipient == "reporter@example.org"))
+        assert "Restarted the exam server" in mail.body
+        reply = db.scalar(select(TicketWorklog).where(TicketWorklog.ticket_id == child_id,
+                                                      TicketWorklog.is_internal.is_(False)))
+        assert reply.channel == "portal" and "Restarted the exam server" in reply.body

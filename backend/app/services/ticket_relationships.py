@@ -185,19 +185,45 @@ def transfer_duplicate_content(db, source_id, master_id):
     )
 
 
-def queue_closure_notice(db, ticket, master_id, actor_id):
+def queue_closure_notice(db, ticket, master, actor_id):
+    """REL-02/03: tell the reporter of `ticket` that the shared problem is fixed.
+
+    Delivery uses the channels this system can reach today: a public reply that the
+    customer sees in the portal (portal cases) and an e-mail to the contact. The
+    audit row records the result so the team can follow up manually otherwise
+    (e.g. LINE contacts until the Phase 2 LINE integration)."""
+    from app.core.config import settings
+    from app.db.models.customer import ChannelIdentity
+    from app.db.models.portal import PortalOutbox
+
+    detail = (master.resolution_detail or "").strip()
+    message = f"{CLOSURE_MESSAGE} (เคสหลัก {master.ticket_no})" + (f"\n\nสิ่งที่แก้ไข: {detail}" if detail else "")
+    delivered = []
+    if ticket.channel == "portal" and actor_id:
+        db.add(TicketWorklog(ticket_id=ticket.id, actor_id=actor_id, kind="public_reply",
+                             channel="portal", body=message))
+        delivered.append("portal")
+    emails = db.scalars(select(ChannelIdentity.value).where(
+        ChannelIdentity.contact_id == ticket.contact_id, ChannelIdentity.channel_type == "email")
+        .distinct().limit(3)).all() if ticket.contact_id else []
+    base = settings.PORTAL_BASE_URL.rstrip("/")
+    for email in emails:
+        db.add(PortalOutbox(recipient=email, created_at=datetime.now(UTC).replace(tzinfo=None),
+                            subject=f"ISMS: เคส {ticket.ticket_no} แก้ไขเรียบร้อยแล้ว",
+                            body=f"{message}\n\nดูรายละเอียดได้ที่ {base}/portal/cases/{ticket.ticket_no}"))
+        delivered.append("email")
     db.add(
         TicketAudit(
             ticket_id=ticket.id,
             actor_id=actor_id,
             event="relationship_closure_notice",
             changes={
-                "master_ticket_id": master_id,
+                "master_ticket_id": master.id,
                 "contact_id": ticket.contact_id,
                 "organization_id": ticket.organization_id,
                 "channel": ticket.channel,
-                "message": CLOSURE_MESSAGE,
-                "delivery_status": "pending",
+                "message": message,
+                "delivery_status": "+".join(sorted(set(delivered))) if delivered else "manual_follow_up",
             },
         )
     )
@@ -227,7 +253,7 @@ def close_linked_case(db, child, master, target, actor_id, now):
     child.routing_version += 1
     sync_clock(db, child, now)
     update_breach(db, child, now)
-    queue_closure_notice(db, child, master.id, actor_id)
+    queue_closure_notice(db, child, master, actor_id)
 
 
 def close_relationships(db, master, actor_id, now=None):
@@ -251,6 +277,6 @@ def close_relationships(db, master, actor_id, now=None):
         elif kind == "child-of":
             pending.setdefault(child.id, (child, "CLOSED"))
     if pending:
-        queue_closure_notice(db, master, master.id, actor_id)
+        queue_closure_notice(db, master, master, actor_id)
     for child, target in pending.values():
         close_linked_case(db, child, master, target, actor_id, now)
