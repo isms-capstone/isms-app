@@ -322,7 +322,14 @@ def test_explicit_draft_and_queue_filters(capture):
     assert summary['mine'] == before['mine'] + 1
     assert summary['today'] == before['today'] + 1
     assert summary['unassigned'] == before['unassigned']
-    assert summary['sla_at_risk'] is None
+    with factory() as db:
+        from app.db.models.master_data import SlaPolicyRule
+        sla_configured = db.scalar(select(SlaPolicyRule.id).where(SlaPolicyRule.is_active.is_(True)).limit(1))
+    # The SLA count is only meaningful once an SLA policy exists (seeded MariaDB has one).
+    if sla_configured is None:
+        assert summary['sla_at_risk'] is None
+    else:
+        assert isinstance(summary['sla_at_risk'], int)
     mine = client.get('/api/v1/tickets', params={'mine': True, 'open_only': True, 'q': marker}).json()
     assert [row['id'] for row in mine] == [new['id']]
     drafts = client.get('/api/v1/tickets?drafts_only=true').json()

@@ -176,6 +176,9 @@ jobs:
       MARIADB_ROOT_PASSWORD: ci-root-only-password
       MARIADB_DB: isms_ci
       SECRET_KEY: ci-isolated-test-key-only
+      # staging/production compose files refuse to start without MinIO credentials
+      MINIO_ACCESS_KEY: ci-attachment-only
+      MINIO_SECRET_KEY: ci-attachment-storage-only
 
     steps:
       - name: Checkout repository

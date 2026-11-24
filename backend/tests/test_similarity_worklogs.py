@@ -672,7 +672,8 @@ def test_master_incident_closes_children_and_audit_search_retains_old_events(cap
     with factory() as db:
         assert db.get(Ticket, child_id).status == "CLOSED"
         notices = db.scalars(select(TicketAudit).where(
-            TicketAudit.event == "relationship_closure_notice")).all()
+            TicketAudit.event == "relationship_closure_notice",
+            TicketAudit.ticket_id.in_([master_id, child_id]))).all()
         assert {row.ticket_id for row in notices} == {master_id, child_id}
         assert len({row.changes["message"] for row in notices}) == 1
 

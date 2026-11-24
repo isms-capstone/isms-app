@@ -17,6 +17,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     with op.batch_alter_table("ticket") as batch:
-        batch.drop_index("ix_ticket_team_id")
+        # MariaDB keeps the index while a foreign key uses it, so drop the key first.
         batch.drop_constraint("fk_ticket_team_id", type_="foreignkey")
+        batch.drop_index("ix_ticket_team_id")
         batch.drop_column("team_id")
