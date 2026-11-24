@@ -18,6 +18,8 @@ type CaseLink = {
   ticket_id: number;
   related_ticket_id: number;
   relationship_type: keyof typeof labels;
+  ticket?: { ticket_no: string | null; subject: string | null };
+  related_ticket?: { ticket_no: string | null; subject: string | null };
 };
 
 export function TicketRelationships({
@@ -94,14 +96,18 @@ export function TicketRelationships({
           {rows.map((row) => {
             const outgoing = row.ticket_id === id;
             const other = outgoing ? row.related_ticket_id : row.ticket_id;
+            const otherCase = outgoing ? row.related_ticket : row.ticket;
             return (
               <li key={row.id}>
                 {labels[row.relationship_type]}{" "}
                 {row.relationship_type !== "related" &&
                   (outgoing ? "ไปยัง" : "จาก")}{" "}
                 <Link className="text-link" href={`/cases/${other}`}>
-                  เคส #{other}
+                  {otherCase?.ticket_no || `เคส #${other}`}
                 </Link>
+                {otherCase?.subject && (
+                  <span className="text-muted"> · {otherCase.subject}</span>
+                )}
               </li>
             );
           })}

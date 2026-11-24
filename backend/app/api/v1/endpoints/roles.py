@@ -14,7 +14,7 @@ router = APIRouter()
 def _get_role_or_404(db: Session, role_id: int) -> Role:
     role = db.get(Role, role_id)
     if not role:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบบทบาท")
     return role
 
 
@@ -27,7 +27,7 @@ def read_roles(db: Session = Depends(get_db)):
              dependencies=[Depends(require_admin)])
 def create_role(role_in: RoleCreate, db: Session = Depends(get_db)):
     if db.query(Role).filter(Role.name == role_in.name).first():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Role already exists")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "มีบทบาทชื่อนี้แล้ว")
     role = Role(name=role_in.name, description=role_in.description)
     db.add(role)
     db.commit()
@@ -41,11 +41,11 @@ def update_role(role_id: int, role_in: RoleUpdate, db: Session = Depends(get_db)
     data = role_in.model_dump(exclude_unset=True)
     if "name" in data:
         if role.name in SYSTEM_ROLE_NAMES and data["name"] != role.name:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "System role cannot be renamed")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "เปลี่ยนชื่อบทบาทของระบบไม่ได้")
         if not data["name"]:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
         if db.query(Role).filter(Role.name == data["name"], Role.id != role.id).first():
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Role already exists")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "มีบทบาทชื่อนี้แล้ว")
     for field, value in data.items():
         setattr(role, field, value)
     db.commit()
@@ -57,13 +57,13 @@ def update_role(role_id: int, role_in: RoleUpdate, db: Session = Depends(get_db)
 def delete_role(role_id: int, db: Session = Depends(get_db)):
     role = _get_role_or_404(db, role_id)
     if role.name in SYSTEM_ROLE_NAMES:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "System role cannot be deleted")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "ลบบทบาทของระบบไม่ได้")
     if db.query(User).filter(User.role_id == role.id).count():
-        raise HTTPException(status.HTTP_409_CONFLICT, "Role is still assigned to users")
+        raise HTTPException(status.HTTP_409_CONFLICT, "ยังมีผู้ใช้ที่ใช้บทบาทนี้อยู่ ย้ายผู้ใช้ก่อนลบ")
     try:
         db.delete(role)
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Role is referenced by other records")
+        raise HTTPException(status.HTTP_409_CONFLICT, "บทบาทนี้ถูกอ้างอิงในข้อมูลอื่นอยู่ จึงลบไม่ได้")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

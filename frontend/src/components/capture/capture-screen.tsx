@@ -36,6 +36,7 @@ import { Button, Input, cx } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import {
   channelNames,
+  severityNames,
   type SelectionContext,
   type Ticket as TicketType,
 } from "@/lib/types";
@@ -714,6 +715,14 @@ export function CaptureScreen() {
                 <dd>{subject || "ยังไม่ระบุหัวข้อ"}</dd>
                 <dt>ผลิตภัณฑ์</dt>
                 <dd>{selectedProduct?.name || "ยังไม่ระบุ"}</dd>
+                <dt>ความรุนแรง / SLA</dt>
+                <dd>
+                  {categories.severity
+                    ? `${categories.severity} ${severityNames[categories.severity] || ""}`
+                    : categories.impact_scope
+                      ? "ระบบเสนอจากขอบเขตผลกระทบ"
+                      : "ยังไม่ระบุ · SLA เริ่มนับเมื่อระบุขอบเขตผลกระทบในรายละเอียดเพิ่มเติม"}
+                </dd>
               </dl>
               <div className="automatic-fields">
                 <strong>

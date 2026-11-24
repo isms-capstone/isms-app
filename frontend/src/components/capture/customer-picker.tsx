@@ -4,6 +4,9 @@ import { Search, Building2 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CustomerChoice, SelectionContext } from "@/lib/types";
 import { Input, Button } from "@/components/ui/primitives";
+import { SelectControl } from "@/components/ui/company-fields";
+
+type ContactOption = { id: number; name: string; is_active?: boolean };
 export function CustomerPicker({
   value,
   onChange,
@@ -17,7 +20,9 @@ export function CustomerPicker({
     [choices, setChoices] = useState<CustomerChoice[]>([]),
     [open, setOpen] = useState(false),
     [loading, setLoading] = useState(false),
-    [active, setActive] = useState(-1);
+    [active, setActive] = useState(-1),
+    [contacts, setContacts] = useState<ContactOption[]>([]);
+  const organizationId = value?.organization.id;
   const inputRef = useRef<HTMLInputElement>(null),
     selectionRef = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -46,6 +51,30 @@ export function CustomerPicker({
     };
   }, [query, onError]);
   useEffect(() => () => selectionRef.current?.abort(), []);
+  // Reporters of the chosen organisation, so picking the organisation by name
+  // still lets the agent record who reported the problem.
+  useEffect(() => {
+    if (!organizationId) return;
+    const controller = new AbortController();
+    api<ContactOption[]>(
+      `/customers/contacts?organization_id=${organizationId}&limit=100`,
+      { signal: controller.signal },
+    )
+      .then((rows) => setContacts(rows.filter((row) => row.is_active !== false)))
+      .catch(() => {
+        if (!controller.signal.aborted) setContacts([]);
+      });
+    return () => controller.abort();
+  }, [organizationId]);
+  async function chooseContact(contactId: string) {
+    if (!value) return;
+    await select({
+      organization: value.organization,
+      contact: contactId
+        ? contacts.find((row) => String(row.id) === contactId) || null
+        : null,
+    } as CustomerChoice);
+  }
   async function select(choice: CustomerChoice) {
     selectionRef.current?.abort();
     const controller = new AbortController();
@@ -165,6 +194,23 @@ export function CustomerPicker({
           </div>
         )}
       </div>
+      {value && contacts.length > 0 && (
+        <label className="customer-contact-picker">
+          ผู้แจ้ง
+          <SelectControl
+            className="input"
+            value={value.contact ? String(value.contact.id) : ""}
+            onValueChange={chooseContact}
+          >
+            <option value="">ไม่ระบุผู้แจ้ง</option>
+            {contacts.map((row) => (
+              <option key={row.id} value={String(row.id)}>
+                {row.name}
+              </option>
+            ))}
+          </SelectControl>
+        </label>
+      )}
     </div>
   );
 }

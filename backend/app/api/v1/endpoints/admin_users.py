@@ -22,7 +22,7 @@ router = APIRouter(
 def _get_user_or_404(db: Session, user_id: int) -> User:
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบผู้ใช้")
     return user
 
 def _get_role_by_name(db: Session, role_name: str) -> Role:
@@ -39,9 +39,9 @@ def _get_role_by_name(db: Session, role_name: str) -> Role:
 
 def _validate_role_team(db: Session, role_id: Optional[int], team_id: Optional[int]) -> None:
     if role_id is not None and not db.get(Role, role_id):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Role not found")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "ไม่พบบทบาท")
     if team_id is not None and not db.get(Team, team_id):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Team not found")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "ไม่พบทีม")
 
 
 def _guard_admin_loss(db: Session, user: User, actor: User) -> None:

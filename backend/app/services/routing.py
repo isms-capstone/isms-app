@@ -102,7 +102,7 @@ def authorize(db, ticket, user):
     ) or lead_for(db, user, route_team(db, ticket)):
         return
     raise HTTPException(
-        403, "Only case participants or the responsible team lead may route this case"
+        403, "ส่งต่อเคสได้เฉพาะผู้เกี่ยวข้องกับเคสหรือหัวหน้าทีมที่รับผิดชอบ"
     )
 
 
@@ -124,7 +124,7 @@ def target_user(db, ticket, user_id, tier):
         )
     if target.default_tier != tier:
         raise HTTPException(
-            422, "Recipient default tier does not match the destination tier"
+            422, "ผู้รับเคสไม่ได้อยู่ใน Tier ปลายทาง เลือกผู้รับใน Tier นั้น"
         )
     team = route_team(db, ticket, tier)
     if team is None or target.team_id != team:
@@ -314,7 +314,7 @@ def return_case(db, ticket_id, body, user):
         raise HTTPException(409, "ส่งคืนได้เฉพาะการส่งต่อล่าสุดที่ยังไม่ถูกส่งคืน")
     if user.id != ticket.assignee_id and not lead_for(db, user, route_team(db, ticket)):
         raise HTTPException(
-            403, "Only the destination assignee or team lead can return a case"
+            403, "ส่งเคสกลับได้เฉพาะผู้รับเคสปลายทางหรือหัวหน้าทีม"
         )
     if db.scalar(
         select(RoutingEvent.id).where(RoutingEvent.return_of_id == original.id)
@@ -356,7 +356,7 @@ def assign(db, ticket_id, body, user, self_assign=False):
         ticket.current_tier,
         user,
         "self_assign" if self_assign else "assign",
-        "Picked from the queue" if self_assign else body.reason,
+        "รับเคสจากคิว" if self_assign else body.reason,
     )
     return ticket
 

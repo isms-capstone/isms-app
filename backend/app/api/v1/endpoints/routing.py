@@ -369,8 +369,16 @@ def respond(
         ticket.current_tier,
         user,
         "response",
-        "Operator acknowledged the case",
+        "รับทราบและเริ่มตรวจสอบ",
     )
+    # Acknowledging is the moment work starts, so a new or reopened case moves
+    # to IN_PROGRESS instead of needing a second status change.
+    if ticket.status in {"NEW", "REOPENED"} and ticket.assignee_id:
+        from app.services.lifecycle import transition
+        try:
+            transition(db, ticket, {"status": "IN_PROGRESS"}, user)
+        except HTTPException:
+            pass  # e.g. a team lead acknowledging a case they do not work on
     commit(db)
     return routing_state(db, ticket, user)
 

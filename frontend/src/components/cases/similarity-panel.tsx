@@ -3,7 +3,7 @@ import { formatDateTime } from "@/lib/format";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, all } from "@/lib/api";
-import type { Instance } from "@/lib/types";
+import { statusNames, type Instance } from "@/lib/types";
 import { useSession } from "@/components/providers/session-provider";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { Button } from "@/components/ui/primitives";
@@ -326,7 +326,7 @@ export function SimilarityPanel(props: Props) {
               {item.ticket_no} · {item.subject}
             </strong>
             <small>
-              แหล่งที่มา: เคส · {item.status} · {item.hint}
+              แหล่งที่มา: เคส · {statusNames[item.status] || item.status} · {item.hint}
             </small>
             <small>
               {item.product} · {item.customer} · ผู้รับผิดชอบ:{" "}

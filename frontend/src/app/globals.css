@@ -3246,3 +3246,52 @@ textarea:focus {
   color: var(--muted);
   font-size: 11px;
 }
+
+/* Reporter of the chosen organisation (capture screen) */
+.customer-contact-picker {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reported-time-edit {
+  margin-top: 12px;
+}
+.reported-time-edit > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sla-missing {
+  color: var(--critical);
+  font-weight: 600;
+}
+
+/* Queue fits a 13-14" laptop next to the sidebar: the least-used column goes
+   first, and view tabs keep their full Thai labels. */
+.all-cases-table {
+  min-width: 940px;
+}
+@media (max-width: 1440px) {
+  .case-table .channel-col {
+    display: none;
+  }
+}
+.queue-heading .gd-Segment__segment {
+  width: auto;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.queue-heading .gd-Segment__item {
+  flex: 1 0 auto;
+}
+.queue-heading .gd-Segment__label {
+  overflow: visible;
+}

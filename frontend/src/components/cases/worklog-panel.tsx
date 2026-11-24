@@ -54,9 +54,9 @@ const fieldLabels: Record<string, string> = {
   ticket_type_id: "ประเภทเคส",
   product_instance_id: "ระบบที่ลูกค้าใช้งาน",
   impact_scope: "ขอบเขตผลกระทบ",
-  is_exam_window: "ระหว่างสอบจริง",
-  severity: "Severity",
-  severity_overridden_reason: "เหตุผลปรับ Severity",
+  is_exam_window: "ช่วงเวลาที่เกิดเหตุ",
+  severity: "ความรุนแรง",
+  severity_overridden_reason: "เหตุผลปรับความรุนแรง",
   root_cause_code_id: "รหัสสาเหตุ",
   root_cause_detail: "คำอธิบายสาเหตุ",
   resolution_code_id: "รหัสวิธีแก้",
@@ -74,9 +74,14 @@ const fieldLabels: Record<string, string> = {
   reason: "เหตุผล",
   delivery_status: "สถานะการแจ้ง",
   message: "ข้อความ",
-  contact_id: "รหัสผู้แจ้ง",
-  organization_id: "รหัสองค์กร",
+  contact_id: "ผู้แจ้ง",
+  organization_id: "ลูกค้า",
   channel: "ช่องทาง",
+  assignee_id: "ผู้ดำเนินการ",
+  subject: "หัวข้อ",
+  description: "รายละเอียด",
+  team_id: "ทีมที่รับผิดชอบ",
+  current_tier: "Tier",
 };
 const deliveryLabels: Record<string, string> = {
   pending: "รอส่ง",
@@ -193,6 +198,15 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
       <ol className="worklog-timeline">
         {events
           .filter((event) => filter === "all" || event.kind === filter)
+          // A status change already has its own entry; skip the duplicate field record.
+          .filter(
+            (event) =>
+              !(
+                event.kind === "ticket_fields_updated" &&
+                event.changes &&
+                Object.keys(event.changes).every((key) => key === "status")
+              ),
+          )
           .map((event) => (
             <li key={event.id} className={`timeline-event ${event.kind}`}>
               <div className="timeline-event-heading">
@@ -223,9 +237,13 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                   filename={event.body}
                 />
               ) : (
-                <p>{event.body}</p>
+                <p>
+                  {event.body}
+                  {changedFields(event.changes).length > 0 &&
+                    `: ${changedFields(event.changes).join(", ")}`}
+                </p>
               )}
-              {event.changes && (
+              {event.changes && Object.keys(event.changes).length > 0 && (
                 <details>
                   <summary className="timeline-detail-trigger">{relationshipEvents[event.kind] ? "ดูรายละเอียด" : "ค่าเดิม / ค่าใหม่"}</summary>
                   <dl>
@@ -352,4 +370,21 @@ function mergeEvents(previous: TimelineEvent[], incoming: TimelineEvent[]) {
       a.created_at.localeCompare(b.created_at) ||
       a.id.localeCompare(b.id, undefined, { numeric: true }),
   );
+}
+
+// Labels of the fields whose old and new values differ, so the timeline says
+// what changed without opening the details.
+function changedFields(changes: Record<string, unknown> | null | undefined) {
+  if (!changes) return [];
+  return Object.entries(changes)
+    .filter(([, change]) => {
+      const pair = change as { old?: unknown; new?: unknown } | null;
+      return (
+        pair !== null &&
+        typeof pair === "object" &&
+        "new" in pair &&
+        JSON.stringify(pair.old ?? null) !== JSON.stringify(pair.new ?? null)
+      );
+    })
+    .map(([key]) => fieldLabels[key] || key);
 }

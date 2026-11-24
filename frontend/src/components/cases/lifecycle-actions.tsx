@@ -92,10 +92,21 @@ export function LifecycleActions({
   const canManageSystems = Boolean(
     ticket.organization_id && session?.can_edit_customers,
   );
+  const missingForResolve =
+    target === "RESOLVED"
+      ? [
+          !instance && "ระบบที่ลูกค้าใช้งาน",
+          !modules.some((row) => row.id === Number(values.module_id)) && "โมดูล",
+          !categories.some((row) => row.id === Number(values.category_id)) && "ประเภทปัญหา",
+          !values.root_cause_code_id && "สาเหตุปัญหา",
+          !values.resolution_code_id && "วิธีแก้ไข",
+          !values.resolution_detail?.trim() && "รายละเอียดการแก้ไข",
+        ].filter(Boolean)
+      : [];
   function choice(field: string, label: string, rows: Choice[]) {
     return (
       <label key={field}>
-        {label}
+        {label} <span className="required">*</span>
         <SelectControl
           required
           value={values[field] || ""}
@@ -254,6 +265,9 @@ export function LifecycleActions({
                   </Button>
                 </div>
               )}
+              {values.product_instance_id && !activeCatalog && (
+                <p className="field-hint">กำลังโหลดโมดูลของระบบนี้…</p>
+              )}
               {activeCatalog && choice("module_id", "โมดูล", modules)}
               {values.module_id && activeCatalog && choice("category_id", "ประเภทปัญหา", categories)}
               {activeCatalog && (!modules.length || (values.module_id && !categories.length)) && (
@@ -262,9 +276,10 @@ export function LifecycleActions({
               {choice("root_cause_code_id", "สาเหตุปัญหา", options.causes)}
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
               <label>
-                รายละเอียดการแก้ไข
+                รายละเอียดการแก้ไข <span className="required">*</span>
                 <TextArea
                   required
+                  placeholder="สิ่งที่ทำเพื่อแก้ปัญหา และผลที่ลูกค้าได้รับ"
                   maxLength={20000}
                   value={values.resolution_detail || ""}
                   onValueChange={(nextValue) =>
@@ -304,12 +319,17 @@ export function LifecycleActions({
               />
             </label>
           )}
+          {missingForResolve.length > 0 && (
+            <p className="field-hint" role="status">
+              ยังขาด: {missingForResolve.join(", ")}
+            </p>
+          )}
           <div className="lifecycle-buttons">
             <Button onClick={() => setTarget("")}>ยกเลิก</Button>
             <Button
               type="submit"
               variant="primary"
-              disabled={busy || (target === "RESOLVED" && !canResolve)}
+              disabled={busy || (target === "RESOLVED" && (!canResolve || missingForResolve.length > 0))}
             >
               ยืนยันเปลี่ยนสถานะ
             </Button>

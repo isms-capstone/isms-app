@@ -124,6 +124,26 @@ export function QueueScreen({
     };
   }, [load]);
 
+  // Design preview has no API, so apply the same filters to the sample rows.
+  const visibleRows = useMemo(() => {
+    if (!preview || !data) return data?.rows ?? [];
+    const productLabel = request.product
+      ? data.products.find((row) => row.code === request.product)?.name ?? request.product
+      : "";
+    const text = request.q.trim().toLowerCase();
+    return data.rows.filter(
+      (row) =>
+        (!productLabel || row.product === productLabel) &&
+        (!request.severities.length || request.severities.includes(row.severity ?? "")) &&
+        (!request.statuses.length || request.statuses.includes(row.status)) &&
+        (!request.channels.length || request.channels.includes(row.channel ?? "")) &&
+        (!text ||
+          [row.ticket_no, row.subject, row.customer].some((value) =>
+            String(value ?? "").toLowerCase().includes(text),
+          )),
+    );
+  }, [preview, data, request]);
+
   const productName =
     product &&
     (data?.products.find((p) => p.code === product)?.name ?? product);
@@ -398,7 +418,7 @@ export function QueueScreen({
             <TableSkeleton />
           ) : (
             <CaseTable
-              rows={data.rows}
+              rows={visibleRows}
               total={preview ? undefined : data.total}
               variant={view === "all" ? "all" : "work"}
               page={page}

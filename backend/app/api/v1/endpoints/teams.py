@@ -14,7 +14,7 @@ router = APIRouter()
 def _get_team_or_404(db: Session, team_id: int) -> Team:
     team = db.get(Team, team_id)
     if not team:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Team not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ไม่พบทีม")
     return team
 
 
@@ -32,7 +32,7 @@ def read_team(team_id: int, db: Session = Depends(get_db)):
              dependencies=[Depends(require_admin)])
 def create_team(team_in: TeamCreate, db: Session = Depends(get_db)):
     if db.query(Team).filter(Team.name == team_in.name).first():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Team already exists")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "มีทีมชื่อนี้แล้ว")
     team = Team(name=team_in.name, description=team_in.description)
     db.add(team)
     db.commit()
@@ -48,7 +48,7 @@ def update_team(team_id: int, team_in: TeamUpdate, db: Session = Depends(get_db)
         if not data["name"]:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "name cannot be empty")
         if db.query(Team).filter(Team.name == data["name"], Team.id != team.id).first():
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Team already exists")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "มีทีมชื่อนี้แล้ว")
     for field, value in data.items():
         setattr(team, field, value)
     db.commit()
@@ -66,5 +66,5 @@ def delete_team(team_id: int, db: Session = Depends(get_db)):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Team is referenced by other records")
+        raise HTTPException(status.HTTP_409_CONFLICT, "ทีมนี้ถูกอ้างอิงในข้อมูลอื่นอยู่ จึงลบไม่ได้")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

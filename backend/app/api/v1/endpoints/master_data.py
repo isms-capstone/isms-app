@@ -329,7 +329,7 @@ def _validate_case_template_category(db: Session, product_id: int, module_id: in
     problem_type = _get_or_404(db, ProblemType, problem_type_id, "Problem Type")
 
     if not product.is_active or not module.is_active or not problem_type.is_active:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Case template category values must be active")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "หมวดหมู่ในแม่แบบเคสต้องเป็นค่าที่เปิดใช้งานอยู่")
     if module.product_id != product.id:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Module does not belong to Product")
     if problem_type.module_id != module.id:

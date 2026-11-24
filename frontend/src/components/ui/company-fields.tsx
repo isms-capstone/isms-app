@@ -136,11 +136,14 @@ type TextAreaProps = Omit<
 export function TextArea({
   onValueChange,
   className,
+  placeholder = "",
   ...props
 }: TextAreaProps) {
+  // The design library falls back to the literal "Placeholder" when none is given.
   return (
     <TextInput
       {...props}
+      placeholder={placeholder}
       type="textarea"
       onChange={onValueChange}
       className={cx("company-textarea", className)}

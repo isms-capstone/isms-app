@@ -110,7 +110,12 @@ export function CaseTable({
                 />
               </TableHeaderCell>}
               {columns.map((column) => (
-                <TableHeaderCell key={column}>{column}</TableHeaderCell>
+                <TableHeaderCell
+                  key={column}
+                  className={column === "ช่องทาง" ? "channel-col" : undefined}
+                >
+                  {column}
+                </TableHeaderCell>
               ))}
               <TableHeaderCell className="row-action-col">
                 <span className="sr-only">เปิดเคส</span>
@@ -179,7 +184,7 @@ export function CaseTable({
                     <TableCell data-label="สถานะ">
                       <StatusBadge status={row.status} compact />
                     </TableCell>
-                    <TableCell data-label="ช่องทาง">
+                    <TableCell data-label="ช่องทาง" className="channel-col">
                       <ChannelLabel channel={row.channel} />
                     </TableCell>
                     <TableCell data-label="ผู้ดำเนินการ">
@@ -200,7 +205,7 @@ export function CaseTable({
                     <TableCell data-label="ผลิตภัณฑ์">
                       <ProductLabel name={row.product} />
                     </TableCell>
-                    <TableCell data-label="ช่องทาง">
+                    <TableCell data-label="ช่องทาง" className="channel-col">
                       <ChannelLabel channel={row.channel} />
                     </TableCell>
                     <TableCell data-label="Tier">
