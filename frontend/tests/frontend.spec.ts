@@ -7,7 +7,7 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/preview/my-work");
   await expect(
-    page.getByRole("heading", { name: "คิวเคสที่เปิดอยู่", exact: true }),
+    page.getByRole("heading", { name: "เคสที่เปิดอยู่", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".case-table tbody tr")).toHaveCount(6);
   await expect(page.locator(".gd-Table__cell").first()).toBeVisible();
@@ -56,20 +56,8 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   expect(["#fff", "#ffffff"]).toContain(palette[5].toLowerCase());
   expect(palette.every(Boolean)).toBe(true);
 
-  const firstCheckbox = page.getByRole("checkbox", {
-    name: "เลือกเคส DVHT-202609-00418",
-    exact: true,
-  });
-  await firstCheckbox.check();
-  await expect(firstCheckbox).toBeChecked();
+  // My Work has no bulk selection; bulk handover is covered in routing.spec.ts.
   await expect(page).toHaveURL(/\/preview\/my-work$/);
-  await page
-    .getByRole("checkbox", { name: "เลือกเคสในหน้านี้ทั้งหมด", exact: true })
-    .check();
-  await expect(page.locator(".case-table tbody input:checked")).toHaveCount(6);
-  await page
-    .getByRole("checkbox", { name: "เลือกเคสในหน้านี้ทั้งหมด", exact: true })
-    .uncheck();
   await expect(page.locator(".case-table tbody tr").first()).toContainText(
     "00418",
   );
@@ -80,29 +68,29 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   });
   await chooseOption(
     page,
-    page.getByRole("combobox", { name: "กรองผลิตภัณฑ์", exact: true }),
+    page.getByRole("combobox", { name: "กรองตามผลิตภัณฑ์", exact: true }),
     "GetA",
   );
   await expect(page.locator(".case-table tbody tr")).toHaveCount(2);
   await chooseOption(
     page,
-    page.getByRole("combobox", { name: "กรองผลิตภัณฑ์", exact: true }),
+    page.getByRole("combobox", { name: "กรองตามผลิตภัณฑ์", exact: true }),
     "",
   );
   await page
     .getByRole("button", { name: "ตัวกรองเพิ่มเติม", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("dialog").getByLabel("S1", { exact: true }).check();
+  await page.getByRole("dialog").getByLabel(/^S1 /).check();
   await page.getByRole("button", { name: "ใช้ตัวกรอง", exact: true }).click();
   await expect(page.locator(".case-table tbody tr")).toHaveCount(1);
-  await page.getByRole("button", { name: "ล้างทั้งหมด", exact: true }).click();
+  await page.getByRole("button", { name: "ล้างตัวกรองเพิ่มเติม", exact: true }).click();
   await expect(page.locator(".case-table tbody tr")).toHaveCount(6);
-  await page.getByRole("link", { name: "All Cases", exact: true }).click();
+  await page.getByRole("link", { name: "เคสทั้งหมด", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "เคสทั้งหมด", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "ตัวกรอง", exact: true }).click();
+  await page.getByRole("button", { name: "ตัวกรองเพิ่มเติม", exact: true }).click();
   await page.screenshot({
     path: "test-results/all-cases-drawer-desktop.png",
     fullPage: true,
@@ -114,7 +102,7 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   await expect(page.locator(".case-table tbody tr")).toHaveCount(1);
   await page.getByRole("link", { name: "สร้างเคส", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "ข้อมูลเริ่มต้น", exact: false }),
+    page.getByRole("heading", { name: "ข้อมูลที่ต้องกรอก", exact: false }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/create-case-desktop.png",
@@ -128,7 +116,7 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   });
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
   await expect(
-    page.getByRole("status").filter({ hasText: "Design Preview" }),
+    page.getByRole("status").filter({ hasText: "ไม่มีการบันทึกข้อมูล" }),
   ).toBeVisible();
   expect(writes).toBe(0);
   for (const width of [768, 375]) {
@@ -147,7 +135,7 @@ test("preview: SLA ordering, filters, keyboard drawer, navigation and responsive
   await page
     .getByRole("button", { name: "เปิดหรือปิดเมนู", exact: true })
     .click();
-  await page.getByRole("link", { name: /^My Work/ }).click();
+  await page.getByRole("link", { name: /^งานของฉัน/ }).click();
   await expect(page.locator(".case-table tbody tr")).toHaveCount(6);
   expect(
     await page.evaluate(
@@ -174,7 +162,7 @@ test("live: HttpOnly login, real case creation, manual draft edit and logout", a
   await expect(
     page.getByRole("heading", { name: "งานของฉัน", exact: false }),
   ).toBeVisible();
-  await expect(page.locator(".data-note")).toContainText("ยังไม่มีข้อมูล SLA");
+  await expect(page.locator(".action-counts .work-stat")).toHaveCount(4);
   expect(await page.evaluate(() => document.cookie)).not.toContain(
     "isms_access",
   );
@@ -261,7 +249,7 @@ test("read-only role: API denial, inline error recovery and empty search", async
   page,
   baseURL,
 }) => {
-  await page.route("**/api/backend/tickets?*", (route) =>
+  await page.route("**/api/backend/case-queue?*", (route) =>
     route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -275,9 +263,10 @@ test("read-only role: API denial, inline error recovery and empty search", async
   await expect(
     page.getByRole("alert").filter({ hasText: "Temporary QA failure" }),
   ).toBeVisible();
-  await page.unroute("**/api/backend/tickets?*");
+  await page.unroute("**/api/backend/case-queue?*");
   await page.getByRole("button", { name: "ลองอีกครั้ง", exact: true }).click();
-  await expect(page.locator(".data-note")).toBeVisible();
+  await expect(page.locator(".queue-surface")).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Temporary QA failure" })).toHaveCount(0);
   await expect(
     page.getByRole("link", { name: "สร้างเคส", exact: true }),
   ).toHaveCount(0);
@@ -289,10 +278,5 @@ test("read-only role: API denial, inline error recovery and empty search", async
   await page
     .getByLabel("ค้นหาเคส", { exact: true })
     .fill("no-such-case-qa-729148");
-  await expect(
-    page.getByRole("heading", {
-      name: "ไม่มีเคสที่ต้องดำเนินการ",
-      exact: true,
-    }),
-  ).toBeVisible();
+  await expect(page.getByText("ไม่พบเคสตามเงื่อนไขนี้", { exact: true })).toBeVisible();
 });

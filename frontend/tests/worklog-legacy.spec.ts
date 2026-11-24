@@ -88,7 +88,7 @@ test("legacy backend: save Internal Note and LINE OA reply, update immediately a
     page.locator(".timeline-event.internal_note .delivery-channel"),
   ).toHaveCount(0);
   await composer
-    .getByRole("button", { name: "Public Reply", exact: true })
+    .getByRole("button", { name: "ข้อความถึงลูกค้า", exact: true })
     .click();
   await composer
     .getByLabel("ช่องทางที่ส่งจริง *", { exact: true })

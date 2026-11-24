@@ -1,3 +1,4 @@
+import { chooseOption } from "./company-controls";
 import { test, expect, type Page } from "@playwright/test";
 test.use({ video: "on", trace: "on" });
 async function loginUI(page: Page, name: string) {
@@ -23,7 +24,7 @@ async function routing(page: Page, id: number) {
 }
 function panel(page: Page) {
   return page.getByRole("region", {
-    name: "การส่งต่อและ Routing",
+    name: "การส่งต่อเคส",
     exact: true,
   });
 }
@@ -117,7 +118,7 @@ test("ESC-01 all Admin forms persist and editing a user preserves their current 
   const policy = cards.nth(3);
   if (await policy.getByRole("checkbox").isChecked())
     await policy.getByRole("checkbox").uncheck();
-  await policy.getByLabel("S1 timeout minutes").fill("1");
+  await policy.getByLabel("ส่งต่ออัตโนมัติเมื่อเคส S1 ไม่มีการตอบสนองเกิน (นาที)").fill("1");
   await policy.getByRole("combobox").selectOption({ label: "ESC QA all-day" });
   await policy.getByRole("button", { name: "บันทึกนโยบาย" }).click();
   await expect
@@ -235,7 +236,7 @@ test("ESC-02..05 real browser sends Tier 2 to 1 to 0 and returns all the way bef
   ).toHaveLength(1);
   await page
     .locator(".lifecycle-panel")
-    .getByRole("button", { name: "In Progress", exact: true })
+    .getByRole("button", { name: "เริ่มดำเนินการ", exact: true })
     .click();
   await page
     .locator(".lifecycle-panel")
@@ -246,19 +247,20 @@ test("ESC-02..05 real browser sends Tier 2 to 1 to 0 and returns all the way bef
     .toBe("IN_PROGRESS");
   await page
     .locator(".lifecycle-panel")
-    .getByRole("button", { name: "Resolved", exact: true })
+    .getByRole("button", { name: "บันทึกว่าแก้ไขเสร็จ", exact: true })
     .click();
   for (const [label, value] of [
     ["ประเภทปัญหา", "QA ESC issue"],
     ["สาเหตุปัญหา", "QA cause"],
     ["วิธีแก้ไข", "QA solution"],
   ])
-    await page
-      .locator(".lifecycle-panel")
-      .getByRole("combobox", { name: label, exact: true })
-      .selectOption({ label: value });
+    await chooseOption(
+      page,
+      page.locator(".lifecycle-panel").getByRole("combobox", { name: label, exact: true }),
+      { label: value },
+    );
   await page
-    .getByLabel("รายละเอียดการแก้ไข", { exact: true })
+    .getByLabel(/^รายละเอียดการแก้ไข/)
     .fill("ทดสอบสำเร็จและยืนยันกับลูกค้าแล้ว");
   await page
     .locator(".lifecycle-panel")
@@ -324,7 +326,7 @@ test("ESC-06/08 production worker performs the real five-minute scheduled check 
   await page.goto("/routing/admin");
   const policy = page.locator(".routing-admin-grid > section").nth(3);
   await policy.getByRole("checkbox").check();
-  await policy.getByLabel("S1 timeout minutes").fill("1");
+  await policy.getByLabel("ส่งต่ออัตโนมัติเมื่อเคส S1 ไม่มีการตอบสนองเกิน (นาที)").fill("1");
   await policy.getByRole("combobox").selectOption({ label: "ESC QA all-day" });
   await policy.getByRole("button", { name: "บันทึกนโยบาย" }).click();
   await expect

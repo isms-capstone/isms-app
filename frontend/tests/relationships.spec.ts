@@ -36,11 +36,11 @@ test("REL case linking, customer history and audit search", async ({
     has: page.getByRole("heading", { name: "เคสที่เชื่อมโยง" }),
   });
   await panel.getByLabel("ประเภทความสัมพันธ์").selectOption("child-of");
-  await panel.getByLabel("ID ของเคสปลายทาง").fill(String(master.id));
+  await panel.getByLabel("เลขเคสที่จะเชื่อม").fill(master.ticket_no);
   await panel.getByLabel("เหตุผล").fill(key);
   await panel.getByRole("button", { name: "เชื่อมเคส" }).click();
   await expect(
-    panel.getByRole("link", { name: `เคส #${master.id}` }),
+    panel.getByRole("link", { name: master.ticket_no }),
   ).toBeVisible();
 
   await page.goto("/customers");
