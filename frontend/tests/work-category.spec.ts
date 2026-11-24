@@ -80,7 +80,7 @@ test("WRK/CAT real persistence, mobile two-tap categories, audit and tag report"
   await choose(page, "ช่วงเวลาของการสอบ", "During exam QA");
   await choose(page, "ขอบเขตผลกระทบ", "ทั้งองค์กร / ทั้งห้องสอบ");
   await choose(page, "ช่วงเวลาที่เกิดเหตุ", "ระหว่างสอบจริง");
-  await expect(page.getByLabel("Severity", { exact: true })).toContainText(
+  await expect(page.getByLabel("ความรุนแรง", { exact: true })).toContainText(
     "S1",
   );
   await page.getByLabel("แท็กอิสระ", { exact: true }).fill(key);
@@ -119,7 +119,7 @@ test("WRK/CAT real persistence, mobile two-tap categories, audit and tag report"
     "ข้อมูลภายใน QA",
   );
   await composer
-    .getByRole("button", { name: "Public Reply", exact: true })
+    .getByRole("button", { name: "ข้อความถึงลูกค้า", exact: true })
     .click();
   await composer
     .getByLabel("ช่องทางที่ส่งจริง *", { exact: true })

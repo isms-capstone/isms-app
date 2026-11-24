@@ -15,6 +15,12 @@ import {
   routingDate,
   duration,
 } from "@/lib/routing-types";
+// Reasons recorded in English before the Thai wording was introduced.
+const legacyReasons: Record<string, string> = {
+  "Picked from the queue": "รับเคสจากคิว",
+  "Operator acknowledged the case": "รับทราบและเริ่มตรวจสอบ",
+};
+
 export function RoutingPanel({
   ticketId,
   revision,
@@ -326,18 +332,21 @@ export function RoutingPanel({
               <div className="routing-event-heading">
                 <strong>
                   {routingNames[event.kind] || event.kind} · Tier{" "}
-                  {event.from_tier} → {event.to_tier}
+                  {event.from_tier === event.to_tier
+                    ? event.to_tier
+                    : `${event.from_tier} → ${event.to_tier}`}
                 </strong>
                 <time>{routingDate(event.created_at)}</time>
               </div>
               <p>
-                {event.from_user?.name || "ยังไม่มีผู้รับ"} →{" "}
-                {event.to_user?.name || "ยังไม่มีผู้รับ"} · โดย{" "}
-                {event.actor?.name || "ระบบอัตโนมัติ"}
+                {event.from_user?.name === event.to_user?.name
+                  ? event.to_user?.name || "ยังไม่มีผู้รับ"
+                  : `${event.from_user?.name || "ยังไม่มีผู้รับ"} → ${event.to_user?.name || "ยังไม่มีผู้รับ"}`}{" "}
+                · โดย {event.actor?.name || "ระบบอัตโนมัติ"}
               </p>
               <dl>
                 <dt>เหตุผล</dt>
-                <dd>{event.reason}</dd>
+                <dd>{legacyReasons[event.reason] || event.reason}</dd>
                 {event.checked && (
                   <>
                     <dt>ตรวจสอบแล้ว</dt>

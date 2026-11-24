@@ -78,12 +78,12 @@ test("SEA searches Thai worklogs and exports a saved view, then AUD records canc
   await expect(reason).toHaveAttribute("required", "");
   await reason.fill("เคสทดสอบสำหรับตรวจประวัติการยกเลิก");
   await page.getByRole("button", { name: "ยืนยันเปลี่ยนสถานะ" }).click();
-  const audit = page.locator(".timeline-event.ticket_fields_updated").filter({
-    hasText: "เปลี่ยนข้อมูลสำคัญของเคส",
+  // The timeline shows the status change once (the field-level audit row for
+  // the same change stays in the audit log).
+  const audit = page.locator(".timeline-event.status_changed").filter({
+    hasText: "ยกเลิก",
   });
-  await audit.getByText("ค่าเดิม / ค่าใหม่", { exact: true }).click();
-  await expect(audit).toContainText("NEW");
-  await expect(audit).toContainText("CANCELLED");
+  await expect(audit).toContainText("ใหม่ → ยกเลิก");
   await page.reload();
-  await expect(page.locator(".timeline-event.ticket_fields_updated")).toBeVisible();
+  await expect(page.locator(".timeline-event.status_changed")).toBeVisible();
 });

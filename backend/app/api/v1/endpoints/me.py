@@ -89,5 +89,5 @@ def change_my_password(
     db.commit()
 
     return {
-        "message": "Password changed successfully"
+        "message": "เปลี่ยนรหัสผ่านแล้ว"
     }

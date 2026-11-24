@@ -26,11 +26,11 @@ test("ESC handoff, return, self-assign, bulk handover and admin policy", async (
   expect(original).toBeTruthy();
   await page.goto(`/cases/${original.id}`);
   const panel = page.getByRole("region", {
-    name: "การส่งต่อและ Routing",
+    name: "การส่งต่อเคส",
     exact: true,
   });
   await expect(
-    panel.getByRole("heading", { name: "การส่งต่อและ Routing", exact: true }),
+    panel.getByRole("heading", { name: "การส่งต่อเคส", exact: true }),
   ).toBeVisible();
   await panel.getByRole("button", { name: "ส่งต่อ Tier", exact: true }).click();
   await expect(
@@ -108,13 +108,13 @@ test("ESC handoff, return, self-assign, bulk handover and admin policy", async (
     animations: "disabled",
   });
   await page.getByRole("button", { name: /^ส่งมอบทั้งหมด/ }).click();
-  await expect(page.getByRole("status")).toContainText("ส่งมอบงานแล้ว 3 เคส");
+  await expect(page.getByRole("status")).toContainText("ส่งมอบแล้ว 3 เคส");
   await expect(
     page.getByText("ไม่มีเคสที่ต้องส่งมอบ", { exact: true }),
   ).toBeVisible();
   await login(page, "qa-admin", baseURL!);
   await page.goto("/routing/admin");
-  await page.getByLabel("S1 timeout minutes", { exact: true }).fill("10");
+  await page.getByLabel("ส่งต่ออัตโนมัติเมื่อเคส S1 ไม่มีการตอบสนองเกิน (นาที)", { exact: true }).fill("10");
   await page.getByRole("button", { name: "บันทึกนโยบาย", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("บันทึกการตั้งค่าแล้ว");
   expect(

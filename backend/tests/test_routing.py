@@ -742,3 +742,21 @@ for table in Base.metadata.sorted_tables:
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_acknowledging_a_new_case_starts_work(routing):
+    """Acknowledging is when work starts: NEW moves to IN_PROGRESS in one step."""
+    r = routing
+    case = r.create()
+    with r.factory() as db:
+        assert db.get(Ticket, case).status == "NEW"
+        assert db.get(Ticket, case).assignee_id is not None
+    result = post(r, case, "respond", expected_version=state(r, case)["version"])
+    assert result.status_code == 200, result.text
+    with r.factory() as db:
+        ticket = db.get(Ticket, case)
+        assert ticket.status == "IN_PROGRESS"
+        assert ticket.first_response_at is not None
+        assert db.scalar(select(TicketStatusHistory.id).where(
+            TicketStatusHistory.ticket_id == case,
+            TicketStatusHistory.to_status == "IN_PROGRESS"))

@@ -37,6 +37,7 @@ export function CaseDetail({ id }: { id: number }) {
         : null,
     ),
     [customer, setCustomer] = useState(""),
+    [reporter, setReporter] = useState(""),
     [error, setError] = useState(""),
     [field, setField] = useState("subject"),
     [value, setValue] = useState(""),
@@ -57,6 +58,13 @@ export function CaseDetail({ id }: { id: number }) {
           );
           setCustomer(org.name);
         }
+        if (row.contact_id) {
+          const contact = await api<{ name: string }>(
+            `/customers/contacts/${row.contact_id}`,
+            { signal: controller.signal },
+          ).catch(() => null);
+          setReporter(contact?.name || "");
+        } else setReporter("");
         setTicket(row);
         setValue(row.subject || "");
         setReported(localDateTime(row.reported_at));
@@ -114,17 +122,6 @@ export function CaseDetail({ id }: { id: number }) {
         !error && <TableSkeleton />
       ) : (
         <>
-          {!preview && ticket && (
-            <RoutingPanel
-              ticketId={ticket.id}
-              revision={`${ticket.status}:${ticket.assignee_id}:${attempt}`}
-              onChanged={() => setAttempt((x) => x + 1)}
-            />
-          )}
-          {!preview && (
-            <TicketRelationships id={id} editable={Boolean(editable)}
-              revision={`${ticket.status}:${attempt}`} onUpdated={() => setAttempt((n) => n + 1)} />
-          )}
           <section className="surface detail-card">
             {!preview && session?.can_create_cases && (
               <LifecycleActions ticket={ticket} onUpdated={(row) => {
@@ -143,6 +140,7 @@ export function CaseDetail({ id }: { id: number }) {
                       "TU · คณะแพทยศาสตร์"
                     : customer || "ยังไม่ระบุ",
                 ],
+                ["ผู้แจ้ง", reporter || "ยังไม่ระบุ"],
                 ["สถานะ", statusNames[ticket.status] || ticket.status],
                 [
                   "เวลาที่ลูกค้าแจ้ง",
@@ -206,8 +204,30 @@ export function CaseDetail({ id }: { id: number }) {
                         </p>
                       ))}
                     </>
+                  ) : ticket.severity ? (
+                    "ยังไม่มีนโยบาย SLA สำหรับเคสนี้"
                   ) : (
-                    "ยังไม่มีเป้าหมาย SLA (ระบุความรุนแรงก่อน)"
+                    <p className="sla-missing">
+                      ยังไม่เริ่มนับ SLA เพราะยังไม่ได้ระบุความรุนแรง
+                      {editable && (
+                        <>
+                          {" · "}
+                          <button
+                            type="button"
+                            className="text-link"
+                            onClick={() => {
+                              const panel = document.querySelector<HTMLDetailsElement>(".case-edit-panel");
+                              if (panel) {
+                                panel.open = true;
+                                panel.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }
+                            }}
+                          >
+                            ระบุขอบเขตผลกระทบ
+                          </button>
+                        </>
+                      )}
+                    </p>
                   )}
                   {ticket.sla_breach_reason && (
                     <p>เหตุผลที่เกิน SLA: {ticket.sla_breach_reason}</p>
@@ -277,6 +297,7 @@ export function CaseDetail({ id }: { id: number }) {
                       </SelectControl>
                     ) : field === "description" ? (
                       <TextArea
+                        placeholder="อาการที่พบ ขั้นตอนที่ทำ และผลที่ลูกค้าเห็น"
                         maxLength={20000}
                         value={value}
                         onValueChange={setValue}
@@ -307,6 +328,10 @@ export function CaseDetail({ id }: { id: number }) {
                   ticket.owner_id,
                   ticket.assignee_id,
                 ].includes(session?.id ?? -1)) && (
+                <details className="reported-time-edit">
+                  <summary>
+                    <Clock3 size={14} aria-hidden="true" /> แก้เวลาที่ลูกค้าแจ้ง
+                  </summary>
                 <form
                   className="detail-edit"
                   onSubmit={(e) => {
@@ -317,12 +342,8 @@ export function CaseDetail({ id }: { id: number }) {
                       });
                   }}
                 >
-                  <h3 className="flex items-center gap-2">
-                    <Clock3 size={14} />
-                    เวลาที่ลูกค้าแจ้ง
-                  </h3>
                   <label>
-                    แก้เวลารับแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
+                    เวลาที่ลูกค้าแจ้ง (ย้อนหลังได้ไม่เกิน 7 วัน)
                     <Input
                       type="datetime-local"
                       value={reported}
@@ -336,6 +357,7 @@ export function CaseDetail({ id }: { id: number }) {
                     </Button>
                   </div>
                 </form>
+                </details>
               )}
 
             {message && (
@@ -345,6 +367,24 @@ export function CaseDetail({ id }: { id: number }) {
               </p>
             )}
           </section>
+          {!preview && ticket && (
+            <RoutingPanel
+              ticketId={ticket.id}
+              revision={`${ticket.status}:${ticket.assignee_id}:${attempt}`}
+              onChanged={() => setAttempt((x) => x + 1)}
+            />
+          )}
+          {!preview && session && (
+            <CaseAttachments
+              key={`attachments:${ticket.id}:${attempt}`}
+              ticketId={ticket.id}
+              canUpload={Boolean(
+                editable &&
+                  (session.role === "Admin" ||
+                    [ticket.created_by_id, ticket.owner_id, ticket.assignee_id].includes(session.id)),
+              )}
+            />
+          )}
           {!preview && session?.can_create_cases && (
             <details key={`case-edit-${ticket.id}`} className="surface detail-card case-edit-panel">
               <summary className="case-edit-trigger"><Pencil size={16} aria-hidden="true" /> แก้ไขข้อมูลเคส <ChevronDown size={16} aria-hidden="true" /></summary>
@@ -364,9 +404,6 @@ export function CaseDetail({ id }: { id: number }) {
               <CategoryEditor ticket={ticket} onUpdated={setTicket} />
             </details>
           )}
-          {!preview && session && (
-            <CaseAttachments key={`attachments:${ticket.id}:${attempt}`} ticketId={ticket.id} />
-          )}
           {!preview && session?.can_create_cases && (
             <SimilarityPanel
               subject={ticket.subject || ""}
@@ -383,6 +420,10 @@ export function CaseDetail({ id }: { id: number }) {
           )}
           {!preview && session?.can_create_cases && (
             <WorklogPanel key={`worklog:${ticket.id}:${attempt}`} ticket={ticket} />
+          )}
+          {!preview && (
+            <TicketRelationships id={id} editable={Boolean(editable)}
+              revision={`${ticket.status}:${attempt}`} onUpdated={() => setAttempt((n) => n + 1)} />
           )}
         </>
       )}

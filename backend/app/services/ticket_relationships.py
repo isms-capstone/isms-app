@@ -102,7 +102,7 @@ def move_duplicate_data(db, source, master, actor_id, reason):
         or source.organization_id != master.organization_id
     ):
         raise HTTPException(
-            422, "Merge duplicate data within the same customer organization"
+            422, "รวมเคสซ้ำได้เฉพาะเคสขององค์กรลูกค้าเดียวกัน"
         )
     if master.status in {"DRAFT", "CANCELLED", "DUPLICATE"}:
         raise HTTPException(422, "กรุณาเลือกเคสหลักที่บันทึกแล้ว (เปิดอยู่หรือปิดแล้ว)")
@@ -114,7 +114,7 @@ def move_duplicate_data(db, source, master, actor_id, reason):
         db, master.id, master.master_ticket_id, "duplicate"
     ):
         raise HTTPException(
-            409, "Select the primary case rather than an already merged duplicate"
+            409, "เลือกเคสหลัก ไม่ใช่เคสที่ถูกรวมเป็นเคสซ้ำไปแล้ว"
         )
     if (
         db.scalar(

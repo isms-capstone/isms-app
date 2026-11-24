@@ -445,7 +445,7 @@ test("CAT-03: all eight SRS severity combinations and mandatory override reason 
   for (const [impact, time, expected] of matrix) {
     await choose(page, "ขอบเขตผลกระทบ", impact);
     await choose(page, "ช่วงเวลาที่เกิดเหตุ", time);
-    await expect(page.getByLabel("Severity", { exact: true })).toContainText(
+    await expect(page.getByLabel("ความรุนแรง", { exact: true })).toContainText(
       `(${expected})`,
     );
     await saveCategories(page);
@@ -453,7 +453,7 @@ test("CAT-03: all eight SRS severity combinations and mandatory override reason 
   }
   await choose(page, "ขอบเขตผลกระทบ", "ทั้งองค์กร / ทั้งห้องสอบ");
   await choose(page, "ช่วงเวลาที่เกิดเหตุ", "ระหว่างสอบจริง");
-  await expect(page.getByLabel("Severity", { exact: true })).toContainText(
+  await expect(page.getByLabel("ความรุนแรง", { exact: true })).toContainText(
     "S1",
   );
   await choose(page, "Severity", "S4");

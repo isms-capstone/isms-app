@@ -16,7 +16,7 @@ test("canonical backend: persist notes and LINE OA replies without a page reload
   await composer.getByLabel("ข้อความ *", { exact: true }).fill("Canonical Internal Note QA");
   await composer.getByRole("button", { name: "บันทึกข้อความ", exact: true }).click();
   await expect(page.locator(".timeline-event.internal_note")).toContainText("Canonical Internal Note QA");
-  await composer.getByRole("button", { name: "Public Reply", exact: true }).click();
+  await composer.getByRole("button", { name: "ข้อความถึงลูกค้า", exact: true }).click();
   await composer.getByLabel("ช่องทางที่ส่งจริง *", { exact: true }).selectOption("line_oa");
   await composer.getByLabel("ข้อความ *", { exact: true }).fill("Canonical LINE OA QA");
   await composer.getByRole("button", { name: "บันทึกข้อความ", exact: true }).click();

@@ -23,7 +23,7 @@ test("Administration links open native pages and save settings through the front
     await page.getByRole("button", { name: "บันทึก", exact: true }).click();
   }
   await page.goto("/master-data");
-  await page.getByRole("link", { name: "Users & Teams" }).click();
+  await page.getByRole("link", { name: "ผู้ใช้และทีม" }).click();
   await expect(page).toHaveURL(`${baseURL}/administration/users`);
   await expect(page.getByRole("row", { name: /qa-admin/ })).toBeVisible();
   await page.getByRole("link", { name: "ทีม", exact: true }).click();
@@ -35,7 +35,7 @@ test("Administration links open native pages and save settings through the front
   await save();
   await expect(page.getByRole("row", { name: new RegExp(key) })).toBeVisible();
 
-  await page.getByRole("link", { name: "SLA & Business Hours" }).click();
+  await page.getByRole("link", { name: "SLA และเวลาทำการ" }).click();
   await expect(page).toHaveURL(`${baseURL}/administration/sla-policies`);
   await expect(
     page.getByRole("heading", { name: "นโยบาย SLA", exact: true }),
@@ -51,7 +51,7 @@ test("Administration links open native pages and save settings through the front
     page.getByRole("heading", { name: `กฎ SLA · ${key}`, exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Automation Rules" }).click();
+  await page.getByRole("link", { name: "กฎอัตโนมัติ" }).click();
   await expect(page).toHaveURL(`${baseURL}/administration/automation`);
   await expect(
     page.getByRole("heading", { name: "กฎอัตโนมัติ", exact: true }),

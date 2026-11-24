@@ -53,7 +53,7 @@ def delivery_preview(
 @router.get("/tickets/{ticket_id}/links")
 def links(ticket_id: int, db: Database):
     get_record(db, Ticket, ticket_id)
-    return db.scalars(
+    rows = db.scalars(
         select(TicketLink).where(
             or_(
                 TicketLink.ticket_id == ticket_id,
@@ -61,6 +61,23 @@ def links(ticket_id: int, db: Database):
             )
         )
     ).all()
+    # Staff recognise cases by number and subject, not by internal id.
+    ids = {row.ticket_id for row in rows} | {row.related_ticket_id for row in rows}
+    cases = {
+        case.id: case
+        for case in db.scalars(select(Ticket).where(Ticket.id.in_(ids)))
+    } if ids else {}
+
+    def describe(case_id):
+        case = cases.get(case_id)
+        return {"ticket_no": case.ticket_no if case else None,
+                "subject": case.subject if case else None}
+
+    return [
+        {column.name: getattr(row, column.name) for column in TicketLink.__table__.columns}
+        | {"ticket": describe(row.ticket_id), "related_ticket": describe(row.related_ticket_id)}
+        for row in rows
+    ]
 
 
 @router.post(
@@ -85,7 +102,7 @@ def create_link(
             raise HTTPException(422, "กรุณาเลือกเคสที่บันทึกแล้ว 2 เคส")
         require_flat_incident(db, source, target)
     link = add_link(
-        db, source.id, target.id, kind, user.id, body.reason or "Manual relationship"
+        db, source.id, target.id, kind, user.id, body.reason or "เชื่อมเคสด้วยตนเอง"
     )
     db.commit()
     db.refresh(link)
