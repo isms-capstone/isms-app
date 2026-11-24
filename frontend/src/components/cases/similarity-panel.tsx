@@ -1,4 +1,5 @@
 "use client";
+import { formatDateTime } from "@/lib/format";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, all } from "@/lib/api";
@@ -332,7 +333,7 @@ export function SimilarityPanel(props: Props) {
               {item.assignee || "ยังไม่ระบุ"}
             </small>
             <small>
-              ล่าสุด: {new Date(item.last_activity).toLocaleString("th-TH")}
+              ล่าสุด: {formatDateTime(item.last_activity)}
             </small>
           </div>
           <label>

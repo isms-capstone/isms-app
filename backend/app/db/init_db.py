@@ -11,7 +11,12 @@ from app.db.models.master_data import (
     SlaPolicyRule,
     BusinessCalendar,
 )
+import logging
+
+from app.core.config import settings
 from app.core.security import get_password_hash
+
+LOCAL_ADMIN_PASSWORD = "Admin@123456"
 
 
 DEFAULT_TICKET_TYPES = [
@@ -106,57 +111,20 @@ def init_db(db: Session) -> None:
         if role is None:
             db.add(Role(**role_data))
 
-    teams_data = [
-        {"name": "IT & Security", "description": "Core IT Security Team"},
-        {"name": "Compliance & Audit", "description": "Internal Audit Team"},
-    ]
-    for team_data in teams_data:
-        if not db.query(Team).filter(Team.name == team_data["name"]).first():
-            db.add(Team(**team_data))
     db.commit()
 
-    admin_role = db.query(Role).filter(Role.name == "Admin").first()
-    agent_role = db.query(Role).filter(Role.name == "Agent").first()
-    executive_role = db.query(Role).filter(Role.name == "Executive").first()
-    it_team = db.query(Team).filter(Team.name == "IT & Security").first()
-
-    # Existing demo accounts are created only when absent. Never reset passwords on startup.
-    demo_users = [
-        {
-            "username": "admin",
-            "email": "admin@isms.local",
-            "full_name": "System Administrator",
-            "password": "Admin@123456",
-            "role_id": admin_role.id,
-            "team_id": it_team.id if it_team else None,
-        },
-        {
-            "username": "mimi",
-            "email": "mimi@isms.local",
-            "full_name": "Mimi (Legacy Demo Account)",
-            "password": "User@123456",
-            "role_id": agent_role.id,
-            "team_id": it_team.id if it_team else None,
-        },
-        {
-            "username": "mai",
-            "email": "mai@isms.local",
-            "full_name": "Mai (Legacy Demo Account)",
-            "password": "Auditor@123456",
-            "role_id": executive_role.id,
-            "team_id": None,
-        },
-    ]
-    for data in demo_users:
-        existing = db.query(User).filter(User.username == data["username"]).first()
-        if existing is None:
-            data = data.copy()
-            password = data.pop("password")
-            db.add(User(
-                **data,
-                hashed_password=get_password_hash(password),
-                is_active=True,
-            ))
+    # Create the first Admin only for an empty user table. Existing accounts and
+    # passwords are never changed at startup. Demo accounts live in
+    # scripts/seed_demo.py and are never created automatically.
+    if db.query(User).first() is None:
+        password = settings.ISMS_ADMIN_PASSWORD or (LOCAL_ADMIN_PASSWORD if settings.is_local else None)
+        if password is None:
+            logging.getLogger(__name__).warning(
+                "No users exist and ISMS_ADMIN_PASSWORD is not set; skipping initial Admin creation")
+        else:
+            admin_role = db.query(Role).filter(Role.name == "Admin").first()
+            db.add(User(username="admin", email="admin@isms.local", full_name="ผู้ดูแลระบบ",
+                        hashed_password=get_password_hash(password), role_id=admin_role.id, is_active=True))
     # ADM-04: seed one default SLA policy, its S1-S4 rules, and the standard
     # Thailand business calendar. All seeds are idempotent so startup never duplicates them.
     sla_policy = db.query(SlaPolicy).filter(SlaPolicy.name == DEFAULT_SLA_POLICY["name"]).first()

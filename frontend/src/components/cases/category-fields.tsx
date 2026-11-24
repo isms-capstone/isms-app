@@ -1,4 +1,5 @@
 "use client";
+import { severityNames } from "@/lib/types";
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Input } from "@/components/ui/primitives";
@@ -408,9 +409,12 @@ export function CategoryFields({
           }
         />
         <CategorySelect
-          label="Severity"
+          label="ความรุนแรง"
           value={value.severity}
-          options={["S1", "S2", "S3", "S4"].map((id) => ({ id, name: id }))}
+          options={(["S1", "S2", "S3", "S4"] as const).map((id) => ({
+            id,
+            name: `${id} ${severityNames[id]}`,
+          }))}
           emptyLabel={`ใช้ค่าที่ระบบเสนอ${suggested ? ` (${suggested})` : ""}`}
           disabled={!value.impact_scope || preview || readOnly || assessing}
           onChange={(next) =>
@@ -422,9 +426,9 @@ export function CategoryFields({
           }
         />
         <label>
-          เหตุผลที่ปรับ Severity{override && " *"}
+          เหตุผลที่เลือกต่างจากที่ระบบเสนอ{override && " *"}
           <Input
-            aria-label="เหตุผลที่ปรับ Severity"
+            aria-label="เหตุผลที่เลือกความรุนแรงต่างจากที่ระบบเสนอ"
             value={value.severity_overridden_reason || ""}
             required={override}
             maxLength={2000}

@@ -1,4 +1,5 @@
 """Product-scoped category options and SLA association, using ADM master data."""
+from app.core.labels import field_label
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
@@ -39,7 +40,7 @@ def assign_policy(product_id: int, body: SlaAssignment, db: Session = Depends(ge
     if body.sla_policy_id is not None:
         policy = get_record(db, SlaPolicy, body.sla_policy_id)
         if not policy.is_active:
-            raise HTTPException(409, 'Cannot assign an inactive SLA policy')
+            raise HTTPException(409, 'เลือกนโยบาย SLA ที่ปิดใช้งานแล้วไม่ได้')
     product.sla_policy_id = body.sla_policy_id
     return save_product_record(db, product)
 
@@ -47,7 +48,7 @@ def assign_policy(product_id: int, body: SlaAssignment, db: Session = Depends(ge
 def case_options(db, product_id):
     product = get_record(db, Product, product_id)
     if not product.is_active:
-        raise HTTPException(409, 'Product is inactive')
+        raise HTTPException(409, 'ผลิตภัณฑ์นี้ถูกปิดใช้งาน')
     def rows(model):
         return db.scalars(select(model).where(model.product_id == product_id, model.is_active.is_(True))
                           .order_by(model.name, model.id)).all()
@@ -82,9 +83,9 @@ def validate_selection(product_id: int, body: CaseOptionsSelection, db: Session 
                         ('service_stage_id', stages), ('problem_type_id', problems)]:
         selected = getattr(body, field)
         if selected is not None and selected not in {row.id for row in rows}:
-            raise HTTPException(422, f'{field} is inactive or belongs to another product')
+            raise HTTPException(422, f'{field_label(field)}ถูกปิดใช้งานหรือเป็นของผลิตภัณฑ์อื่น')
     if body.problem_type_id is not None:
         problem = next(row for row in problems if row.id == body.problem_type_id)
         if problem.module_id != body.module_id:
-            raise HTTPException(422, 'problem_type_id must belong to the selected module')
+            raise HTTPException(422, 'ประเภทปัญหาที่เลือกไม่อยู่ในโมดูลนี้')
     return body

@@ -103,7 +103,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       ref={ref}
       placeholder={placeholder}
       maxLength={maxLength}
-      showCount={maxLength !== undefined}
       clearable={false}
       className={cx("company-input", className)}
     />

@@ -222,15 +222,43 @@ test("SIM and WRK persist through the current UI, API, CAT and unified timeline"
   await expect(page.getByRole("list", { name: "ไฟล์ที่เลือก" })).toContainText(
     "case-evidence.png",
   );
+  let caseCreates = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname === "/api/backend/tickets")
+      caseCreates++;
+  });
+  await page.route(/\/api\/backend\/tickets\/\d+\/attachments$/, (route) =>
+    route.fulfill({ status: 503, json: { detail: "Temporary storage outage" } }),
+    { times: 1 },
+  );
+  await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "แนบไฟล์ไม่สำเร็จ" })).toBeVisible();
   await page.getByRole("button", { name: "สร้างเคส", exact: true }).click();
   await expect(page).toHaveURL(/\/cases\/\d+$/);
-  const preview = page.getByRole("img", { name: "case-evidence.png" });
+  expect(caseCreates).toBe(1);
+  const attachments = page.getByRole("region", {
+    name: "ไฟล์แนบ",
+    exact: true,
+  });
+  const preview = attachments.getByRole("img", { name: "case-evidence.png" });
   await expect(preview).toBeVisible();
   await expect
     .poll(() => preview.evaluate((img: HTMLImageElement) => img.naturalWidth))
     .toBe(1);
-  const download = await page.request.get((await preview.getAttribute("src"))!);
+  const link = attachments.getByRole("link", { name: "case-evidence.png" });
+  const download = await page.request.get((await link.getAttribute("href"))!);
   expect(await download.body()).toEqual(imageBytes);
+  const timelineImage = page.locator(".timeline-event.attachment");
+  await timelineImage
+    .getByRole("button", { name: "เปิดภาพ case-evidence.png" })
+    .click();
+  await expect(
+    page.getByRole("dialog").getByRole("img", { name: "case-evidence.png" }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "ปิดภาพ" })
+    .click();
   const targetId = Number(new URL(page.url()).pathname.split("/").at(-1));
   const stored = await (
     await page.request.get(`/api/backend/tickets/${targetId}`)

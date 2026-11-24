@@ -44,7 +44,7 @@ def update_my_profile(
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
+                detail="อีเมลนี้ถูกใช้แล้ว",
             )
 
     for field, value in data.items():
@@ -69,19 +69,19 @@ def change_my_password(
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
+            detail="รหัสผ่านปัจจุบันไม่ถูกต้อง",
         )
 
     if current_password == new_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be different from current password",
+            detail="รหัสผ่านใหม่ต้องไม่ซ้ำรหัสผ่านเดิม",
         )
 
     if len(new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 8 characters",
+            detail="รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร",
         )
 
     current_user.hashed_password = get_password_hash(new_password)

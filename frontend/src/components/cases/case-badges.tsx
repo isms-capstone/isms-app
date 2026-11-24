@@ -14,8 +14,9 @@ import {
   Users,
 } from "lucide-react";
 import type { CaseRow } from "@/lib/types";
-import { channelNames, statusNames } from "@/lib/types";
+import { channelNames, severityNames, statusNames } from "@/lib/types";
 import { cx } from "@/components/ui/primitives";
+import { formatDateTime, formatDuration } from "@/lib/format";
 
 export function StatusBadge({
   status,
@@ -56,12 +57,7 @@ export function PriorityBadge({
   value: string | null;
   compact?: boolean;
 }) {
-  const label: Record<string, string> = {
-    S1: "Critical",
-    S2: "High",
-    S3: "Medium",
-    S4: "Low",
-  };
+  const label = severityNames;
   return (
     <Tag
       className="case-priority"
@@ -108,22 +104,24 @@ export function ChannelLabel({ channel }: { channel: string | null }) {
   );
 }
 
+/** Remaining SLA time. S2-S4 count business hours only, S1 counts 24x7. */
 export function SlaIndicator({ row }: { row: CaseRow }) {
-  if (row.slaSeconds === null)
+  if (row.slaPaused)
     return (
-      <span className="sla-missing" title="Backend ยังไม่มีการคำนวณ SLA">
-        ยังไม่มีข้อมูล
+      <span className="sla-indicator sla-paused" title="หยุดนับเวลาระหว่างรอลูกค้า">
+        <span>
+          <Clock3 size={15} />
+          <strong>หยุดนับ</strong>
+        </span>
+        <small>รอลูกค้า</small>
       </span>
     );
-  const seconds = Math.abs(row.slaSeconds),
-    minutes = Math.floor(seconds / 60),
-    hours = Math.floor(minutes / 60),
-    days = Math.floor(hours / 24);
-  const value = days
-    ? `${days} วัน`
-    : hours
-      ? `${hours} ชม. ${minutes % 60} น.`
-      : `${String(minutes).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")} น.`;
+  if (row.slaSeconds === null)
+    return (
+      <span className="sla-missing" title="เคสนี้ยังไม่มีเป้าหมาย SLA (ยังไม่ระบุความรุนแรง หรือปิดแล้ว)">
+        —
+      </span>
+    );
   const state =
     row.slaSeconds < 0
       ? "breached"
@@ -136,21 +134,26 @@ export function SlaIndicator({ row }: { row: CaseRow }) {
       : state === "risk"
         ? Clock3
         : CheckCircle2;
+  const due = row.slaDueAt ? formatDateTime(row.slaDueAt) : undefined;
   return (
-    <span className={`sla-indicator sla-${state}`}>
+    <span
+      className={`sla-indicator sla-${state}`}
+      title={due ? `ครบกำหนด ${due} น.` : undefined}
+    >
       <span>
         <Icon size={15} />
         <strong>
-          {row.slaSeconds < 0 ? "-" : ""}
-          {value}
+          {state === "breached"
+            ? `เกิน ${formatDuration(row.slaSeconds)}`
+            : `เหลือ ${formatDuration(row.slaSeconds)}`}
         </strong>
       </span>
       <small>
         {state === "breached"
-          ? "SLA breached"
+          ? "เกิน SLA"
           : state === "risk"
-            ? "At risk"
-            : "On track"}
+            ? "ใกล้ครบกำหนด"
+            : "ทันเวลา"}
       </small>
     </span>
   );
@@ -161,10 +164,8 @@ export function Assignee({ row }: { row: CaseRow }) {
     <span className={cx("assignee", !row.assignee_id && "unassigned")}>
       <span className="avatar">{row.assigneeInitials}</span>
       <span>
-        {row.assigneeInitials !== "–" && (
-          <strong>{row.assigneeInitials} </strong>
-        )}
         {row.assignee}
+        {row.teamName && <small className="assignee-team">{row.teamName}</small>}
       </span>
     </span>
   );

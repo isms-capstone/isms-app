@@ -1,5 +1,5 @@
 """Staff WRK/CAT APIs. External delivery adapters are separate integration work."""
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Literal
 
 from app.api.deps import RoleChecker, require_admin
@@ -32,7 +32,7 @@ from app.services.categorization import (
 from app.services.lifecycle import authorize_case, transition
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 staff = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
@@ -47,7 +47,7 @@ def utc(value):
 def locked_ticket(db, ticket_id, user):
     ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
     if ticket is None:
-        raise HTTPException(404, 'Case not found')
+        raise HTTPException(404, 'ไม่พบเคส')
     authorize_case(ticket, user)
     return ticket
 
@@ -61,12 +61,14 @@ def worklog_json(row, actor):
 
 @router.post('/tickets/{ticket_id}/worklogs', status_code=201)
 def create_worklog(ticket_id: int, body: WorklogCreate, db: Session = Depends(get_db), user=Depends(staff)):
-    locked_ticket(db, ticket_id, user)
+    ticket = locked_ticket(db, ticket_id, user)
     row = TicketWorklog(ticket_id=ticket_id, actor_id=user.id, **body.model_dump())
     db.add(row)
     db.flush()
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='worklog_created',
         changes={'worklog_id': row.id, 'kind': row.kind, 'channel': row.channel}, created_at=row.created_at))
+    from app.services.portal_mail import queue_reply
+    queue_reply(db, ticket, row)
     db.commit()
     actor = db.get(User, user.id)
     return worklog_json(row, actor.full_name or actor.username)
@@ -102,18 +104,29 @@ def timeline(ticket_id: int, db: Session = Depends(get_db), offset: int = Query(
     for row in db.scalars(select(TicketWorklog).where(TicketWorklog.ticket_id == ticket_id)):
         events.append(worklog_json(row, actors.get(row.actor_id)) | {'id': f'worklog-{row.id}'})
     for row in db.scalars(select(TicketStatusHistory).where(TicketStatusHistory.ticket_id == ticket_id)):
-        if (row.details or {}).get('event') == 'CASE_CREATED':
-            continue  # Already represented by the unified case_created event.
+        if (row.details or {}).get('event') == 'CASE_CREATED' or row.from_status == row.to_status:
+            continue  # Creation has its own event; same-status rows are routing records shown in the routing panel.
         events.append({'id': f'status-{row.id}', 'kind': 'status_changed', 'created_at': utc(row.created_at),
             'actor_id': row.actor_id, 'actor': actors.get(row.actor_id),
             'body': f'{row.from_status} → {row.to_status}', 'details': row.details})
-    for row in db.scalars(select(TicketAudit).where(TicketAudit.ticket_id == ticket_id,
-                                                   TicketAudit.event != 'worklog_created')):
+    audit_events = select(TicketAudit).where(or_(
+        (TicketAudit.ticket_id == ticket_id) & (TicketAudit.event != 'worklog_created'),
+        (TicketAudit.event == 'relationship_created')
+        & (TicketAudit.changes['related_ticket_id'].as_integer() == ticket_id),
+    ))
+    for row in db.scalars(audit_events):
+        incoming = row.event == 'relationship_created' and row.ticket_id != ticket_id
+        changes = row.changes
+        if incoming:
+            changes = {**changes, 'related_ticket_id': row.ticket_id}
         description = {'similarity_decision': 'บันทึกการตัดสินใจจากเคสที่คล้ายกัน',
                        'request_start': 'เริ่มดำเนินคำขอ', 'request_fulfil': 'ส่งมอบผลคำขอ',
-                       'request_confirm': 'ยืนยันและปิดคำขอ'}.get(row.event, 'บันทึกหมวดหมู่')
-        events.append({'id': f'audit-{row.id}', 'kind': row.event, 'created_at': utc(row.created_at),
-            'actor_id': row.actor_id, 'actor': actors.get(row.actor_id), 'body': description, 'changes': row.changes})
+                       'request_confirm': 'ยืนยันและปิดคำขอ',
+                       'ticket_fields_updated': 'เปลี่ยนข้อมูลสำคัญของเคส'}.get(row.event, 'บันทึกหมวดหมู่')
+        events.append({'id': f'audit-{row.id}', 'kind': 'relationship_received' if incoming else row.event,
+            'created_at': utc(row.created_at), 'actor_id': row.actor_id,
+            'actor': actors.get(row.actor_id) if row.actor_id else 'ระบบ',
+            'body': description, 'changes': changes})
     for row in db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)):
         events.append({'id': f'attachment-{row.id}', 'kind': 'attachment', 'created_at': utc(row.created_at),
             'actor_id': row.uploaded_by_id, 'actor': actors.get(row.uploaded_by_id), 'body': row.original_name})
@@ -183,7 +196,7 @@ def update_categorization(ticket_id: int, body: CategorizationUpdate,
     before = snapshot(db, ticket)
     changes = body.model_dump(exclude_unset=True)
     data = {field: getattr(ticket, field) for field in TicketCreate.model_fields
-            if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')}
+            if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')}
     # CAT does not edit intake channel. Older records may contain legacy values
     # such as WEB; do not revalidate those against today's capture-only enum.
     data.update(tags=before['tags'], save_as_draft=True, channel=None,
@@ -217,6 +230,7 @@ class RequestAction(BaseModel):
     action: Literal['start', 'fulfil', 'confirm']
     assignee_id: int | None = Field(default=None, ge=1)
     fulfilment_detail: str | None = Field(default=None, max_length=20000)
+    sla_breach_reason: str | None = Field(default=None, max_length=2000)
 
 
 @router.post('/tickets/{ticket_id}/request-workflow', response_model=TicketOut)
@@ -225,16 +239,56 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     ticket = locked_ticket(db, ticket_id, user)
     case_type = db.get(TicketType, ticket.ticket_type_id) if ticket.ticket_type_id else None
     if not case_type or case_type.name != 'Request':
-        raise HTTPException(409, 'This workflow is only available for Request cases')
+        raise HTTPException(409, 'ขั้นตอนนี้ใช้ได้เฉพาะเคสประเภทคำขอ (Request)')
     changes = {'status': {'start': 'IN_PROGRESS', 'fulfil': 'RESOLVED', 'confirm': 'CLOSED'}[body.action]}
+    if body.action == 'confirm' and body.sla_breach_reason is not None:
+        changes['sla_breach_reason'] = body.sla_breach_reason
     if body.action == 'start' and body.assignee_id is not None:
         changes['assignee_id'] = body.assignee_id
     if body.action == 'fulfil':
         detail = (body.fulfilment_detail or '').strip()
         if not detail:
-            raise HTTPException(422, 'Describe the delivered service before fulfilling the request')
+            raise HTTPException(422, 'กรุณาบันทึกสิ่งที่ดำเนินการให้ก่อนส่งมอบคำขอ')
         changes['resolution_detail'] = detail
     transition(db, ticket, changes, user)
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='request_' + body.action,
                        changes={'action': body.action, 'status': changes['status']}))
     return commit_edit(db, ticket)
+
+
+@router.get('/admin/audit-log', dependencies=[Depends(require_admin)])
+def search_audit(
+    db: Session = Depends(get_db),
+    q: str = Query('', max_length=255),
+    start: date | None = None,
+    end: date | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    if start and end and start > end:
+        raise HTTPException(422, 'วันเริ่มต้องก่อนวันสิ้นสุด')
+    query = (select(TicketAudit, Ticket.ticket_no, User.username)
+             .join(Ticket, Ticket.id == TicketAudit.ticket_id)
+             .outerjoin(User, User.id == TicketAudit.actor_id))
+    if q := q.strip():
+        query = query.where(or_(
+            Ticket.ticket_no.contains(q, autoescape=True),
+            User.username.contains(q, autoescape=True),
+            TicketAudit.event.contains(q, autoescape=True),
+            cast(TicketAudit.changes, String).contains(q, autoescape=True),
+        ))
+    if start:
+        query = query.where(TicketAudit.created_at >= datetime.combine(start, time.min))
+    if end:
+        query = query.where(TicketAudit.created_at <= datetime.combine(end, time.max))
+    results = db.execute(query.order_by(TicketAudit.created_at.desc(), TicketAudit.id.desc())
+                         .offset(offset).limit(limit + 1)).all()
+    return {
+        'has_more': len(results) > limit,
+        'rows': [
+            {'id': row.id, 'ticket_id': row.ticket_id, 'ticket_no': number,
+             'actor': username, 'actor_id': row.actor_id, 'event': row.event,
+             'changes': row.changes, 'created_at': utc(row.created_at)}
+            for row, number, username in results[:limit]
+        ],
+    }

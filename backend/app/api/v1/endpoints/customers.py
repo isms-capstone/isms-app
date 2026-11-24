@@ -19,7 +19,7 @@ REGISTRY_EDITOR_ROLES = frozenset({"Admin", "Agent", "Team Lead"})
 def require_registry_editor(user: User = Depends(get_current_user)):
     # Match ADM business role names, never generated database IDs.
     if not user.role or user.role.name not in REGISTRY_EDITOR_ROLES:
-        raise HTTPException(403, "Customer registry is read-only for this role")
+        raise HTTPException(403, "บัญชีนี้ดูทะเบียนลูกค้าได้อย่างเดียว")
     return user
 
 
@@ -29,7 +29,7 @@ router = APIRouter(dependencies=[Depends(get_current_user)])
 def get_record(db, model, record_id):
     record = db.get(model, record_id)
     if record is None:
-        raise HTTPException(404, "Record not found")
+        raise HTTPException(404, "ไม่พบข้อมูล")
     return record
 
 
@@ -39,7 +39,7 @@ def save(db, record):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, "Channel already exists for this contact") from None
+        raise HTTPException(409, "ผู้ติดต่อนี้มีช่องทางนี้อยู่แล้ว") from None
     db.refresh(record)
     return record
 
@@ -130,6 +130,6 @@ def create_channel(contact_id: int, body: ChannelCreate, db: Session = Depends(g
 def delete_channel(contact_id: int, channel_id: int, db: Session = Depends(get_db)):
     record = get_record(db, ChannelIdentity, channel_id)
     if record.contact_id != contact_id:
-        raise HTTPException(404, "Record not found")
+        raise HTTPException(404, "ไม่พบข้อมูล")
     db.delete(record)
     db.commit()

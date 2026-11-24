@@ -1,0 +1,114 @@
+body button,
+body [role="button"],
+body .button {
+  font-family: var(--font-sans);
+}
+
+.case-edit-panel {
+  margin-block: 1rem;
+}
+
+.case-edit-trigger,
+.timeline-detail-trigger {
+  width: fit-content;
+  max-width: 100%;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.case-edit-trigger {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  min-height: 44px;
+  padding: .6rem .9rem;
+  border-radius: .6rem;
+  color: white;
+  background: #304fd0;
+  list-style: none;
+}
+
+.case-edit-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.case-edit-trigger:hover {
+  background: #233fac;
+}
+
+.case-edit-panel[open] > .case-edit-trigger {
+  margin-bottom: 1.25rem;
+}
+
+.case-edit-panel[open] > .case-edit-trigger svg:last-child {
+  transform: rotate(180deg);
+}
+
+.timeline-detail-trigger {
+  padding: .35rem 0;
+  color: #2947bb;
+}
+
+.timeline-event details dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: .8rem 1.25rem;
+  margin-top: .65rem;
+  overflow-wrap: anywhere;
+}
+
+.timeline-event details dt {
+  margin-bottom: .25rem;
+  font-weight: 600;
+}
+
+.customer-search-control {
+  position: relative;
+  width: 100%;
+}
+
+.customer-search-control > svg {
+  position: absolute;
+  z-index: 1;
+  left: .85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.customer-search-control > :not(svg) {
+  width: 100%;
+}
+
+.customer-search-control input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+  padding-block: 0;
+  padding-inline-start: 2.5rem;
+  font-size: .875rem;
+}
+
+.customer-picker-row:has(.customer-search-control) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.customer-picker-row:has(.customer-search-control) .selected-customer {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.customer-picker-row:has(.customer-search-control) .selected-customer > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-relationships {
+  margin-block-end: 1rem;
+}

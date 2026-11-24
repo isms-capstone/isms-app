@@ -2,6 +2,9 @@
    ISMS aliases only connect existing application layout to public semantic tokens. */
 html[data-color-set="getx"][data-theme="light"] {
   color-scheme: light;
+  /* Opaque page canvas: the subtle fill token below is translucent, so without
+     this the browser's own (dark-mode) canvas showed through behind headings. */
+  background-color: var(--background-primary, #fff);
   --font-sans: var(--font-family-th), var(--font-family-en), sans-serif;
   --line: var(--border-primary);
   --muted: var(--label-tertiary);

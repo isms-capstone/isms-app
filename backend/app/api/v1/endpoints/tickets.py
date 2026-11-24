@@ -1,11 +1,12 @@
 """Minimal case capture; lifecycle transitions belong to the lifecycle tasks."""
+from app.core.labels import field_label, model_label
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,6 +49,8 @@ from app.schemas.ticket import (
 )
 from app.db.models.ticket_history import TicketStatusHistory
 from app.db.models.ticket import TicketStatus
+from app.services import sla_engine
+from app.services.routing import assign_responsible_team
 from app.services.auto_close import run_auto_close_resolved_tickets
 
 
@@ -63,7 +66,10 @@ class TicketStatusUpdatePayload(BaseModel):
     subject: str | None = None
     channel: str | None = None
     pending_external_reason: str | None = None
+    pending_customer_reason: str | None = Field(None, max_length=2000)
+    sla_breach_reason: str | None = Field(None, max_length=2000)
     category_id: int | None = None
+    module_id: int | None = Field(default=None, ge=1)
     root_cause_code_id: int | None = None
     resolution_code_id: int | None = None
     resolution_detail: str | None = None
@@ -113,14 +119,14 @@ def next_ticket_number(db: Session, now: datetime):
     db.execute(statement)
     value = db.scalar(select(table.c.value).where(table.c.period == period).with_for_update())
     if value > 99999:
-        raise HTTPException(409, 'Monthly ticket number capacity exceeded')
+        raise HTTPException(409, 'เลขเคสของเดือนนี้เต็มแล้ว กรุณาติดต่อผู้ดูแลระบบ')
     return f'DVHT-{period}-{value:05d}'
 
 
 def active_record(db, model, record_id):
     record = get_record(db, model, record_id)
     if not record.is_active:
-        raise HTTPException(422, f'{model.__name__} is inactive')
+        raise HTTPException(422, f'{model_label(model.__name__)}ถูกปิดใช้งาน')
     return record
 
 
@@ -130,15 +136,16 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
     values.pop('similarity_feedback_id', None)
     values.pop('created_for_user_id', None)
     values.pop('tags', None)
+    values.pop('capture_seconds', None)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None) if body.reported_at else now
     if validate_reported and (reported > now or reported < now - timedelta(days=7)):
-        raise HTTPException(422, 'reported_at must be within the last 7 days')
+        raise HTTPException(422, 'เวลาที่ลูกค้าแจ้งต้องอยู่ภายใน 7 วันที่ผ่านมา และไม่เกินเวลาปัจจุบัน')
     organization_id = body.organization_id
     if body.contact_id is not None:
         contact = active_record(db, Contact, body.contact_id)
         if organization_id is not None and contact.organization_id != organization_id:
-            raise HTTPException(422, 'Contact belongs to another organization')
+            raise HTTPException(422, 'ผู้แจ้งรายนี้อยู่องค์กรอื่น')
         organization_id = contact.organization_id
     if organization_id is not None:
         active_record(db, Organization, organization_id)
@@ -148,7 +155,7 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
         if record_id is not None:
             record = active_record(db, model, record_id)
             if organization_id is None or record.organization_id != organization_id:
-                raise HTTPException(422, f'{field} must belong to the selected organization')
+                raise HTTPException(422, f'{field_label(field)}ต้องเป็นของลูกค้าที่เลือก')
     if body.ticket_type_id is not None:
         active_record(db, TicketType, body.ticket_type_id)
     selection = CaseOptionsSelection(module_id=body.module_id, symptom_id=body.symptom_id,
@@ -163,7 +170,7 @@ def capture_values(body: TicketCreate, db: Session, validate_reported=True, allo
             policy = db.get(SlaPolicy, product.sla_policy_id)
             policy_id = policy.id if policy and policy.is_active else None
     elif any(selection.model_dump().values()):
-        raise HTTPException(422, 'Select a product instance before category options')
+        raise HTTPException(422, 'กรุณาเลือกระบบของลูกค้าก่อนเลือกหมวดหมู่')
     exam = False
     if organization_id is not None:
         exam = db.scalar(select(ExamWindow.id).where(
@@ -213,22 +220,22 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
         feedback = feedback_for_user(db, body.similarity_feedback_id, user)
         if (feedback.query != query or feedback.organization_id != values['organization_id']
                 or feedback.product_instance_id != body.product_instance_id):
-            raise HTTPException(409, 'Case details changed; search similar cases again')
+            raise HTTPException(409, 'ข้อมูลเคสเปลี่ยนไป กรุณาค้นหาเคสที่คล้ายกันอีกครั้ง')
         validate_choice(db, feedback, feedback.decision, feedback.chosen_ticket_id)
     elif complete and len(query) >= 10:
         # Enforce even when a caller bypasses the UI. Search failure remains fail-open.
         items = search_with_deadline(db.get_bind(), q=query,
             organization_id=values['organization_id'], product_instance_id=body.product_instance_id)
         if items and any(item['score'] >= DECISION_THRESHOLD for item in items):
-            raise HTTPException(409, 'Search similar cases and confirm a decision before creating the case')
+            raise HTTPException(409, 'กรุณาตรวจเคสที่คล้ายกันและเลือกวิธีดำเนินการก่อนสร้างเคส')
     owner_id = user.id
     if body.created_for_user_id is not None:
         target = db.get(User, body.created_for_user_id)
         if target is None or not target.is_active:
-            raise HTTPException(422, 'Target team member is missing or inactive')
+            raise HTTPException(422, 'ไม่พบผู้รับในทีมปลายทาง หรือบัญชีถูกปิดใช้งาน')
         role = user.role.name if user.role else None
         if role != 'Admin' and (user.team_id is None or target.team_id != user.team_id):
-            raise HTTPException(403, 'You may create a case only for a member of your own team')
+            raise HTTPException(403, 'สร้างเคสแทนได้เฉพาะสมาชิกในทีมเดียวกัน')
         owner_id = target.id
     values.pop('created_for_user_id', None)
     values.update(created_by_id=user.id, owner_id=owner_id)
@@ -262,11 +269,16 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
                 "owner_id": owner_id,
                 "assignee_id": values.get("assignee_id"),
                 "created_for_user_id": body.created_for_user_id,
+                "capture_seconds": body.capture_seconds,
             },
         )
         db.add(history)
         db.flush()
+        sla_engine.apply_exam_window(db, ticket, now)
+        sla_engine.sync_clock(db, ticket, now)
+        sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
+        assign_responsible_team(db, ticket, user.id, now)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -274,8 +286,9 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
     except IntegrityError as exc:
         db.rollback()
         logging.getLogger(__name__).error('create_ticket IntegrityError: %s', exc.orig)
-        raise HTTPException(409, 'Case data changed; reload and try again') from None
+        raise HTTPException(409, 'เคสถูกแก้ไขโดยผู้อื่น กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
@@ -285,9 +298,9 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
     """CAP-09: create a linked follow-up while preserving the source case unchanged."""
     source = db.get(Ticket, ticket_id)
     if source is None:
-        raise HTTPException(404, 'Source case not found')
+        raise HTTPException(404, 'ไม่พบเคสต้นทาง')
     if source.status in ('DRAFT', 'DUPLICATE', 'CANCELLED'):
-        raise HTTPException(409, 'A follow-up requires a published, non-cancelled case')
+        raise HTTPException(409, 'สร้างเคสต่อเนื่องได้จากเคสที่บันทึกแล้วและไม่ถูกยกเลิกเท่านั้น')
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     values = {
         field: getattr(source, field) for field in (
@@ -298,6 +311,8 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
             'severity_overridden_reason', 'current_tier', 'sla_policy_id', 'is_exam_window'
         )
     }
+    if source.sla_exam_base_severity:
+        values['severity'] = source.sla_exam_base_severity
     values.update(subject=body.subject or source.subject,
                   description=body.description if body.description is not None else source.description,
                   channel=body.channel or source.channel, status='NEW',
@@ -324,41 +339,55 @@ def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends
         )
         db.add(history)
         db.flush()
+        sla_engine.apply_exam_window(db, ticket, now)
+        sla_engine.sync_clock(db, ticket, now)
+        sla_engine.update_breach(db, ticket, now)
         initialize_interval(db, ticket, now, history_id=history.id)
+        assign_responsible_team(db, ticket, user.id, now)
+        from app.services.ticket_relationships import add_link
+        add_link(db, ticket.id, source.id, 'follow-up', user.id, 'Follow-up created from case')
         db.commit()
     except HTTPException:
         db.rollback()
         raise
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, 'Unable to create follow-up; reload and try again') from None
+        raise HTTPException(409, 'สร้างเคสต่อเนื่องไม่สำเร็จ กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
 def editable_ticket(db, ticket_id, user, draft_only=False):
     ticket = db.scalar(select(Ticket).where(Ticket.id == ticket_id).with_for_update())
     if ticket is None:
-        raise HTTPException(404, 'Ticket not found')
+        raise HTTPException(404, 'ไม่พบเคส')
     if draft_only:
         if ticket.created_by_id != user.id:
-            raise HTTPException(403, 'Only the creator can edit this draft')
+            raise HTTPException(403, 'แก้ไขเคสร่างได้เฉพาะผู้สร้าง')
         if ticket.status != 'DRAFT':
-            raise HTTPException(409, 'Only DRAFT tickets support inline edits')
+            raise HTTPException(409, 'แก้ไขทีละช่องได้เฉพาะเคสร่าง')
     else:
         role = user.role.name if user.role else None
         if role != 'Admin' and user.id not in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id):
-            raise HTTPException(403, 'Only the case creator, owner or assignee can edit its reported time')
+            raise HTTPException(403, 'แก้เวลาที่ลูกค้าแจ้งได้เฉพาะผู้สร้าง เจ้าของเคส หรือผู้ดำเนินการ')
     return ticket
 
 
 def commit_edit(db, ticket):
     try:
+        now = sla_engine.utcnow()
+        if ticket.status in OPEN_STATUSES:
+            sla_engine.apply_exam_window(db, ticket, now)
+            sla_engine.sync_clock(db, ticket, now)
+            sla_engine.update_breach(db, ticket, now)
+            assign_responsible_team(db, ticket, db.info.get('ticket_actor_id'), now)
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(409, 'Case data changed; reload and try again') from None
+        raise HTTPException(409, 'เคสถูกแก้ไขโดยผู้อื่น กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง') from None
     db.refresh(ticket)
+    ticket.sla = sla_engine.measurement(db, ticket)
     return ticket
 
 
@@ -370,7 +399,7 @@ def edit_draft_field(ticket_id: int, body: DraftFieldUpdate, db: Session = Depen
     data = {
     field: getattr(ticket, field)
     for field in TicketCreate.model_fields
-    if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
+    if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')
 }
     data['reported_at'] = ticket.reported_at.replace(tzinfo=timezone.utc)
     data['save_as_draft'] = True
@@ -426,7 +455,7 @@ def edit_ticket_details(
     if ticket.status != 'NEW':
         raise HTTPException(
             409,
-            'Only NEW tickets support detail editing',
+            'แก้ไขข้อมูลรับเรื่องได้เฉพาะเคสสถานะใหม่',
         )
 
     from app.services.categorization import snapshot, record_categories
@@ -438,7 +467,7 @@ def edit_ticket_details(
     data = {
         field: getattr(ticket, field)
         for field in TicketCreate.model_fields
-        if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id')
+        if field not in ('save_as_draft', 'created_for_user_id', 'tags', 'similarity_feedback_id', 'capture_seconds')
     }
 
     data.update({
@@ -527,7 +556,7 @@ def edit_ticket_details(
     if not complete:
         raise HTTPException(
             422,
-            'A NEW ticket must have Organization, Subject and Channel',
+            'เคสใหม่ต้องมีลูกค้า หัวข้อ และช่องทาง',
         )
 
     # 7. Update business fields only.
@@ -577,7 +606,7 @@ def edit_reported_time(ticket_id: int, body: ReportedTimeUpdate, db: Session = D
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     reported = body.reported_at.astimezone(timezone.utc).replace(tzinfo=None)
     if reported > now or reported < now - timedelta(days=7):
-        raise HTTPException(422, 'reported_at must be within the last 7 days')
+        raise HTTPException(422, 'เวลาที่ลูกค้าแจ้งต้องอยู่ภายใน 7 วันที่ผ่านมา และไม่เกินเวลาปัจจุบัน')
     ticket.reported_at = reported
     ticket.is_exam_window = ticket.organization_id is not None and db.scalar(select(ExamWindow.id).where(
         ExamWindow.organization_id == ticket.organization_id, ExamWindow.is_active.is_(True),
@@ -625,11 +654,17 @@ def queue_summary(db: Session = Depends(get_db), user: User = Depends(get_curren
     }
     result = db.execute(select(*(func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(name)
                                  for name, condition in conditions.items()))).mappings().one()
-    return dict(result) | {'sla_at_risk': None}
+    from app.api.v1.endpoints.case_queue import sla_condition
+    from app.db.models.master_data import SlaPolicyRule
+    risk = db.scalar(select(func.count(Ticket.id)).where(
+        opened, or_(sla_condition('risk', now), sla_condition('breached', now))))
+    configured = db.scalar(select(SlaPolicyRule.id).where(SlaPolicyRule.is_active.is_(True)).limit(1)) is not None
+    return dict(result) | {'sla_at_risk': risk if configured else None}
 
 
 @router.get('/tickets', response_model=list[TicketOut])
 def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = False,
+            product_id: int | None = Query(None, ge=1), published_only: bool = False,
             mine: bool = False, unassigned: bool = False, drafts_only: bool = False, today_only: bool = False,
             q: str = Query('', max_length=255), ticket_status: str | None = None,
             offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100),
@@ -646,9 +681,15 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         query = query.where(Ticket.assignee_id.is_(None))
     if drafts_only:
         query = query.where(Ticket.status == 'DRAFT', Ticket.created_by_id == user.id)
+    if published_only:
+        query = query.where(Ticket.status != 'DRAFT')
+    if product_id is not None:
+        query = query.where(Ticket.product_instance_id.in_(
+            select(ProductInstance.id).where(ProductInstance.product_id == product_id)
+        ))
     if ticket_status is not None:
         if ticket_status not in TICKET_STATUSES:
-            raise HTTPException(422, 'Unknown ticket status')
+            raise HTTPException(422, 'ไม่รู้จักสถานะนี้')
         query = query.where(Ticket.status == ticket_status)
     if today_only:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -658,7 +699,12 @@ def tickets(organization_id: int | None = Query(None, ge=1), open_only: bool = F
         query = query.where(or_(Ticket.subject.contains(q.strip(), autoescape=True),
                                Ticket.ticket_no.contains(q.strip(), autoescape=True)))
     ordering = (Ticket.created_at.asc(), Ticket.id.asc()) if drafts_only else (Ticket.created_at.desc(), Ticket.id.desc())
-    return db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
+    rows = db.scalars(query.order_by(*ordering).offset(offset).limit(limit)).all()
+    now = sla_engine.utcnow()
+    schedule = sla_engine.schedule_for(db)
+    for row in rows:
+        row.sla = sla_engine.measurement(db, row, now, schedule)
+    return rows
 
 
 @router.get('/tickets/team-members')
@@ -695,7 +741,7 @@ def search_similar_tickets(
     if len(query) < 10:
         raise HTTPException(
             status_code=422,
-            detail="Search query must contain at least 10 characters",
+            detail="พิมพ์อย่างน้อย 10 ตัวอักษรเพื่อค้นหาเคสที่คล้ายกัน",
         )
 
     if ticket_id is not None:
@@ -774,21 +820,21 @@ def save_similarity_feedback(
 
     feedback = feedback_for_user(db, feedback_id, user)
     if feedback.ticket_id is not None:
-        raise HTTPException(409, 'This decision has already been applied; search again')
+        raise HTTPException(409, 'บันทึกการตัดสินใจนี้ไปแล้ว กรุณาค้นหาใหม่')
     validate_choice(db, feedback, body.decision, body.chosen_ticket_id, body.ticket_id)
     feedback.decision = body.decision
     feedback.chosen_ticket_id = body.chosen_ticket_id
     reuse = None
     if body.decision == 'reuse':
         if body.reuse_values is None:
-            raise HTTPException(422, 'Review the reusable fields first')
+            raise HTTPException(422, 'กรุณาตรวจข้อมูลที่จะนำมาใช้ซ้ำก่อน')
         reuse = body.reuse_values.model_dump()
         # Reuse follows the destination customer and normal product/category validation.
         assessed, _, _ = capture_values(TicketCreate(organization_id=feedback.organization_id, **reuse), db)
         for field in ('severity', 'is_exam_window', 'severity_overridden_reason'):
             reuse[field] = assessed[field]
     elif body.reuse_values is not None:
-        raise HTTPException(422, 'Reusable fields are only valid for reuse')
+        raise HTTPException(422, 'ข้อมูลที่ใช้ซ้ำใช้ได้เฉพาะเมื่อเลือก "ใช้วิธีแก้เดิม"')
     if body.ticket_id is not None:
         from app.services.lifecycle import authorize_case
         row = get_record(db, Ticket, body.ticket_id)
@@ -796,7 +842,7 @@ def save_similarity_feedback(
         query = f'{row.subject or chr(32)} {row.description or chr(32)}'.strip()
         if (feedback.query != query or feedback.organization_id != row.organization_id
                 or feedback.product_instance_id != row.product_instance_id):
-            raise HTTPException(409, 'Case details changed; search again')
+            raise HTTPException(409, 'ข้อมูลเคสเปลี่ยนไป กรุณาค้นหาใหม่')
         if reuse is not None:
             from app.services.categorization import snapshot, record_categories
             before = snapshot(db, row)
@@ -816,7 +862,10 @@ def save_similarity_feedback(
 
 @router.get('/tickets/{ticket_id}', response_model=TicketOut)
 def ticket(ticket_id: int, db: Session = Depends(get_db)):
-    return get_record(db, Ticket, ticket_id)
+    row = get_record(db, Ticket, ticket_id)
+    row.sla = sla_engine.measurement(db, row)
+    row.sla_breached = row.sla_breached or bool(row.sla and row.sla['breached'])
+    return row
 
 
 @router.get('/tickets/{ticket_id}/lifecycle-options')
@@ -844,100 +893,167 @@ def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User 
         'causes': choices(CauseCode, CauseCode.is_active.is_(True)),
         'solutions': choices(SolutionCode, SolutionCode.is_active.is_(True)),
         'categories': choices(ProblemType, ProblemType.is_active.is_(True)),
-        'instances': choices(ProductInstance, ProductInstance.organization_id == row.organization_id,
-                             ProductInstance.is_active.is_(True))}
+        'instances': [
+            {'id': instance.id, 'name': instance.name, 'product_id': instance.product_id}
+            for instance in db.scalars(select(ProductInstance).where(
+                ProductInstance.organization_id == row.organization_id,
+                ProductInstance.is_active.is_(True)))
+        ]}
 
 @router.post('/tickets/auto-close-resolved', status_code=200)
 def auto_close_resolved_tickets(
-    business_days: int = Query(3, ge=1, le=30),
+    business_days: int | None = Query(None, ge=1, le=30),
     db: Session = Depends(get_db),
     user: User = Depends(RoleChecker(['Admin']))
 ):
-    """Trigger สำหรับรัน Auto-close Job (รองรับการกำหนดจำนวนวันทำการ)"""
-    closed_count = run_auto_close_resolved_tickets(db, allowed_business_days=business_days)
-    return {
-        "message": f"Auto-close process completed successfully.",
-        "closed_tickets_count": closed_count,
-        "business_days_threshold": business_days
-    }
+    """Run the CORE-03 auto-close now. The worker also runs it every cycle; without
+    business_days the delay configured on the routing policy is used."""
+    from app.services.auto_close import configured_days
+    days = business_days or configured_days(db)
+    closed_count = run_auto_close_resolved_tickets(db, allowed_business_days=days)
+    return {"message": "ปิดเคสอัตโนมัติเรียบร้อย", "closed_tickets_count": closed_count,
+            "business_days_threshold": days}
 
 
 
-# CAP-05: private, persistent attachment storage. Never expose this directory as StaticFiles.
+# # CAP-05 attachment paths are retained. New objects are private in MinIO.
 ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", "/app/uploads/ticket-attachments"))
-MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-ALLOWED_ATTACHMENT_TYPES = {
-    "image/jpeg": ".jpg", "image/png": ".png",
-    "image/webp": ".webp", "application/pdf": ".pdf"
-    # "text/plain": ".txt", "image/gif": ".gif",
-}
 
-def _can_access_ticket(ticket, user):
+
+ATTACHMENT_READERS = {'Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead', 'Executive'}
+
+
+def _attachment_ticket(db, ticket_id, user, write=False):
+    """SRS 3.2: support staff may read every case (including evidence) to triage
+    unassigned work; only Admin or a case participant may add files."""
+    ticket = get_record(db, Ticket, ticket_id)
     role = user.role.name if user.role else None
-    return role == "Admin" or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id)
+    participant = role == 'Admin' or user.id in (ticket.created_by_id, ticket.owner_id, ticket.assignee_id)
+    if not participant and (write or role not in ATTACHMENT_READERS):
+        raise HTTPException(403, 'คุณไม่มีสิทธิ์เพิ่มไฟล์ในเคสนี้' if write else 'คุณไม่มีสิทธิ์เปิดไฟล์แนบของเคสนี้')
+    return ticket
 
-def _attachment_json(row):
-    return {"id": row.id, "ticket_id": row.ticket_id, "filename": row.original_name,
-            "content_type": row.content_type, "size_bytes": row.size_bytes,
-            "uploaded_by_id": row.uploaded_by_id, "created_at": row.created_at.isoformat(),
-            "download_url": f"/api/v1/tickets/{row.ticket_id}/attachments/{row.id}/download"}
 
-@router.get("/tickets/{ticket_id}/attachments")
-def list_ticket_attachments(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "You cannot access attachments for this case")
-    rows = db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id).order_by(TicketAttachment.created_at, TicketAttachment.id)).all()
-    return [_attachment_json(row) for row in rows]
-
-@router.post("/tickets/{ticket_id}/attachments", status_code=201)
-async def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(require_capture)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "Only the case creator, owner, assignee or Admin can attach files")
-    content_type = (file.content_type or "application/octet-stream").lower().split(";")[0].strip()
-    if content_type not in ALLOWED_ATTACHMENT_TYPES:
-        raise HTTPException(415, "Only JPG, PNG, WEBP and PDF are supported")
-    original_name = Path(file.filename or "attachment").name.replace("\\", "_")[:255] or "attachment"
-    suffix = ALLOWED_ATTACHMENT_TYPES[content_type]
-    stored_name = f"{uuid4().hex}{suffix}"
-    ATTACHMENT_DIR.mkdir(parents=True, exist_ok=True)
-    target = ATTACHMENT_DIR / stored_name
-    size = 0
-    try:
-        with target.open("wb") as output:
-            while True:
-                chunk = await file.read(1024 * 1024)
-                if not chunk:
-                    break
-                size += len(chunk)
-                if size > MAX_ATTACHMENT_BYTES:
-                    raise HTTPException(413, "ไฟล์ต้องมีขนาดไม่เกิน 10 MB")
-                output.write(chunk)
-        if size == 0:
-            raise HTTPException(422, "ไฟล์ว่างเปล่า")
-        row = TicketAttachment(ticket_id=ticket_id, original_name=original_name, stored_name=stored_name,
-                               content_type=content_type, size_bytes=size, uploaded_by_id=user.id)
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-        return _attachment_json(row)
-    except Exception:
-        target.unlink(missing_ok=True)
-        db.rollback()
-        raise
-    finally:
-        await file.close()
-
-@router.get("/tickets/{ticket_id}/attachments/{attachment_id}/download")
-def download_ticket_attachment(ticket_id: int, attachment_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    ticket = get_record(db, Ticket, ticket_id)
-    if not _can_access_ticket(ticket, user):
-        raise HTTPException(403, "You cannot access attachments for this case")
-    row = db.scalar(select(TicketAttachment).where(TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
+def _attachment_record(db, ticket_id, attachment_id):
+    row = db.scalar(select(TicketAttachment).where(
+        TicketAttachment.id == attachment_id, TicketAttachment.ticket_id == ticket_id))
     if row is None:
-        raise HTTPException(404, "Attachment not found")
-    target = ATTACHMENT_DIR / row.stored_name
-    if not target.is_file():
-        raise HTTPException(404, "Attachment file is missing from storage")
-    return FileResponse(target, media_type=row.content_type, filename=row.original_name, content_disposition_type="inline" if row.content_type.startswith("image/") else "attachment")
+        raise HTTPException(404, 'ไม่พบไฟล์แนบ')
+    return row
+
+
+def _attachment_json(row, user):
+    from datetime import timedelta
+    from jose import jwt
+    from app.core.config import settings
+
+    access = jwt.encode({
+        'type': 'attachment', 'sub': str(user.id), 'ticket': row.ticket_id,
+        'file': row.id, 'exp': datetime.now(timezone.utc) + timedelta(hours=1),
+    }, settings.SECRET_KEY, algorithm='HS256')
+    url = f'/api/v1/tickets/{row.ticket_id}/attachments/{row.id}/download?access={access}'
+    return {'id': row.id, 'ticket_id': row.ticket_id, 'filename': row.original_name,
+            'content_type': row.content_type, 'size_bytes': row.size_bytes,
+            'uploaded_by_id': row.uploaded_by_id, 'created_at': row.created_at.isoformat(),
+            'download_url': url,
+            'thumbnail_url': url + '&mode=thumbnail' if row.content_type.startswith('image/') else None,
+            'preview_url': url + '&mode=inline' if row.content_type.startswith('image/') else None}
+
+
+@router.get('/tickets/{ticket_id}/attachments')
+def list_ticket_attachments(ticket_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _attachment_ticket(db, ticket_id, user)
+    rows = db.scalars(select(TicketAttachment).where(TicketAttachment.ticket_id == ticket_id)
+                     .order_by(TicketAttachment.created_at, TicketAttachment.id))
+    return [_attachment_json(row, user) for row in rows]
+
+
+@router.get('/tickets/{ticket_id}/attachments/{attachment_id}/access')
+def attachment_access(ticket_id: int, attachment_id: int, db: Session = Depends(get_db),
+                      user: User = Depends(get_current_user)):
+    _attachment_ticket(db, ticket_id, user)
+    return _attachment_json(_attachment_record(db, ticket_id, attachment_id), user)
+
+
+@router.post('/tickets/{ticket_id}/attachments', status_code=201)
+def upload_ticket_attachment(ticket_id: int, file: UploadFile = File(...),
+                             db: Session = Depends(get_db), user: User = Depends(require_capture)):
+    from app.services import attachment_storage as objects
+
+    _attachment_ticket(db, ticket_id, user, write=True)
+    original_name = Path((file.filename or 'attachment').replace('\\', '/')).name[:255]
+    written = []
+    try:
+        row, written = objects.store_attachment(db, ticket_id, file.file, original_name, user.id)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        objects.discard(written)
+        if isinstance(exc, HTTPException):
+            raise
+        logging.exception('Attachment upload failed')
+        raise HTTPException(503, 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่') from None
+    db.refresh(row)
+    return _attachment_json(row, user)
+
+
+@router.get('/tickets/{ticket_id}/attachments/{attachment_id}/download')
+def download_ticket_attachment(
+    ticket_id: int, attachment_id: int, access: str = '',
+    mode: Literal['download', 'inline', 'thumbnail'] = 'download',
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+):
+    from urllib.parse import quote
+    from jose import JWTError, jwt
+    from minio.error import S3Error
+    from app.core.config import settings
+    from app.services import attachment_storage as objects
+
+    _attachment_ticket(db, ticket_id, user)
+    try:
+        claims = jwt.decode(access, settings.SECRET_KEY, algorithms=['HS256'],
+                            options={'require_exp': True})
+        if (claims.get('type'), claims.get('sub'), claims.get('ticket'), claims.get('file')) != (
+            'attachment', str(user.id), ticket_id, attachment_id,
+        ):
+            raise JWTError('Invalid attachment scope')
+    except JWTError:
+        raise HTTPException(403, 'ลิงก์ไฟล์หมดอายุหรือไม่ถูกต้อง กรุณาเปิดเคสใหม่อีกครั้ง') from None
+    row = _attachment_record(db, ticket_id, attachment_id)
+    if mode != 'download' and row.content_type not in objects.IMAGE_TYPES.values():
+        raise HTTPException(415, 'ดูตัวอย่างได้เฉพาะไฟล์ภาพ')
+    mime = 'image/webp' if mode == 'thumbnail' else row.content_type
+    disposition = 'attachment' if mode == 'download' else 'inline'
+    headers = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}
+    if not row.stored_name.startswith('minio/'):
+        target = ATTACHMENT_DIR / Path(row.stored_name).name
+        if not target.is_file():
+            raise HTTPException(404, 'ไม่พบไฟล์ในที่จัดเก็บ กรุณาติดต่อผู้ดูแลระบบ')
+        if mode == 'thumbnail':
+            with target.open('rb') as stream:
+                _, thumbnail = objects.image_thumbnail(stream)
+            return Response(thumbnail, media_type=mime, headers=headers)
+        return FileResponse(target, media_type=mime, filename=row.original_name,
+                            content_disposition_type=disposition, headers=headers)
+    key = row.stored_name.removeprefix('minio/')
+    if mode == 'thumbnail':
+        key += '.thumb.webp'
+    try:
+        result = objects.storage().get_object(objects.BUCKET, key)
+    except S3Error as exc:
+        if exc.code == 'NoSuchKey':
+            raise HTTPException(404, 'ไม่พบไฟล์ในที่จัดเก็บ กรุณาติดต่อผู้ดูแลระบบ') from None
+        logging.exception('Attachment read failed')
+        raise HTTPException(503, 'ที่จัดเก็บไฟล์ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่') from None
+    except OSError:
+        raise HTTPException(503, 'ที่จัดเก็บไฟล์ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่') from None
+
+    def chunks():
+        try:
+            yield from result.stream(64 * 1024)
+        finally:
+            result.close()
+            result.release_conn()
+
+    headers['Content-Disposition'] = f"{disposition}; filename*=UTF-8''{quote(row.original_name, safe='')}"
+    return StreamingResponse(chunks(), media_type=mime, headers=headers)

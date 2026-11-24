@@ -43,7 +43,7 @@ def _commit(db: Session) -> None:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="Duplicate or conflicting master data") from exc
+        raise HTTPException(status_code=409, detail="ข้อมูลหลักนี้ซ้ำกับที่มีอยู่") from exc
 
 
 def _patch(item, data: dict) -> None:
@@ -106,7 +106,7 @@ def list_sla_rules(
 def create_sla_rule(policy_id: int, body: SlaPolicyRuleCreate, db: Session = Depends(get_db)):
     _get_or_404(db, SlaPolicy, policy_id, "SLA Policy")
     if body.resolution_max_value < body.resolution_min_value:
-        raise HTTPException(status_code=422, detail="resolution_max_value must be >= resolution_min_value")
+        raise HTTPException(status_code=422, detail="เวลาแก้ไขสูงสุดต้องไม่น้อยกว่าเวลาต่ำสุด")
     item = SlaPolicyRule(sla_policy_id=policy_id, **body.model_dump())
     db.add(item)
     _commit(db)
@@ -122,13 +122,13 @@ def update_sla_rule(policy_id: int, rule_id: int, body: SlaPolicyRuleUpdate, db:
         SlaPolicyRule.sla_policy_id == policy_id,
     ).first()
     if item is None:
-        raise HTTPException(status_code=404, detail="SLA Policy Rule not found")
+        raise HTTPException(status_code=404, detail="ไม่พบกฎ SLA นี้")
 
     data = body.model_dump(exclude_unset=True)
     min_value = data.get("resolution_min_value", item.resolution_min_value)
     max_value = data.get("resolution_max_value", item.resolution_max_value)
     if max_value < min_value:
-        raise HTTPException(status_code=422, detail="resolution_max_value must be >= resolution_min_value")
+        raise HTTPException(status_code=422, detail="เวลาแก้ไขสูงสุดต้องไม่น้อยกว่าเวลาต่ำสุด")
 
     _patch(item, data)
     _commit(db)
@@ -144,7 +144,7 @@ def disable_sla_rule(policy_id: int, rule_id: int, db: Session = Depends(get_db)
         SlaPolicyRule.sla_policy_id == policy_id,
     ).first()
     if item is None:
-        raise HTTPException(status_code=404, detail="SLA Policy Rule not found")
+        raise HTTPException(status_code=404, detail="ไม่พบกฎ SLA นี้")
     item.is_active = False
     _commit(db)
     db.refresh(item)
@@ -165,7 +165,7 @@ def list_business_calendars(
 @router.post("/business-calendars", response_model=BusinessCalendarOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 def create_business_calendar(body: BusinessCalendarCreate, db: Session = Depends(get_db)):
     if body.work_end_time <= body.work_start_time:
-        raise HTTPException(status_code=422, detail="work_end_time must be later than work_start_time")
+        raise HTTPException(status_code=422, detail="เวลาเลิกงานต้องหลังเวลาเริ่มงาน")
     item = BusinessCalendar(**body.model_dump())
     db.add(item)
     _commit(db)
@@ -180,7 +180,7 @@ def update_business_calendar(item_id: int, body: BusinessCalendarUpdate, db: Ses
     start = data.get("work_start_time", item.work_start_time)
     end = data.get("work_end_time", item.work_end_time)
     if end <= start:
-        raise HTTPException(status_code=422, detail="work_end_time must be later than work_start_time")
+        raise HTTPException(status_code=422, detail="เวลาเลิกงานต้องหลังเวลาเริ่มงาน")
     _patch(item, data)
     _commit(db)
     db.refresh(item)
@@ -233,7 +233,7 @@ def update_business_holiday(calendar_id: int, holiday_id: int, body: BusinessHol
         BusinessHoliday.business_calendar_id == calendar_id,
     ).first()
     if item is None:
-        raise HTTPException(status_code=404, detail="Business Holiday not found")
+        raise HTTPException(status_code=404, detail="ไม่พบวันหยุดนี้")
     _patch(item, body.model_dump(exclude_unset=True))
     _commit(db)
     db.refresh(item)
@@ -248,7 +248,7 @@ def disable_business_holiday(calendar_id: int, holiday_id: int, db: Session = De
         BusinessHoliday.business_calendar_id == calendar_id,
     ).first()
     if item is None:
-        raise HTTPException(status_code=404, detail="Business Holiday not found")
+        raise HTTPException(status_code=404, detail="ไม่พบวันหยุดนี้")
     item.is_active = False
     _commit(db)
     db.refresh(item)

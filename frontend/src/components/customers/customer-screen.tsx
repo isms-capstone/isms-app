@@ -84,7 +84,7 @@ export function CustomerScreen() {
               <tbody>
                 {filtered?.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.name}</td>
+                    <td>{preview ? row.name : <Link className="text-link" href={`/customers/${row.id}`}>{row.name}</Link>}</td>
                     <td>
                       <span className="badge">
                         {row.is_active ? "Active" : "Inactive"}

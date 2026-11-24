@@ -2,16 +2,23 @@
 # Add this overlay after docker-compose.frontend.yml when starting the worker.
 services:
   routing-worker:
-    build: .
+    image: isms-backend:${ISMS_IMAGE_TAG:-local}
+    pull_policy: never
     command: ["python", "-m", "app.jobs.routing_worker"]
     restart: unless-stopped
     environment:
+      APP_ENV: ${APP_ENV:-local}
       MARIADB_SERVER: db
       MARIADB_PORT: "3306"
       MARIADB_USER: ${MARIADB_USER:-isms_user}
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-isms_password}
       MARIADB_DB: ${MARIADB_DB:-isms_db}
       SECRET_KEY: ${SECRET_KEY:-local-development-only-change-before-deploy}
+      POR_SMTP_HOST: ${POR_SMTP_HOST:-}
+      POR_SMTP_FROM: ${POR_SMTP_FROM:-}
+      POR_SMTP_PORT: ${POR_SMTP_PORT:-}
+      POR_SMTP_USER: ${POR_SMTP_USER:-}
+      POR_SMTP_PASSWORD: ${POR_SMTP_PASSWORD:-}
     depends_on:
       app:
         condition: service_healthy

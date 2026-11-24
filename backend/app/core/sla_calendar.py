@@ -1,0 +1,72 @@
+"""Time arithmetic on UTC intervals using the company's local business calendar."""
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+
+@dataclass(frozen=True)
+class Schedule:
+    zone: str = "Asia/Bangkok"
+    start: time = time(8)
+    end: time = time(17)
+    weekdays: tuple[bool, ...] = (True, True, True, True, True, False, False)
+    holidays: frozenset = frozenset()
+
+    @property
+    def day_seconds(self):
+        return int((datetime.combine(datetime.min, self.end) -
+                    datetime.combine(datetime.min, self.start)).total_seconds())
+
+    def add_business_days(self, start, days):
+        """UTC moment `days` working days after `start` (same local time of day),
+        skipping weekends and holidays of this calendar."""
+        zone = ZoneInfo(self.zone)
+        local = start.replace(tzinfo=timezone.utc).astimezone(zone)
+        day, counted = local.date(), 0
+        for _ in range(3660):
+            if counted >= days:
+                break
+            day += timedelta(days=1)
+            if self.weekdays[day.weekday()] and day not in self.holidays:
+                counted += 1
+        else:
+            raise ValueError("Business calendar has no working days")
+        return datetime.combine(day, local.time(), zone).astimezone(timezone.utc).replace(tzinfo=None)
+
+    def add(self, start, seconds):
+        """UTC datetime reached after `seconds` of business time from `start`."""
+        if seconds <= 0:
+            return start
+        zone = ZoneInfo(self.zone)
+        remaining = timedelta(seconds=seconds)
+        day = start.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        for _ in range(3660):  # ten years of calendar days is a hard upper bound
+            if self.weekdays[day.weekday()] and day not in self.holidays:
+                opening, closing = (
+                    datetime.combine(day, hour, zone).astimezone(timezone.utc).replace(tzinfo=None)
+                    for hour in (self.start, self.end)
+                )
+                begin = max(start, opening)
+                if begin < closing:
+                    if begin + remaining <= closing:
+                        return begin + remaining
+                    remaining -= closing - begin
+            day += timedelta(days=1)
+        raise ValueError("Business calendar has no working time")
+
+    def seconds(self, start, end):
+        if end <= start:
+            return 0
+        zone = ZoneInfo(self.zone)
+        day = start.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        last_day = end.replace(tzinfo=timezone.utc).astimezone(zone).date()
+        total = timedelta()
+        while day <= last_day:
+            if self.weekdays[day.weekday()] and day not in self.holidays:
+                opening, closing = (
+                    datetime.combine(day, hour, zone).astimezone(timezone.utc).replace(tzinfo=None)
+                    for hour in (self.start, self.end)
+                )
+                total += max(timedelta(), min(end, closing) - max(start, opening))
+            day += timedelta(days=1)
+        return int(total.total_seconds())

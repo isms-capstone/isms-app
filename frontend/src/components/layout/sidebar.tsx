@@ -2,11 +2,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import {
   ArrowRightLeft,
   GitBranch,
   Inbox,
   List,
+  Search,
   ClipboardList,
   BookOpen,
   Users,
@@ -16,9 +19,8 @@ import {
   Clock3,
   Zap,
   History,
-  Settings,
   ChevronsLeft,
-  ChevronRight,
+  Megaphone,
   ChevronsUpDown,
   MonitorCog,
   ShieldCheck,
@@ -46,6 +48,24 @@ export function CompanyMark() {
     </span>
   );
 }
+const ROLE_NAMES: Record<string, string> = {
+  Admin: "ผู้ดูแลระบบ",
+  Agent: "เจ้าหน้าที่ Tier 2",
+  Specialist: "ผู้เชี่ยวชาญ Tier 1",
+  Developer: "ทีมพัฒนา Tier 0",
+  "Team Lead": "หัวหน้าทีม",
+  Executive: "ผู้บริหาร",
+};
+const PREVIEW_PRODUCTS = [
+  { code: "examplus", name: "ExamPlus" },
+  { code: "geta", name: "GetA" },
+  { code: "logbook", name: "Logbook" },
+];
+let productCache: Promise<{ code: string; name: string }[]> | null = null;
+function productIcon(code: string): LucideIcon {
+  return code === "logbook" ? BookOpen : code === "geta" ? ShieldCheck : MonitorCog;
+}
+
 export function Sidebar({
   open,
   onClose,
@@ -57,84 +77,91 @@ export function Sidebar({
 }) {
   const { session, href, preview } = useSession(),
     pathname = usePathname();
+  const [products, setProducts] = useState(preview ? PREVIEW_PRODUCTS : []);
+  useEffect(() => {
+    if (preview || !session) return;
+    productCache ??= api<{ code: string | null; name: string }[]>(
+      "/products?is_active=true&limit=100",
+    )
+      .then((rows) => rows.filter((row): row is { code: string; name: string } => !!row.code))
+      .catch(() => {
+        productCache = null;
+        return [];
+      });
+    let active = true;
+    productCache.then((rows) => active && setProducts(rows));
+    return () => {
+      active = false;
+    };
+  }, [preview, session]);
+  const isAdmin = session?.role === "Admin" && !preview;
   const groups: { title: string; items: NavItem[] }[] = [
     {
-      title: "WORK",
+      title: "งาน",
       items: [
+        { label: "งานของฉัน", path: "/my-work", icon: Inbox, badge: counts?.mine },
+        { label: "เคสทั้งหมด", path: "/cases", icon: List },
         {
-          label: "My Work",
-          path: "/my-work",
-          icon: Inbox,
-          badge: counts?.mine,
-        },
-        { label: "All Cases", path: "/cases", icon: List },
-        ...(session?.can_create_cases
-          ? [{ label: "การส่งมอบงาน", path: "/routing", icon: ArrowRightLeft }]
-          : []),
-        {
-          label: "Unassigned",
+          label: "ยังไม่มีผู้รับ",
           path: "/unassigned",
           icon: ClipboardList,
           badge: counts?.unassigned,
         },
-      ],
-    },
-    {
-      title: "PRODUCTS",
-      items: [
-        { label: "ExamPlus", path: "/products/examplus", icon: MonitorCog },
-        { label: "GetA", path: "/products/geta", icon: ShieldCheck },
-        { label: "Logbook", path: "/products/logbook", icon: BookOpen },
-      ],
-    },
-    {
-      title: "KNOWLEDGE",
-      items: [{ label: "Knowledge Base", icon: BookOpen, disabled: true }],
-    },
-    {
-      title: "CUSTOMERS",
-      items: [{ label: "Customers", path: "/customers", icon: Users }],
-    },
-    {
-      title: "REPORTS",
-      items: [{ label: "Dashboard", icon: ChartNoAxesColumn, disabled: true },
-        ...(session?.role === "Admin" && !preview ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }] : [])],
-    },
-    {
-      title: "ADMINISTRATION",
-      items: [
-        {
-          label: "Users & Teams",
-          path: "/administration/users",
-          icon: UsersRound,
-        },
-        {
-          label: "Master Data",
-          path: "/master-data",
-          icon: Database,
-        },
-        {
-          label: "SLA & Business Hours",
-          path: "/administration/sla-policies",
-          icon: Clock3,
-        },
-        {
-          label: "Automation Rules",
-          path: "/administration/automation",
-          icon: Zap,
-        },
-        { label: "Audit Log", icon: History, disabled: true },
-        ...(session?.role === "Admin"
-          ? [
-              {
-                label: "Escalation & Routing",
-                path: "/routing/admin",
-                icon: GitBranch,
-              },
-            ]
+        ...(!preview && session ? [{ label: "ค้นหาเคส", path: "/cases/search", icon: Search }] : []),
+        ...(session?.can_create_cases
+          ? [{ label: "ส่งมอบงาน", path: "/routing", icon: ArrowRightLeft }]
           : []),
       ],
     },
+    ...(products.length
+      ? [
+          {
+            title: "ผลิตภัณฑ์",
+            items: products.map((product) => ({
+              label: product.name,
+              path: `/products/${product.code}`,
+              icon: productIcon(product.code),
+            })),
+          },
+        ]
+      : []),
+    {
+      title: "ลูกค้า",
+      items: [
+        { label: "ทะเบียนลูกค้า", path: "/customers", icon: Users },
+        ...(!preview && session && ["Admin", "Team Lead"].includes(session.role)
+          ? [{ label: "ประกาศสถานะระบบ", path: "/announcements", icon: Megaphone }]
+          : []),
+      ],
+    },
+    ...(!preview && session && ["Admin", "Team Lead", "Executive"].includes(session.role)
+      ? [
+          {
+            title: "รายงาน",
+            items: [
+              { label: "เวลาที่ใช้สร้างเคส", path: "/reports/capture-time", icon: Clock3 },
+              ...(session.role === "Admin"
+                ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }]
+                : []),
+            ],
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            title: "ตั้งค่าระบบ",
+            items: [
+              { label: "ผู้ใช้และทีม", path: "/administration/users", icon: UsersRound },
+              { label: "ข้อมูลหลักและหมวดหมู่", path: "/master-data", icon: Database },
+              { label: "SLA และเวลาทำการ", path: "/administration/sla-policies", icon: Clock3 },
+              { label: "การส่งต่อเคส (Tier)", path: "/routing/admin", icon: GitBranch },
+              { label: "กฎอัตโนมัติ", path: "/administration/automation", icon: Zap },
+              { label: "ประวัติการแก้ไขข้อมูล", path: "/administration/audit-log", icon: History },
+            ],
+          },
+        ]
+      : []),
   ];
   return (
     <>
@@ -189,9 +216,7 @@ export function Sidebar({
                     (destination.endsWith("/cases") &&
                       !pathname.endsWith("/cases/new") &&
                       pathname.startsWith(`${destination}/`)));
-                return item.disabled ||
-                  (group.title === "ADMINISTRATION" &&
-                    (preview || session?.role !== "Admin")) ? (
+                return item.disabled ? (
                   <button
                     className="nav-item"
                     disabled
@@ -214,22 +239,12 @@ export function Sidebar({
                     {item.badge !== undefined && (
                       <span className="nav-count">{item.badge}</span>
                     )}
-                    {group.title === "PRODUCTS" && (
-                      <ChevronRight className="nav-chevron" />
-                    )}
+
                   </Link>
                 );
               })}
             </section>
           ))}
-          <button
-            className="nav-item settings-link"
-            disabled
-            title="ยังไม่เปิดใช้งาน"
-          >
-            <Settings />
-            <span>Settings</span>
-          </button>
         </nav>
         <div className="sidebar-account">
           <span className="avatar avatar-outline">
@@ -237,11 +252,7 @@ export function Sidebar({
           </span>
           <div>
             <strong>{session?.username || "ISMS"}</strong>
-            <small>
-              {session?.role === "Agent"
-                ? "Tier 2"
-                : session?.role || "Service Operations"}
-            </small>
+            <small>{ROLE_NAMES[session?.role || ""] || session?.role || ""}</small>
           </div>
           <ChevronsUpDown size={16} />
         </div>

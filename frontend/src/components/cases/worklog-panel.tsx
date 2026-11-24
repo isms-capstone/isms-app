@@ -1,10 +1,12 @@
 "use client";
+import { formatDateTime } from "@/lib/format";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { channelNames, type Ticket } from "@/lib/types";
+import { statusNames, channelNames, type Ticket } from "@/lib/types";
 import { Button } from "@/components/ui/primitives";
 import { useSession } from "@/components/providers/session-provider";
 import type { WorklogRecord } from "@/lib/worklog-contract";
+import { TimelineAttachment } from "./case-attachments";
 
 type TimelineEvent = {
   id: string;
@@ -17,18 +19,33 @@ type TimelineEvent = {
   details?: Record<string, unknown>;
 };
 const labels: Record<string, string> = {
-  internal_note: "Internal Note",
-  public_reply: "Public Reply",
+  internal_note: "บันทึกภายใน",
+  public_reply: "ข้อความถึงลูกค้า",
   case_created: "สร้างเคส",
   status_changed: "เปลี่ยนสถานะ",
   categorization_updated: "เปลี่ยนหมวดหมู่",
   categorization_created: "จัดหมวดหมู่",
   attachment: "แนบไฟล์",
+  ticket_fields_updated: "เปลี่ยนข้อมูลสำคัญของเคส",
   request_start: "เริ่มดำเนินคำขอ",
   request_fulfil: "ส่งมอบผลคำขอ",
   request_confirm: "ยืนยันและปิดคำขอ",
   similarity_decision: "ตัดสินใจจากเคสที่คล้ายกัน",
 };
+const relationshipEvents: Record<string, string> = {
+  relationship_received: "มีเคสอื่นเชื่อมมาที่เคสนี้",
+  relationship_created: "เชื่อมโยงเคส",
+  duplicate_merged: "รวมเคสซ้ำ",
+  relationship_closure_notice: "บันทึกการแจ้งปิดเคส",
+};
+const relationshipTypes: Record<string, string> = {
+  related: "เกี่ยวข้องกัน",
+  duplicate: "เคสซ้ำ",
+  "follow-up": "ติดตามผล",
+  "caused-by": "เกิดจาก",
+  "child-of": "เคสย่อยของเหตุการณ์หลัก",
+};
+
 const fieldLabels: Record<string, string> = {
   module_id: "โมดูล",
   category_id: "ประเภทปัญหา",
@@ -50,7 +67,25 @@ const fieldLabels: Record<string, string> = {
   feedback_id: "ผลการค้นหา",
   chosen_ticket_id: "เคสต้นทาง",
   decision: "แนวทางที่เลือก",
+  related_ticket_id: "เคสที่เชื่อมโยง",
+  source_ticket_id: "เคสต้นทาง",
+  master_ticket_id: "เคสหลัก",
+  relationship_type: "ประเภทความสัมพันธ์",
+  reason: "เหตุผล",
+  delivery_status: "สถานะการแจ้ง",
+  message: "ข้อความ",
+  contact_id: "รหัสผู้แจ้ง",
+  organization_id: "รหัสองค์กร",
+  channel: "ช่องทาง",
 };
+const deliveryLabels: Record<string, string> = {
+  pending: "รอส่ง",
+  email: "ส่งอีเมลแล้ว",
+  portal: "แจ้งในศูนย์ช่วยเหลือแล้ว",
+  "email+portal": "ส่งอีเมลและแจ้งในศูนย์ช่วยเหลือแล้ว",
+  manual_follow_up: "ไม่มีช่องทางอัตโนมัติ — ทีมต้องแจ้งลูกค้าเอง",
+};
+
 export function WorklogPanel({ ticket }: { ticket: Ticket }) {
   const { session } = useSession();
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -144,15 +179,15 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
           แสดง
           <select value={filter} onChange={(e) => setFilter(e.target.value)}>
             <option value="all">ทั้งหมด</option>
-            <option value="internal_note">Internal Note</option>
-            <option value="public_reply">Public Reply</option>
+            <option value="internal_note">บันทึกภายใน</option>
+            <option value="public_reply">ข้อความถึงลูกค้า</option>
             <option value="categorization_updated">ประวัติหมวดหมู่</option>
           </select>
         </label>
       </div>
       {source === "worklogs" && (
         <p className="field-hint">
-          แสดงประวัติการสื่อสาร · ประวัติการเปลี่ยนสถานะยังไม่พร้อมใช้งาน
+          แสดงเฉพาะข้อความที่บันทึก (ระบบนี้ยังไม่มีประวัติสถานะในไทม์ไลน์)
         </p>
       )}
       <ol className="worklog-timeline">
@@ -161,10 +196,10 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
           .map((event) => (
             <li key={event.id} className={`timeline-event ${event.kind}`}>
               <div className="timeline-event-heading">
-                <strong>{labels[event.kind] || event.kind}</strong>
+                <strong>{relationshipEvents[event.kind] || labels[event.kind] || event.kind}</strong>
                 <span>{event.actor || "ระบบ"}</span>
                 <time dateTime={event.created_at}>
-                  {new Date(event.created_at).toLocaleString("th-TH")}
+                  {formatDateTime(event.created_at)}
                 </time>
               </div>
               {event.channel && (
@@ -172,10 +207,27 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                   ส่งจริงผ่าน {channelNames[event.channel] || event.channel}
                 </span>
               )}
-              <p>{event.body}</p>
+              {relationshipEvents[event.kind] ? null : event.kind ===
+                  "status_changed" ? (
+                <p>
+                  {event.body
+                    .split(" → ")
+                    .map((code) => statusNames[code] || code)
+                    .join(" → ")}
+                </p>
+              ) : event.kind ===
+                  "attachment" && /^attachment-\d+$/.test(event.id) ? (
+                <TimelineAttachment
+                  ticketId={ticket.id}
+                  attachmentId={Number(event.id.slice(11))}
+                  filename={event.body}
+                />
+              ) : (
+                <p>{event.body}</p>
+              )}
               {event.changes && (
                 <details>
-                  <summary>ค่าเดิม / ค่าใหม่</summary>
+                  <summary className="timeline-detail-trigger">{relationshipEvents[event.kind] ? "ดูรายละเอียด" : "ค่าเดิม / ค่าใหม่"}</summary>
                   <dl>
                     {Object.entries(event.changes).map(([key, change]) => {
                       const pair = change as { old: unknown; new: unknown };
@@ -187,11 +239,14 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                             typeof pair === "object" &&
                             "new" in pair ? (
                               <>
-                                {JSON.stringify(pair.old ?? null)} →{" "}
-                                {JSON.stringify(pair.new ?? null)}
+                                {pair.old == null || pair.old === "" ? "—" : String(pair.old)} →{" "}
+                                {pair.new == null || pair.new === "" ? "—" : String(pair.new)}
                               </>
                             ) : (
-                              JSON.stringify(change)
+                              typeof change === "string"
+                                ? key === "relationship_type" ? relationshipTypes[change] ?? change
+                                  : key === "delivery_status" ? deliveryLabels[change] ?? change : change
+                                : change == null ? "–" : JSON.stringify(change)
                             )}
                           </dd>
                         </div>
@@ -220,19 +275,19 @@ export function WorklogPanel({ ticket }: { ticket: Ticket }) {
                 setChannel("");
               }}
             >
-              Internal Note
+              บันทึกภายใน
             </Button>
             <Button
               aria-pressed={kind === "public_reply"}
               onClick={() => setKind("public_reply")}
             >
-              Public Reply
+              ข้อความถึงลูกค้า
             </Button>
           </div>
           <p className="field-hint">
             {kind === "internal_note"
-              ? "บันทึกภายในทีม"
-              : "บันทึกข้อความที่ส่งให้ลูกค้าแล้ว พร้อมช่องทางที่ใช้จริง"}
+              ? "เห็นเฉพาะทีมงาน ลูกค้าไม่เห็นข้อความนี้ในทุกช่องทาง"
+              : "บันทึกข้อความที่ตอบลูกค้าไปแล้ว และเลือกช่องทางที่ใช้ส่งจริง ถ้าเลือก \"พอร์ทัลลูกค้า\" ลูกค้าจะเห็นข้อความนี้ในหน้าแจ้งปัญหา"}
           </p>
           {kind === "public_reply" && (
             <label>

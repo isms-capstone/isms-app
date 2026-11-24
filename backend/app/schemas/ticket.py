@@ -25,6 +25,8 @@ class TicketCreate(CategoryFields):
     ticket_type_id: int | None = Field(default=None, ge=1)
     reported_at: datetime | None = None
     similarity_feedback_id: int | None = Field(default=None, ge=1)
+    # ADO-01/CAP-04: seconds from the user's first input on the capture form to saving.
+    capture_seconds: int | None = Field(default=None, ge=0, le=86400)
 
     @field_validator('subject', 'description')
     @classmethod
@@ -127,7 +129,32 @@ class TicketResolve(BaseModel):
         return value
 
 
+class SlaMetric(BaseModel):
+    target_seconds: int
+    elapsed_seconds: int
+    remaining_seconds: int
+    finished: bool
+    breached: bool
+
+
+class SlaMeasurement(BaseModel):
+    first_response: SlaMetric
+    resolution: SlaMetric
+    paused: bool
+    remaining_seconds: int | None
+    remaining_ratio: float | None
+    breached: bool
+
+
 class TicketOut(BaseModel):
+    team_id: int | None = None
+    sla: SlaMeasurement | None = None
+    sla_breached: bool = False
+    sla_breach_reason: str | None = None
+    pending_customer_reason: str | None = None
+    source_url: str | None = None
+    browser_device: str | None = None
+    exam_or_course_context: str | None = None
     model_config = ConfigDict(from_attributes=True)
     id: int
     ticket_no: str | None

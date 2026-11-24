@@ -227,6 +227,9 @@ label > .company-select,
 .sla-safe {
   color: var(--label-secondary);
 }
+.sla-paused {
+  color: var(--label-tertiary, var(--label-secondary));
+}
 .native-stat-action .work-stat {
   border-radius: var(--radius-8);
   padding: 16px;

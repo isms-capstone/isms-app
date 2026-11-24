@@ -1,6 +1,6 @@
 """Allow-listed customer payloads over the canonical WRK storage."""
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 
 from app.db.models.work_category import TicketWorklog
 
@@ -17,7 +17,10 @@ def external_replies(db, ticket_id: int, channel: str):
     rows = db.scalars(
         select(TicketWorklog)
         .where(
-            TicketWorklog.ticket_id == ticket_id,
+            or_(
+                TicketWorklog.original_ticket_id == ticket_id,
+                and_(TicketWorklog.original_ticket_id.is_(None), TicketWorklog.ticket_id == ticket_id),
+            ),
             TicketWorklog.is_internal.is_(False),
             TicketWorklog.channel.in_(EXTERNAL_CHANNELS[channel]),
         )

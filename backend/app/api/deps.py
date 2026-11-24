@@ -29,7 +29,7 @@ def get_current_user(
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -52,8 +52,9 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
+            detail="บัญชีนี้ถูกระงับการใช้งาน",
         )
+    db.info['ticket_actor_id'] = user.id
     return user
 
 
@@ -69,7 +70,7 @@ class RoleChecker:
         if self.allowed_roles is not None and role_name not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: insufficient privileges.",
+                detail="บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้",
             )
         return current_user
 

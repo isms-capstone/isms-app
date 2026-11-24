@@ -121,7 +121,7 @@ export function CustomerSystemEditor({
               <label>ชื่อระบบ<Input name="name" required maxLength={255} placeholder="เช่น ระบบสอบของลูกค้า" /></label>
               <label>รหัสระบบ<Input name="code" required maxLength={50} placeholder="เช่น exam-production" /></label>
               <label>เวอร์ชัน<Input name="version" required maxLength={100} /></label>
-              <label>Environment<Input name="environment" required maxLength={50} placeholder="เช่น production" /></label>
+              <label>สภาพแวดล้อม<Input name="environment" required maxLength={50} placeholder="เช่น production หรือ uat" /></label>
               <label>URL ของระบบ<Input name="url" type="url" required maxLength={2048} placeholder="https://" /></label>
             </fieldset>
             <div className="lifecycle-buttons">

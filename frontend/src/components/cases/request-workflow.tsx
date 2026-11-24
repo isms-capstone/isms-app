@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { Ticket } from "@/lib/types";
-import { Button } from "@/components/ui/primitives";
+import { Button, Input } from "@/components/ui/primitives";
 import { useSession } from "@/components/providers/session-provider";
 import { backendCapabilities } from "@/lib/backend-capabilities";
 
@@ -20,6 +20,7 @@ export function RequestWorkflow({
   );
   const [assignee, setAssignee] = useState("");
   const [detail, setDetail] = useState("");
+  const [breachReason, setBreachReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -78,6 +79,9 @@ export function RequestWorkflow({
                     action,
                     assignee_id: assignee ? Number(assignee) : null,
                     fulfilment_detail: detail || null,
+                    ...(action === "confirm" && breachReason
+                      ? { sla_breach_reason: breachReason }
+                      : {}),
                   }),
                 }),
               );
@@ -126,6 +130,17 @@ export function RequestWorkflow({
                 />
               </label>
             </>
+          )}
+          {action === "confirm" && ticket.sla_breached && (
+            <label>
+              เหตุผลที่เกิน SLA
+              <Input
+                required
+                maxLength={2000}
+                value={breachReason}
+                onChange={setBreachReason}
+              />
+            </label>
           )}
           <Button type="submit" disabled={busy}>
             {action === "start"

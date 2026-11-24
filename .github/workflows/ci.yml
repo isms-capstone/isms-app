@@ -1,4 +1,4 @@
-﻿name: ISMS Continuous Integration
+name: ISMS Continuous Integration
 
 on:
   push:
@@ -34,7 +34,15 @@ jobs:
           npm run build
           npm audit --omit=dev
       - name: Start disposable API and frontend QA services
+        env:
+          MINIO_ENDPOINT: 127.0.0.1:9000
+          MINIO_SECURE: "false"
+          MINIO_ACCESS_KEY: qa-attachment
+          MINIO_SECRET_KEY: qa-attachment-storage
         run: |
+          docker run -d --rm --name isms-attachment-qa -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            cgr.dev/chainguard/minio@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a server /data
           python -m uvicorn preview_registry:app --app-dir ../backend/tests --host 127.0.0.1 --port 8767 > ../frontend-api-qa.log 2>&1 &
           BACKEND_URL=http://127.0.0.1:8767 PORT=3101 HOSTNAME=127.0.0.1 npm start > ../frontend-next-qa.log 2>&1 &
           for attempt in $(seq 1 30); do
@@ -168,6 +176,9 @@ jobs:
       MARIADB_ROOT_PASSWORD: ci-root-only-password
       MARIADB_DB: isms_ci
       SECRET_KEY: ci-isolated-test-key-only
+      # staging/production compose files refuse to start without MinIO credentials
+      MINIO_ACCESS_KEY: ci-attachment-only
+      MINIO_SECRET_KEY: ci-attachment-storage-only
 
     steps:
       - name: Checkout repository

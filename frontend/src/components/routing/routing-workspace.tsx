@@ -84,7 +84,7 @@ export function RoutingWorkspace() {
         }),
       });
       setMessage(
-        `ส่งมอบงานแล้ว ${r.count} เคส โดย Owner เดิมยังดูแลการสื่อสารกับลูกค้า`,
+        `ส่งมอบแล้ว ${r.count} เคส เจ้าของเคสเดิมยังเป็นผู้ติดต่อลูกค้าเหมือนเดิม`,
       );
       setRecipient("");
       setReason("");
@@ -145,7 +145,7 @@ export function RoutingWorkspace() {
                 </p>
                 {session?.role === "Admin" && (
                   <Link className="text-link" href={href("/routing/admin")}>
-                    ตั้งค่าทีมและ Routing →
+                    ตั้งค่าทีมและการส่งต่อ →
                   </Link>
                 )}
               </section>
@@ -155,8 +155,8 @@ export function RoutingWorkspace() {
                   <span className="routing-tier">{me.tickets.length} เคส</span>
                 </h2>
                 <p>
-                  ส่งเฉพาะเคสที่คุณเป็น Assignee และยังเปิดอยู่
-                  พร้อมเก็บเหตุผลในประวัติทุกเคส
+                  ส่งต่อทุกเคสที่คุณกำลังดำเนินการอยู่ให้เพื่อนในทีมครั้งเดียว
+                  เช่น ตอนเปลี่ยนกะหรือลา เหตุผลจะถูกบันทึกในประวัติของทุกเคส
                 </p>
                 {me.tickets.length ? (
                   <>

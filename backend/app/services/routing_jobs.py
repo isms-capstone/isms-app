@@ -225,8 +225,8 @@ def run_routing_checks(db, now=None):
                 None,
                 "auto_escalate",
                 f"S1 ไม่มีการตอบสนองเกิน {minutes} นาที",
-                checked="Scheduled first-response check",
-                requested="Urgent response and investigation",
+                checked="ระบบตรวจพบว่ายังไม่มีผู้ตอบสนองครั้งแรก",
+                requested="ขอให้ตอบสนองและตรวจสอบโดยด่วน",
                 now=now,
             )
             routing.notify(

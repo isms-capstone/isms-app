@@ -1,14 +1,9 @@
 "use client";
+import { formatShortDate } from "@/lib/format";
 import { SelectControl } from "@/components/ui/company-fields";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ChevronLeft,
-  ChevronRight,
-  MoreVertical,
-  ArrowUpDown,
-  ArrowUpRight,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
 import { useSession } from "@/components/providers/session-provider";
 import {
   Button,
@@ -36,8 +31,14 @@ export function CaseTable({
   onPageSize,
   selected,
   onSelected,
+  total,
+  selectable = true,
 }: {
   rows: CaseRow[];
+  /** Hide the checkbox column when the page offers no bulk action. */
+  selectable?: boolean;
+  /** When set, `rows` is already the current server page out of `total`. */
+  total?: number;
   variant?: "work" | "all";
   page: number;
   pageSize: number;
@@ -48,9 +49,13 @@ export function CaseTable({
 }) {
   const { href } = useSession();
   const router = useRouter();
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize)),
+  const count = total ?? rows.length,
+    pages = Math.max(1, Math.ceil(count / pageSize)),
     current = Math.min(page, pages),
-    visible = rows.slice((current - 1) * pageSize, current * pageSize);
+    visible =
+      total === undefined
+        ? rows.slice((current - 1) * pageSize, current * pageSize)
+        : rows;
   const toggle = (id: number) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
@@ -62,27 +67,26 @@ export function CaseTable({
   const columns =
     variant === "all"
       ? [
-          "CASE",
-          "SUBJECT",
-          "CUSTOMER",
-          "PRODUCT",
-          "TYPE",
-          "PRIORITY",
-          "STATUS",
-          "CHANNEL",
-          "ASSIGNED TO",
+          "เลขเคส",
+          "หัวข้อ",
+          "ลูกค้า",
+          "ผลิตภัณฑ์",
+          "ความรุนแรง",
+          "สถานะ",
+          "ช่องทาง",
+          "ผู้ดำเนินการ",
           "SLA",
         ]
       : [
-          "CASE / SUBJECT",
-          "CUSTOMER",
-          "STATUS",
-          "PRIORITY",
-          "PRODUCT",
-          "CHANNEL",
-          "TIER",
+          "เคส / หัวข้อ",
+          "ลูกค้า",
+          "สถานะ",
+          "ความรุนแรง",
+          "ผลิตภัณฑ์",
+          "ช่องทาง",
+          "Tier",
           "SLA",
-          "ASSIGNED TO",
+          "ผู้ดำเนินการ",
         ];
   return (
     <>
@@ -92,7 +96,7 @@ export function CaseTable({
         >
           <thead>
             <tr>
-              <TableHeaderCell className="selection-col">
+              {selectable && <TableHeaderCell className="selection-col">
                 <Checkbox
                   aria-label="เลือกเคสในหน้านี้ทั้งหมด"
                   checked={allSelected}
@@ -104,14 +108,9 @@ export function CaseTable({
                     onSelected(next);
                   }}
                 />
-              </TableHeaderCell>
+              </TableHeaderCell>}
               {columns.map((column) => (
-                <TableHeaderCell key={column}>
-                  {column}
-                  {variant === "all" && (
-                    <ArrowUpDown size={10} aria-hidden="true" />
-                  )}
-                </TableHeaderCell>
+                <TableHeaderCell key={column}>{column}</TableHeaderCell>
               ))}
               <TableHeaderCell className="row-action-col">
                 <span className="sr-only">เปิดเคส</span>
@@ -132,13 +131,15 @@ export function CaseTable({
                     router.push(href(`/cases/${row.id}`));
                 }}
               >
-                <TableCell className="selection-col">
-                  <Checkbox
-                    aria-label={`เลือกเคส ${row.ticket_no || row.id}`}
-                    checked={selected.has(row.id)}
-                    onChange={() => toggle(row.id)}
-                  />
-                </TableCell>
+                {selectable && (
+                  <TableCell className="selection-col">
+                    <Checkbox
+                      aria-label={`เลือกเคส ${row.ticket_no || row.id}`}
+                      checked={selected.has(row.id)}
+                      onChange={() => toggle(row.id)}
+                    />
+                  </TableCell>
+                )}
                 {variant === "all" ? (
                   <>
                     <TableCell className="case-number-cell">
@@ -146,11 +147,7 @@ export function CaseTable({
                         {row.ticket_no || `ร่าง #${row.id}`}
                       </Link>
                       <small>
-                        {new Date(row.created_at).toLocaleDateString("th-TH", {
-                          day: "numeric",
-                          month: "short",
-                          timeZone: "Asia/Bangkok",
-                        })}
+                        {formatShortDate(row.created_at)}
                       </small>
                     </TableCell>
                     <TableCell className="subject-only">
@@ -176,10 +173,7 @@ export function CaseTable({
                     <TableCell data-label="ผลิตภัณฑ์">
                       <ProductLabel name={row.product} />
                     </TableCell>
-                    <TableCell data-label="ประเภท" className="muted-cell">
-                      {row.typeName || "—"}
-                    </TableCell>
-                    <TableCell data-label="Priority">
+                    <TableCell data-label="ความรุนแรง">
                       <PriorityBadge value={row.severity} compact />
                     </TableCell>
                     <TableCell data-label="สถานะ">
@@ -188,7 +182,7 @@ export function CaseTable({
                     <TableCell data-label="ช่องทาง">
                       <ChannelLabel channel={row.channel} />
                     </TableCell>
-                    <TableCell data-label="ผู้รับผิดชอบ">
+                    <TableCell data-label="ผู้ดำเนินการ">
                       <Assignee row={row} />
                     </TableCell>
                     <TableCell data-label="SLA">
@@ -200,7 +194,7 @@ export function CaseTable({
                     <TableCell data-label="สถานะ">
                       <StatusBadge status={row.status} compact />
                     </TableCell>
-                    <TableCell data-label="Priority">
+                    <TableCell data-label="ความรุนแรง">
                       <PriorityBadge value={row.severity} />
                     </TableCell>
                     <TableCell data-label="ผลิตภัณฑ์">
@@ -211,21 +205,13 @@ export function CaseTable({
                     </TableCell>
                     <TableCell data-label="Tier">
                       <span className="tier-label">
-                        {row.current_tier === null ? (
-                          "—"
-                        ) : (
-                          <>
-                            Tier
-                            <br />
-                            {row.current_tier}
-                          </>
-                        )}
+                        {row.current_tier === null ? "—" : `Tier ${row.current_tier}`}
                       </span>
                     </TableCell>
                     <TableCell data-label="SLA">
                       <SlaIndicator row={row} />
                     </TableCell>
-                    <TableCell data-label="ผู้รับผิดชอบ">
+                    <TableCell data-label="ผู้ดำเนินการ">
                       <Assignee row={row} />
                     </TableCell>
                   </>
@@ -238,11 +224,6 @@ export function CaseTable({
                   >
                     <ArrowUpRight size={16} />
                   </Link>
-                  <MoreVertical
-                    className="row-more"
-                    size={16}
-                    aria-hidden="true"
-                  />
                 </TableCell>
               </tr>
             ))}
@@ -250,21 +231,20 @@ export function CaseTable({
         </table>
       </div>
       {!rows.length && (
-        <EmptyState>
-          <Link href={href("/cases")} className="button button-secondary">
-            ดูเคสทั้งหมด
-          </Link>
-        </EmptyState>
+        <EmptyState
+          title="ไม่พบเคสตามเงื่อนไขนี้"
+          description="ลองล้างตัวกรองหรือเปลี่ยนคำค้นหา"
+        />
       )}
       <footer className="table-pagination">
         <span>
-          แสดง {rows.length ? (current - 1) * pageSize + 1 : 0} -{" "}
-          {Math.min(current * pageSize, rows.length)} จาก{" "}
-          {rows.length.toLocaleString("th-TH")} เคส
+          แสดง {count ? (current - 1) * pageSize + 1 : 0}–
+          {Math.min(current * pageSize, count)} จาก{" "}
+          {count.toLocaleString("th-TH")} เคส
         </span>
         <div>
           <label>
-            แสดงต่อหน้า:
+            ต่อหน้า
             <SelectControl
               aria-label="จำนวนเคสต่อหน้า"
               value={pageSize}

@@ -7,6 +7,7 @@ import "@/styles/company-layout.css";
 import "@/styles/routing.css";
 import "@/styles/work-category.css";
 import "@/styles/similarity.css";
+import "@/styles/case-controls.css";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { CompanyProvider } from "@/components/providers/company-provider";
 export const metadata: Metadata = {

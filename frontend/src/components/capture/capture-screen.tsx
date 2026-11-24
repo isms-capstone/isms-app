@@ -1,6 +1,13 @@
 "use client";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -59,6 +66,18 @@ const previewContext: SelectionContext = {
   courses: [],
 };
 type Option = { id: number; name: string; module_id?: number };
+type CaptureSnapshot = {
+  context: SelectionContext | null;
+  subject: string;
+  channel: string;
+  description: string;
+  instance: number | null;
+  department: string;
+  course: string;
+  categories: CategoryValues;
+  createdFor: string;
+  savedAt?: number;
+};
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -86,7 +105,81 @@ export function CaptureScreen() {
   const [createdFor, setCreatedFor] = useState("");
   const [members, setMembers] = useState<{ id: number; name: string }[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const savedTicketId = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // CAP-05 (P1-CAP-03): keep the form on this device every 5 seconds, on leaving
+  // a field and when the page is hidden, so closing the tab or losing the
+  // network never loses what was typed. Files cannot be stored and are re-attached.
+  const draftKey = session ? `isms:capture-draft:${session.id}` : null;
+  const [restorable, setRestorable] = useState<CaptureSnapshot | null>(null),
+    [autosavedAt, setAutosavedAt] = useState<Date | null>(null);
+  const snapshot = useMemo<CaptureSnapshot>(
+    () => ({ context, subject, channel, description, instance, department, course, categories, createdFor }),
+    [context, subject, channel, description, instance, department, course, categories, createdFor],
+  );
+  const dirty = !!(context || subject.trim() || description.trim() || channel);
+  // ADO-01 / CAP-04 evidence: time from the user's first input to saving.
+  const startedAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (dirty && startedAt.current === null) startedAt.current = Date.now();
+  }, [dirty]);
+  const persist = useCallback(() => {
+    if (!draftKey || preview || !dirty || savedTicketId.current) return;
+    try {
+      localStorage.setItem(draftKey, JSON.stringify({ ...snapshot, savedAt: Date.now() }));
+      setAutosavedAt(new Date());
+    } catch {
+      /* storage unavailable (private mode / quota): nothing else to do */
+    }
+  }, [draftKey, preview, dirty, snapshot]);
+  useEffect(() => {
+    if (!draftKey || preview) return;
+    // Read after mount (session arrives asynchronously); deferred to avoid a
+    // synchronous state update inside the effect.
+    const timer = setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(draftKey);
+        if (stored) setRestorable(JSON.parse(stored));
+      } catch {
+        /* ignore unreadable storage */
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [draftKey, preview]);
+  useEffect(() => {
+    if (!dirty) return;
+    const timer = setTimeout(persist, 5000);
+    return () => clearTimeout(timer);
+  }, [persist, dirty]);
+  useEffect(() => {
+    const flush = () => document.visibilityState === "hidden" && persist();
+    window.addEventListener("pagehide", persist);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("pagehide", persist);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [persist]);
+  const forgetDraft = useCallback(() => {
+    try {
+      if (draftKey) localStorage.removeItem(draftKey);
+    } catch {
+      /* ignore */
+    }
+    setRestorable(null);
+  }, [draftKey]);
+  function restoreDraft(value: CaptureSnapshot) {
+    setContext(value.context);
+    setSubject(value.subject || "");
+    setChannel(value.channel || "");
+    setDescription(value.description || "");
+    setInstance(value.instance ?? null);
+    setDepartment(value.department || "");
+    setCourse(value.course || "");
+    setCategories(value.categories || emptyCategories);
+    setCreatedFor(value.createdFor || "");
+    setRestorable(null);
+  }
   useEffect(() => {
     if (preview) return;
     const controller = new AbortController();
@@ -143,45 +236,61 @@ export function CaptureScreen() {
   );
   async function save(draft: boolean) {
     if (preview) {
-      setMessage("หน้านี้เป็น Design Preview · ไม่มีการบันทึกข้อมูลตัวอย่าง");
+      setMessage("หน้านี้เป็นตัวอย่างดีไซน์ ไม่มีการบันทึกข้อมูล");
       return;
     }
     if (!session?.can_create_cases || saving || optionsLoading) return;
-    if (!draft && similarBlocked) {
-      setError("กรุณายืนยันแนวทางจากเคสที่คล้ายกันก่อนสร้างเคส");
+    if (!savedTicketId.current && !draft && similarBlocked) {
+      setError("มีเคสที่คล้ายกัน กรุณาเลือกว่าจะใช้วิธีแก้เดิม ผูกกับเคสเดิม หรือเปิดสอบสวนใหม่ ก่อนสร้างเคส");
       return;
     }
     setSaving(true);
     setError("");
     try {
-      const ticket = await api<TicketType>("/tickets", {
-        method: "POST",
-        body: JSON.stringify({
-          save_as_draft: draft,
-          similarity_feedback_id: similarFeedbackId,
-          created_for_user_id: createdFor ? Number(createdFor) : null,
-          subject,
-          description,
-          channel: channel || null,
-          organization_id: context?.organization.id || null,
-          contact_id: context?.contact?.id || null,
-          product_instance_id: instance,
-          department_id: department ? Number(department) : null,
-          course_or_exam_id: course ? Number(course) : null,
-          ...categories,
-        }),
-      });
+      const ticketId =
+        savedTicketId.current ??
+        (
+          await api<TicketType>("/tickets", {
+            method: "POST",
+            body: JSON.stringify({
+              save_as_draft: draft,
+              similarity_feedback_id: similarFeedbackId,
+              capture_seconds:
+                startedAt.current === null
+                  ? null
+                  : Math.round((Date.now() - startedAt.current) / 1000),
+              created_for_user_id: createdFor ? Number(createdFor) : null,
+              subject,
+              description,
+              channel: channel || null,
+              organization_id: context?.organization.id || null,
+              contact_id: context?.contact?.id || null,
+              product_instance_id: instance,
+              department_id: department ? Number(department) : null,
+              course_or_exam_id: course ? Number(course) : null,
+              ...categories,
+            }),
+          })
+        ).id;
+      savedTicketId.current = ticketId;
       for (const file of files) {
         const body = new FormData();
         body.append("file", file);
-        await api(`/tickets/${ticket.id}/attachments`, {
+        await api(`/tickets/${ticketId}/attachments`, {
           method: "POST",
           body,
         });
+        setFiles((remaining) => remaining.filter((item) => item !== file));
       }
-      router.push(href(`/cases/${ticket.id}`));
+      forgetDraft();
+      router.push(href(`/cases/${ticketId}`));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ");
+      const detail = e instanceof Error ? e.message : "บันทึกเคสไม่สำเร็จ";
+      setError(
+        savedTicketId.current
+          ? `บันทึกเคส #${savedTicketId.current} แล้ว แต่แนบไฟล์ไม่สำเร็จ · ${detail} · กดบันทึกอีกครั้งเพื่อแนบไฟล์ที่เหลือ`
+          : detail,
+      );
     } finally {
       setSaving(false);
     }
@@ -219,25 +328,41 @@ export function CaptureScreen() {
         <div className="page-heading">
           <div>
             <h1>สร้างเคส</h1>
-            <p>บันทึกเรื่องก่อน แล้วค่อยเติมรายละเอียดภายหลัง</p>
-            <small>
-              <strong>สร้างเคสด้วยข้อมูลขั้นต่ำ 3 ช่อง</strong>{" "}
-              <span>รายละเอียดอื่นสามารถเติมภายหลังได้</span>
-            </small>
+            <p>
+              กรอกแค่ลูกค้า หัวข้อ และช่องทาง ก็สร้างเคสได้ทันที
+              รายละเอียดอื่นค่อยเติมทีหลัง
+            </p>
           </div>
           <Link className="button button-secondary" href={href("/my-work")}>
             ยกเลิก
           </Link>
         </div>
-        <form id="create-case-form" onSubmit={onSubmit}>
+        {restorable && (
+          <div className="restore-banner" role="status">
+            <span>
+              พบข้อมูลที่กรอกค้างไว้เมื่อ{" "}
+              {new Date(restorable.savedAt ?? 0).toLocaleTimeString("th-TH", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              น.{restorable.subject ? ` · “${restorable.subject}”` : ""} (ไฟล์แนบต้องเลือกใหม่)
+            </span>
+            <Button variant="primary" size="sm" onClick={() => restoreDraft(restorable)}>
+              กู้คืน
+            </Button>
+            <Button size="sm" onClick={forgetDraft}>
+              ทิ้ง
+            </Button>
+          </div>
+        )}
+        <form id="create-case-form" onSubmit={onSubmit} onBlur={persist}>
           <div className="capture-layout">
             <section className="surface capture-card">
               <div className="capture-card-heading">
                 <h2>
-                  ข้อมูลเริ่มต้น{" "}
-                  <span className="required-chip">ต้องกรอก 3 ช่อง</span>
+                  ข้อมูลที่ต้องกรอก{" "}
+                  <span className="required-chip">3 ช่อง</span>
                 </h2>
-                <small>3 required fields</small>
               </div>
               {preview ? (
                 <div className="customer-picker">
@@ -248,7 +373,7 @@ export function CaptureScreen() {
                     <div className="search-field">
                       <SearchIcon />
                       <Input
-                        placeholder="ค้นหาลูกค้าหรือผู้แจ้ง..."
+                        placeholder="พิมพ์ชื่อองค์กร ผู้แจ้ง อีเมล หรือ LINE"
                         aria-label="ค้นหาลูกค้าหรือผู้แจ้ง"
                       />
                     </div>
@@ -286,7 +411,7 @@ export function CaptureScreen() {
                   aria-label="หัวข้อ *"
                   value={subject}
                   maxLength={255}
-                  placeholder="ระบุเรื่องที่ต้องการแจ้งให้เข้าใจง่าย"
+                  placeholder="สรุปปัญหาสั้น ๆ เช่น ดาวน์โหลดข้อสอบไม่ได้ทั้งห้องสอบ"
                   onChange={setSubject}
                 />
               </label>
@@ -308,10 +433,10 @@ export function CaptureScreen() {
                         <small>
                           {row.product} ·{" "}
                           {index === 0
-                            ? "Resolved"
+                            ? "แก้ไขแล้ว"
                             : index === 1
-                              ? "Closed"
-                              : "In Progress"}{" "}
+                              ? "ปิดแล้ว"
+                              : "กำลังดำเนินการ"}{" "}
                           · {row.assignee} · {row.customer.split(" · ")[0]}
                         </small>
                       </div>
@@ -325,14 +450,14 @@ export function CaptureScreen() {
                     </div>
                   ))}
                   <p>
-                    เคสที่คล้ายกันเป็นเพียงคำแนะนำ คุณยังสามารถสร้างเคสใหม่ได้
+                    เป็นเพียงคำแนะนำ ถ้าไม่ใช่เรื่องเดียวกันให้สร้างเคสใหม่ได้เลย
                   </p>
                 </section>
               ) : context && existing.length > 0 ? (
                 <section className="related-cases">
                   <div className="related-heading">
-                    <h3>เคสเปิดของลูกค้ารายนี้</h3>
-                    <span>{existing.length} รายการล่าสุด</span>
+                    <h3>ลูกค้ารายนี้มีเคสที่ยังเปิดอยู่</h3>
+                    <span>{existing.length} เคส · ถ้าเป็นเรื่องเดิมให้เพิ่มในเคสเดิมแทน</span>
                   </div>
                   {existing.map((row) => (
                     <div className="existing-case" key={row.id}>
@@ -344,7 +469,7 @@ export function CaptureScreen() {
                         className="button button-secondary button-sm"
                         href={href(`/cases/${row.id}`)}
                       >
-                        ดูเคสเดิม
+                        เพิ่มเข้าเคสเดิม
                       </Link>
                     </div>
                   ))}
@@ -361,13 +486,13 @@ export function CaptureScreen() {
                 />
               )}
               <label>
-                สร้างแทนเพื่อนร่วมทีม (ไม่บังคับ)
+                บันทึกแทนเพื่อนในทีม (ไม่บังคับ)
                 <SelectControl
                   value={createdFor}
                   onValueChange={setCreatedFor}
                   disabled={preview || members.length === 0}
                 >
-                  <option value="">ยังไม่ระบุ</option>
+                  <option value="">ไม่ใช่ — ฉันเป็นผู้รับเรื่องเอง</option>
                   {members.map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -414,7 +539,7 @@ export function CaptureScreen() {
                 <summary>
                   <FileText size={15} />
                   <strong>รายละเอียดเพิ่มเติม</strong>
-                  <span>(ไม่จำเป็นต้องกรอกตอนนี้)</span>
+                  <span>(เติมทีหลังได้)</span>
                   <ChevronDown size={15} />
                 </summary>
                 <div className="capture-optional-fields">
@@ -493,12 +618,13 @@ export function CaptureScreen() {
                 </summary>
                 <div className="capture-attachments">
                   <p id="capture-attachment-hint" className="field-hint">
-                    รองรับ JPG, PNG, WebP และ PDF ขนาดไม่เกิน 10 MB ต่อไฟล์
+                    รองรับภาพ, MP4, WebM, PDF และไฟล์ log แบบ ZIP/GZIP
+                    ขนาดไม่เกิน 25 MB ต่อไฟล์
                   </p>
                   <input
                     ref={fileInput}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,.mp4,.webm,.zip,.gz"
                     multiple
                     hidden
                     disabled={preview || saving}
@@ -551,23 +677,23 @@ export function CaptureScreen() {
               <div className="case-preview-heading">
                 <h2>
                   <Ticket size={15} />
-                  ตัวอย่างเคส
+                  สรุปเคสก่อนบันทึก
                 </h2>
                 <span>
                   <Clock3 size={11} />
-                  DRAFT / ยังไม่สร้าง
+                  ยังไม่บันทึก
                 </span>
               </div>
               <dl>
-                <dt>เลขที่เคส</dt>
+                <dt>เลขเคส</dt>
                 <dd className="preview-case-number">
-                  {preview ? "DVHT-202609-00425" : "ระบบออกเลขหลังสร้างเคส"}
+                  {preview ? "DVHT-202609-00425" : "ออกให้เมื่อกดสร้างเคส"}
                   <Clipboard size={14} aria-hidden="true" />
                 </dd>
                 <dd className="preview-number-hint">
                   {preview
                     ? "เลขตัวอย่างสำหรับตรวจแบบ"
-                    : "ไม่จองเลขเคสก่อนบันทึกจริง"}
+                    : "เคสร่างยังไม่ได้เลขเคส"}
                 </dd>
                 <dt>ลูกค้า</dt>
                 <dd className="preview-customer">
@@ -592,14 +718,14 @@ export function CaptureScreen() {
               <div className="automatic-fields">
                 <strong>
                   <CheckCircle2 size={13} />
-                  ระบบจะบันทึกให้หลังสร้างเคส
+                  ระบบบันทึกให้อัตโนมัติ
                 </strong>
                 {[
-                  "เลขที่เคส (เมื่อส่งเป็น New)",
-                  "ผู้สร้าง / ผู้แจ้ง",
-                  "วันที่สร้าง",
-                  "สถานะเริ่มต้น",
-                  "วันที่แจ้ง",
+                  "เลขเคส",
+                  "ผู้บันทึก",
+                  "วันเวลาที่บันทึก",
+                  "สถานะ: ใหม่",
+                  "เวลาที่ลูกค้าแจ้ง (แก้ย้อนหลังได้ 7 วัน)",
                 ].map((text) => (
                   <span key={text}>
                     <Check size={12} />
@@ -610,8 +736,8 @@ export function CaptureScreen() {
               {preview && (
                 <div className="preview-priority">
                   <strong>ความรุนแรงที่ระบบเสนอ</strong>
-                  <span className="priority-pill priority-S2">S2 High</span>
-                  <p>ตัวอย่างหน้าตา · ยังไม่มีระบบเสนอความรุนแรงใน Backend</p>
+                  <span className="priority-pill priority-S2">S2 สูง</span>
+                  <p>ข้อมูลตัวอย่างสำหรับตรวจแบบ</p>
                 </div>
               )}
             </aside>
@@ -619,14 +745,21 @@ export function CaptureScreen() {
         </form>
         <footer className="capture-bottom-bar">
           <span>
+            {autosavedAt && (
+              <small className="autosave-note">
+                บันทึกอัตโนมัติในเครื่องนี้{" "}
+                {autosavedAt.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                {" · "}
+              </small>
+            )}
             {complete ? (
               <>
                 <CheckCircle2 size={14} />
-                ข้อมูลครบ 3 ช่องแล้ว
+                ข้อมูลครบแล้ว กดสร้างเคสได้
               </>
             ) : (
               <>
-                ต้องกรอก: <strong>ลูกค้า / ผู้แจ้ง, หัวข้อ, ช่องทาง</strong>
+                ยังขาด: <strong>{[!context && "ลูกค้า", !subject.trim() && "หัวข้อ", !channel && "ช่องทาง"].filter(Boolean).join(", ")}</strong>
               </>
             )}
           </span>
@@ -650,7 +783,7 @@ export function CaptureScreen() {
               }
             >
               <Plus size={15} />
-              {saving ? "กำลังบันทึก..." : "สร้างเคส"}
+              {saving ? "กำลังบันทึก…" : "สร้างเคส"}
             </Button>
           </div>
         </footer>

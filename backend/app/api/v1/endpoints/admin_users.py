@@ -31,7 +31,7 @@ def _get_role_by_name(db: Session, role_name: str) -> Role:
     if role is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"Role not found: {role_name}",
+            f"ไม่พบบทบาท: {role_name}",
         )
 
     return role
@@ -49,7 +49,7 @@ def _guard_admin_loss(db: Session, user: User, actor: User) -> None:
     if user.id == actor.id:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "You cannot suspend, delete or demote your own account",
+            "ระงับ ลบ หรือลดสิทธิ์บัญชีของตัวเองไม่ได้",
         )
     is_admin = user.role is not None and user.role.name == "Admin"
     if is_admin and user.is_active:
@@ -103,13 +103,13 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Username already registered",
+            "ชื่อผู้ใช้นี้ถูกใช้แล้ว",
         )
 
     if db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Email already registered",
+            "อีเมลนี้ถูกใช้แล้ว",
         )
 
     role = _get_role_by_name(db, user_in.role)
@@ -153,7 +153,7 @@ def update_user(
         if role_name is None:
             raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "role cannot be null",
+            "กรุณาเลือกบทบาท",
         )
 
         role = _get_role_by_name(db, role_name)
@@ -166,7 +166,7 @@ def update_user(
 
     if "email" in data and data["email"] != user.email:
         if db.query(User).filter(User.email == data["email"], User.id != user.id).first():
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already registered")
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "อีเมลนี้ถูกใช้แล้ว")
     _validate_role_team(db, data.get("role_id"), data.get("team_id"))
 
     current_is_admin = user.role is not None and user.role.name == "Admin"
@@ -219,6 +219,6 @@ def delete_user(user_id: int, db: Session = Depends(get_db), actor: User = Depen
         db.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "User is referenced by other records (assets/cases). Suspend the user instead.",
+            "ผู้ใช้นี้มีข้อมูลเคสหรือทรัพย์สินผูกอยู่ ให้ใช้ \"ระงับการใช้งาน\" แทนการลบ",
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

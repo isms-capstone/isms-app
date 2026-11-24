@@ -118,14 +118,14 @@ def autocomplete(q: str = Query(..., min_length=1, max_length=255), limit: int =
 def selection_context(organization_id: int, contact_id: int | None = None, db: Session = Depends(get_db)):
     organization = get_record(db, Organization, organization_id)
     if not organization.is_active:
-        raise HTTPException(409, "Organization is inactive")
+        raise HTTPException(409, "องค์กรนี้ถูกปิดใช้งาน")
     contact = None
     if contact_id is not None:
         contact = get_record(db, Contact, contact_id)
         if contact.organization_id != organization_id:
-            raise HTTPException(404, "Contact not found in this organization")
+            raise HTTPException(404, "ไม่พบผู้แจ้งในองค์กรนี้")
         if not contact.is_active:
-            raise HTTPException(409, "Contact is inactive")
+            raise HTTPException(409, "ผู้แจ้งรายนี้ถูกปิดใช้งาน")
     instances = db.scalars(select(ProductInstance).join(Product).where(
         ProductInstance.organization_id == organization_id, ProductInstance.is_active.is_(True),
         Product.is_active.is_(True)).order_by(ProductInstance.name, ProductInstance.id)).all()

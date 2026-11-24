@@ -1,3 +1,4 @@
+from app.core.labels import field_label, status_label
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException, status
@@ -82,9 +83,9 @@ def validate_status_transition(
     ticket_data: Optional[Dict[str, Any]] = None
 ) -> bool:
     if current_status not in TicketStatus._value2member_map_ or target_status not in TicketStatus._value2member_map_:
-        raise HTTPException(422, 'Unknown ticket status')
+        raise HTTPException(422, 'ไม่รู้จักสถานะนี้')
     if target_status in (TicketStatus.DUPLICATE, TicketStatus.CANCELLED) and user_role not in {'Admin', 'Agent', 'User', 'Customer'}:
-        raise HTTPException(403, 'Role cannot cancel or mark duplicate')
+        raise HTTPException(403, 'บัญชีนี้ไม่มีสิทธิ์ยกเลิกเคสหรือทำเครื่องหมายว่าซ้ำ')
     if current_status == target_status:
         return True
 
@@ -94,15 +95,15 @@ def validate_status_transition(
         if not ticket_data.get("master_ticket_id"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Master ticket ID (master_ticket_id) is required when marking ticket as DUPLICATE"
+                detail="กรุณาเลือกเคสหลักก่อนทำเครื่องหมายว่าเคสซ้ำ"
             )
         return True
 
     if target_status == TicketStatus.CANCELLED:
-        if not ticket_data.get("cancel_reason"):
+        if not (ticket_data.get("cancel_reason") or "").strip():
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Cancellation reason is required when cancelling a ticket"
+                detail="กรุณาระบุเหตุผลการยกเลิกเคส"
             )
         return True
 
@@ -117,13 +118,13 @@ def validate_status_transition(
     if not matched_rule:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid status transition from '{current_status}' to '{target_status}'"
+            detail=f"เปลี่ยนสถานะจาก \"{status_label(current_status)}\" เป็น \"{status_label(target_status)}\" ไม่ได้"
         )
 
     if user_role not in matched_rule["roles"] and user_role != "Admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Role '{user_role}' is not authorized to transition ticket from '{current_status}' to '{target_status}'"
+            detail=f"บัญชีนี้ไม่มีสิทธิ์เปลี่ยนสถานะจาก \"{status_label(current_status)}\" เป็น \"{status_label(target_status)}\""
         )
 
     conditions = matched_rule["conditions"]
@@ -133,19 +134,19 @@ def validate_status_transition(
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Missing required fields for submitting ticket: {', '.join(missing)}"
+                detail=f"กรุณากรอกให้ครบ: {', '.join(field_label(name) for name in missing)}"
             )
 
     if "assignee_required" in conditions and not ticket_data.get("assignee_id"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Assignee is required before moving ticket to IN_PROGRESS"
+            detail="กรุณาเลือกผู้ดำเนินการก่อนเริ่มดำเนินการ"
         )
 
     if "pending_external_reason_required" in conditions and not ticket_data.get("pending_external_reason"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Pending external reason detail is required"
+            detail="กรุณาระบุว่ากำลังรออะไรจากทีมพัฒนา/หน่วยงานภายนอก"
         )
 
     if "resolution_fields_required" in conditions:
@@ -154,14 +155,14 @@ def validate_status_transition(
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Missing required resolution fields: {', '.join(missing)}"
+                detail=f"ก่อนแก้ไขเสร็จ กรุณากรอกให้ครบ: {', '.join(field_label(name) for name in missing)}"
             )
 
     if "reopen_reason_required" in conditions:
         if not ticket_data.get("reopen_reason"):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Reopen reason is required when reopening a ticket"
+                detail="กรุณาระบุเหตุผลการเปิดเคสใหม่"
             )
         
         # ตรวจสอบกรอบเวลา 14 วันนับจาก closed_at หรือ resolved_at
@@ -179,7 +180,7 @@ def validate_status_transition(
             if now - ref_time > timedelta(days=REOPEN_WINDOW_DAYS):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Ticket cannot be reopened after {REOPEN_WINDOW_DAYS} days. Please create a new follow-up ticket instead."
+                    detail=f"เคสปิดเกิน {REOPEN_WINDOW_DAYS} วันแล้ว เปิดใหม่ไม่ได้ กรุณาสร้างเคสต่อเนื่องแทน"
                 )
 
     return True

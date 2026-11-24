@@ -1,8 +1,9 @@
 "use client";
+import { formatDateTime, formatDuration } from "@/lib/format";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Clock3, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Clock3, CheckCircle2, Pencil, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
 import {
@@ -16,6 +17,7 @@ import type { Ticket, Organization } from "@/lib/types";
 import { channelNames, statusNames } from "@/lib/types";
 import { previewData } from "@/lib/preview";
 import { RoutingPanel } from "@/components/routing/routing-panel";
+import { TicketRelationships } from "./ticket-relationships";
 import { SimilarityPanel } from "./similarity-panel";
 import { CaseIntakeEditor } from "./case-intake-editor";
 import { CaseAttachments } from "./case-attachments";
@@ -119,9 +121,16 @@ export function CaseDetail({ id }: { id: number }) {
               onChanged={() => setAttempt((x) => x + 1)}
             />
           )}
+          {!preview && (
+            <TicketRelationships id={id} editable={Boolean(editable)}
+              revision={`${ticket.status}:${attempt}`} onUpdated={() => setAttempt((n) => n + 1)} />
+          )}
           <section className="surface detail-card">
             {!preview && session?.can_create_cases && (
-              <LifecycleActions ticket={ticket} onUpdated={setTicket} />
+              <LifecycleActions ticket={ticket} onUpdated={(row) => {
+                setTicket(row);
+                setAttempt((n) => n + 1);
+              }} />
             )}
 
             <h2>ข้อมูลเคส</h2>
@@ -137,11 +146,11 @@ export function CaseDetail({ id }: { id: number }) {
                 ["สถานะ", statusNames[ticket.status] || ticket.status],
                 [
                   "เวลาที่ลูกค้าแจ้ง",
-                  new Date(ticket.reported_at).toLocaleString("th-TH"),
+                  formatDateTime(ticket.reported_at),
                 ],
                 [
-                  "เวลาที่ระบบสร้าง",
-                  new Date(ticket.created_at).toLocaleString("th-TH"),
+                  "เวลาที่บันทึกในระบบ",
+                  formatDateTime(ticket.created_at),
                 ],
                 ["รายละเอียด", ticket.description || "ยังไม่มีรายละเอียด"],
               ].map(([label, text]) => (
@@ -152,14 +161,8 @@ export function CaseDetail({ id }: { id: number }) {
               ))}
               {ticket.resolved_at && (
                 <div>
-                  <dt>เวลาแก้ไขเสร็จล่าสุด (Resolved)</dt>
-                  <dd>
-                    {new Date(
-                      /(?:Z|[+-]\d{2}:\d{2})$/i.test(ticket.resolved_at)
-                        ? ticket.resolved_at
-                        : `${ticket.resolved_at}Z`,
-                    ).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
-                  </dd>
+                  <dt>แก้ไขเสร็จเมื่อ</dt>
+                  <dd>{formatDateTime(ticket.resolved_at)}</dd>
                 </div>
               )}
               <div>
@@ -169,15 +172,60 @@ export function CaseDetail({ id }: { id: number }) {
                 </dd>
               </div>
               <div>
-                <dt>Priority</dt>
+                <dt>ความรุนแรง</dt>
                 <dd>
                   <PriorityBadge value={ticket.severity} />
                 </dd>
               </div>
               <div>
                 <dt>SLA</dt>
-                <dd className="text-muted">ยังไม่มีการคำนวณจาก Backend</dd>
+                <dd>
+                  {ticket.sla ? (
+                    <>
+                      {ticket.sla.paused && (
+                        <p className="sla-paused">หยุดนับเวลาระหว่างรอลูกค้า</p>
+                      )}
+                      {(
+                        [
+                          ["ตอบสนองครั้งแรก", ticket.sla.first_response],
+                          ["แก้ไขให้เสร็จ", ticket.sla.resolution],
+                        ] as const
+                      ).map(([label, clock]) => (
+                        <p
+                          key={label}
+                          className={clock.breached ? "sla-breached" : undefined}
+                        >
+                          {label}:{" "}
+                          {clock.finished && !clock.breached
+                            ? "ทำได้ตามเป้า"
+                            : clock.breached
+                              ? `เกินเป้า ${formatDuration(clock.elapsed_seconds - clock.target_seconds)}`
+                              : `เหลือ ${formatDuration(clock.remaining_seconds)}`}{" "}
+                          <small>(เป้าหมาย {formatDuration(clock.target_seconds)}
+                          {ticket.severity === "S1" ? " นับ 24 ชม." : " เวลาทำการ"})</small>
+                        </p>
+                      ))}
+                    </>
+                  ) : (
+                    "ยังไม่มีเป้าหมาย SLA (ระบุความรุนแรงก่อน)"
+                  )}
+                  {ticket.sla_breach_reason && (
+                    <p>เหตุผลที่เกิน SLA: {ticket.sla_breach_reason}</p>
+                  )}
+                  {ticket.status === "PENDING_CUSTOMER" &&
+                    ticket.pending_customer_reason && (
+                      <p>กำลังรอจากลูกค้า: {ticket.pending_customer_reason}</p>
+                    )}
+                </dd>
               </div>
+              {ticket.channel === "portal" && (
+                <div>
+                  <dt>ข้อมูลจากหน้าจอที่ลูกค้ากดแจ้ง</dt>
+                  <dd className="break-all">หน้าที่แจ้ง: {ticket.source_url || "—"}</dd>
+                  <dd>เบราว์เซอร์/อุปกรณ์: {ticket.browser_device || "—"}</dd>
+                  <dd>รหัสการสอบ/รายวิชา: {ticket.exam_or_course_context || "—"}</dd>
+                </div>
+              )}
             </dl>
 
             {editable &&
@@ -298,8 +346,8 @@ export function CaseDetail({ id }: { id: number }) {
             )}
           </section>
           {!preview && session?.can_create_cases && (
-            <details key={`case-edit-${ticket.id}`} className="surface detail-card">
-              <summary>แก้ไขข้อมูลเคส</summary>
+            <details key={`case-edit-${ticket.id}`} className="surface detail-card case-edit-panel">
+              <summary className="case-edit-trigger"><Pencil size={16} aria-hidden="true" /> แก้ไขข้อมูลเคส <ChevronDown size={16} aria-hidden="true" /></summary>
               {ticket.status === "NEW" &&
                 (session.role === "Admin" ||
                   [
@@ -317,7 +365,7 @@ export function CaseDetail({ id }: { id: number }) {
             </details>
           )}
           {!preview && session && (
-            <CaseAttachments key={ticket.id} ticketId={ticket.id} />
+            <CaseAttachments key={`attachments:${ticket.id}:${attempt}`} ticketId={ticket.id} />
           )}
           {!preview && session?.can_create_cases && (
             <SimilarityPanel
@@ -334,7 +382,7 @@ export function CaseDetail({ id }: { id: number }) {
             <RequestWorkflow ticket={ticket} onUpdated={setTicket} />
           )}
           {!preview && session?.can_create_cases && (
-            <WorklogPanel ticket={ticket} />
+            <WorklogPanel key={`worklog:${ticket.id}:${attempt}`} ticket={ticket} />
           )}
         </>
       )}
