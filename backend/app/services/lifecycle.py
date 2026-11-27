@@ -11,6 +11,9 @@ from app.db.models.product import ProductInstance
 
 
 SUPPORT_ROLES = {'Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'}
+# SRS 3.2: Developer may update a case but may not close, cancel or merge it.
+CLOSING_STATUSES = {'RESOLVED', 'CLOSED', 'CANCELLED', 'DUPLICATE'}
+HISTORY_ONLY_FIELDS = {'status', 'reopen_reason', 'pending_external_checked', 'pending_external_expected'}
 
 
 def authorize_view(ticket, user):
@@ -50,6 +53,11 @@ def transition(db, ticket, changes, user):
     if target == ticket.status:
         raise HTTPException(409, 'เคสอยู่ในสถานะนี้อยู่แล้ว')
     role = user.role.name
+    if role == 'Developer' and target in CLOSING_STATUSES:
+        raise HTTPException(403, 'ทีมพัฒนา (Tier 0) ปิดหรือยกเลิกเคสไม่ได้ ให้ส่งเคสกลับพร้อมผลการตรวจสอบ')
+    if target == 'RESOLVED' and not has_customer_reply(db, ticket.id):
+        # BR-05: a case is finished only after the customer heard back at least once.
+        raise HTTPException(422, 'ก่อนบันทึกว่าแก้ไขเสร็จ ต้องตอบลูกค้าอย่างน้อย 1 ครั้ง (ข้อความถึงลูกค้า)')
     policy_role = 'Agent' if role in {'Specialist', 'Developer', 'Team Lead'} else role
     validate_status_transition(ticket.status, target, policy_role, data)
     if ticket.status == 'DRAFT' and target == 'NEW':
@@ -109,7 +117,7 @@ def transition(db, ticket, changes, user):
         details={key: value for key, value in changes.items() if key != 'status' and value is not None})
     db.add(history)
     for key, value in changes.items():
-        if value is not None and key not in {'status', 'reopen_reason'}:
+        if value is not None and key not in HISTORY_ONLY_FIELDS:
             setattr(ticket, key, value)
     from app.services.routing import close_interval, initialize_interval
     if target in {'RESOLVED', 'CLOSED', 'DUPLICATE', 'CANCELLED'}:
@@ -126,7 +134,6 @@ def transition(db, ticket, changes, user):
         ticket.closed_at = now
         close_relationships(db, ticket, user.id, now)
     if target == 'REOPENED': ticket.reopen_count += 1
-    if target == 'IN_PROGRESS' and ticket.first_response_at is None: ticket.first_response_at = now
     if target == 'NEW' or 'product_instance_id' in changes:
         sla_engine.apply_exam_window(db, ticket, now)
     sla_engine.sync_clock(db, ticket, now)
@@ -136,3 +143,21 @@ def transition(db, ticket, changes, user):
     if category_before is not None:
         record_categories(db, ticket, user, category_before['tags'], category_before)
     return ticket
+
+
+def has_customer_reply(db, ticket_id):
+    from sqlalchemy import select
+    from app.db.models.work_category import TicketWorklog
+    return db.scalar(select(TicketWorklog.id).where(
+        TicketWorklog.ticket_id == ticket_id, TicketWorklog.is_internal.is_(False)).limit(1)) is not None
+
+
+def record_first_response(db, ticket, at):
+    """SRS 7.2 / KPI-03: first response is the first message the customer receives."""
+    if ticket.first_response_at is not None:
+        return False
+    from app.services import sla_engine
+    ticket.first_response_at = at
+    sla_engine.sync_clock(db, ticket, at)
+    sla_engine.update_breach(db, ticket, at)
+    return True

@@ -245,6 +245,14 @@ test("ESC-02..05 real browser sends Tier 2 to 1 to 0 and returns all the way bef
   await expect
     .poll(async () => (await caseBy(page, "ESC-AUDIT-CHAIN")).status)
     .toBe("IN_PROGRESS");
+  // BR-05: the customer must hear back before the case can be resolved, and
+  // that first reply is the first response time (SRS 7.2).
+  const composer = page.locator(".worklog-panel .worklog-composer");
+  await composer.getByRole("button", { name: "ข้อความถึงลูกค้า", exact: true }).click();
+  await composer.getByLabel("ช่องทางที่ส่งจริง *", { exact: true }).selectOption("phone");
+  await composer.getByLabel("ข้อความ *", { exact: true }).fill("แก้ไขแล้ว ลองใช้งานอีกครั้งได้เลยครับ");
+  await composer.getByRole("button", { name: "บันทึกข้อความ", exact: true }).click();
+  await expect(page.locator(".timeline-event.public_reply")).toContainText("แก้ไขแล้ว");
   await page
     .locator(".lifecycle-panel")
     .getByRole("button", { name: "บันทึกว่าแก้ไขเสร็จ", exact: true })

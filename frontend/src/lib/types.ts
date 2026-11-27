@@ -3,6 +3,9 @@ export type Session = {
   username: string;
   role: string;
   can_create_cases: boolean;
+  /** SRS 3.2: Developer works cases but does not open new ones. */
+  can_open_cases?: boolean;
+  can_view_audit?: boolean;
   can_edit_customers: boolean;
   can_edit_products: boolean;
 };

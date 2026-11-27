@@ -8,7 +8,7 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from datetime import UTC
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from threading import BoundedSemaphore
 
@@ -17,6 +17,7 @@ from pythainlp.tokenize import word_tokenize
 from sqlalchemy import case, event, func, inspect, or_, select, text
 from sqlalchemy.orm import Session
 
+from app.core.state_machine import REOPEN_WINDOW_DAYS
 from app.db.models.customer import Organization
 from app.db.models.master_data import Product
 from app.db.models.product import ProductInstance
@@ -274,6 +275,15 @@ def _ticket_results(
             .replace(tzinfo=UTC)
             .isoformat(),
             "channel": t.channel,
+            # SRS 7.3: same customer, same problem, closed within 14 days -> offer REOPEN.
+            "reopenable": bool(
+                organization_id
+                and t.organization_id == organization_id
+                and t.status in ("RESOLVED", "CLOSED")
+                and (t.closed_at or t.resolved_at)
+                and (t.closed_at or t.resolved_at)
+                >= datetime.now(UTC).replace(tzinfo=None) - timedelta(days=REOPEN_WINDOW_DAYS)
+            ),
             "category_id": t.category_id,
             "module_id": t.module_id,
             "product_id": product_of.get(t.product_instance_id),

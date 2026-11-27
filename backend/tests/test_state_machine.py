@@ -31,8 +31,19 @@ def test_in_progress_to_pending_customer():
     assert validate_status_transition(TicketStatus.IN_PROGRESS, TicketStatus.PENDING_CUSTOMER, "Agent") is True
 
 def test_in_progress_to_pending_external_success():
-    data = {"pending_external_reason": "Waiting for Vendor response"}
+    data = {"pending_external_reason": "Waiting for Vendor response",
+            "pending_external_checked": "Reproduced with the customer account",
+            "pending_external_expected": "Vendor confirms the fix"}
     assert validate_status_transition(TicketStatus.IN_PROGRESS, TicketStatus.PENDING_EXTERNAL, "Agent", data) is True
+
+def test_pending_external_requires_what_was_checked_and_expected():
+    """SRS 7.2: reason, what was checked and the expected outcome are all required."""
+    with pytest.raises(HTTPException) as exc:
+        validate_status_transition(TicketStatus.IN_PROGRESS, TicketStatus.PENDING_EXTERNAL, "Agent",
+                                   {"pending_external_reason": "Vendor bug"})
+    assert exc.value.status_code == 422
+    assert "สิ่งที่ตรวจสอบแล้ว" in exc.value.detail
+
 
 def test_in_progress_to_pending_external_missing_reason():
     with pytest.raises(HTTPException) as exc:

@@ -143,6 +143,9 @@ export function Sidebar({
               ...(session.role === "Admin"
                 ? [{ label: "แท็กยอดนิยม", path: "/reports/popular-tags", icon: ChartNoAxesColumn }]
                 : []),
+              ...(session.role === "Team Lead"
+                ? [{ label: "ประวัติการแก้ไขข้อมูล", path: "/administration/audit-log", icon: History }]
+                : []),
             ],
           },
         ]

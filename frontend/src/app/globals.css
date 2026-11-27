@@ -3295,3 +3295,86 @@ textarea:focus {
 .queue-heading .gd-Segment__label {
   overflow: visible;
 }
+
+/* CAP-07: drop evidence anywhere on the attachment area */
+.capture-dropzone {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+.capture-dropzone.is-dragging {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 6%, transparent);
+}
+.capture-attachment-remove {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.similarity-reopen {
+  flex-basis: 100%;
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  border-left: 3px solid var(--brand);
+  padding-left: 10px;
+  font-size: 12px;
+}
+
+/* CUS-03/04/05 customer profile */
+.customer-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.customer-profile-summary > div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.customer-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.customer-profile-box,
+.customer-profile-box form {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.customer-profile-box label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.customer-profile-list {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+.customer-profile-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.customer-profile-list li.is-inactive {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.related-case:has(.similarity-reopen) {
+  flex-wrap: wrap;
+}
+.related-case .similarity-reopen .button,
+.related-case .similarity-reopen .ui-button {
+  font-size: 12px;
+  min-height: 32px;
+  justify-self: start;
+}

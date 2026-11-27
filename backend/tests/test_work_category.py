@@ -212,6 +212,9 @@ def test_request_fulfilment_uses_shared_core_guards(capture):
     assert client.post('/api/v1' + path, json={'action': 'fulfil', 'fulfilment_detail': 'Done'}).status_code == 422
     updated = client.patch(f"/api/v1/tickets/{ticket['id']}/categorization", json={'root_cause_code_id': cause, 'resolution_code_id': solution})
     assert updated.status_code == 200, updated.text
+    # BR-05: the customer must hear back before the request counts as fulfilled.
+    assert client.post('/api/v1' + path, json={'action': 'fulfil', 'fulfilment_detail': 'Done'}).status_code == 422
+    post(client, f"/tickets/{ticket['id']}/worklogs", {'kind': 'public_reply', 'body': 'ส่งไฟล์ให้แล้ว', 'channel': 'email'})
     assert post(client, path, {'action': 'fulfil', 'fulfilment_detail': ' ส่งออกข้อมูลเรียบร้อย '})['status'] == 'RESOLVED'
     assert post(client, path, {'action': 'confirm'})['status'] == 'CLOSED'
     # Metadata correction on a closed case does not reopen it or reset its SLA.

@@ -67,6 +67,9 @@ def create_worklog(ticket_id: int, body: WorklogCreate, db: Session = Depends(ge
     db.flush()
     db.add(TicketAudit(ticket_id=ticket_id, actor_id=user.id, event='worklog_created',
         changes={'worklog_id': row.id, 'kind': row.kind, 'channel': row.channel}, created_at=row.created_at))
+    if not row.is_internal:
+        from app.services.lifecycle import record_first_response
+        record_first_response(db, ticket, row.created_at)
     from app.services.portal_mail import queue_reply
     queue_reply(db, ticket, row)
     db.commit()
@@ -256,7 +259,7 @@ def request_workflow(ticket_id: int, body: RequestAction, db: Session = Depends(
     return commit_edit(db, ticket)
 
 
-@router.get('/admin/audit-log', dependencies=[Depends(require_admin)])
+@router.get('/admin/audit-log', dependencies=[Depends(RoleChecker(['Admin', 'Team Lead']))])
 def search_audit(
     db: Session = Depends(get_db),
     q: str = Query('', max_length=255),

@@ -49,7 +49,10 @@ def session(user: User = Depends(get_current_user)):
     return {"id": getattr(user, 'id', None), "username": user.username, "role": name,
             "can_edit_customers": name in REGISTRY_EDITOR_ROLES,
             "can_edit_products": name == "Admin",
-            "can_create_cases": name in {"Admin", "Agent", "Specialist", "Developer", "Team Lead"}}
+            "can_create_cases": name in {"Admin", "Agent", "Specialist", "Developer", "Team Lead"},
+            # SRS 3.2: Developer works cases handed to them but does not open new ones.
+            "can_open_cases": name in {"Admin", "Agent", "Specialist", "Team Lead"},
+            "can_view_audit": name in {"Admin", "Team Lead"}}
 
 
 @router.get("/registry/case-owners")

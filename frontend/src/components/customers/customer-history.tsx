@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PortalContacts } from "@/components/customers/portal-contacts";
+import { CustomerProfile } from "@/components/customers/customer-profile";
 import { useSession } from "@/components/providers/session-provider";
 import { all, api } from "@/lib/api";
 import {
@@ -22,6 +23,7 @@ export function CustomerHistory({ id }: { id: number }) {
   const [product, setProduct] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [contactsVersion, setContactsVersion] = useState(0);
 
   useEffect(() => {
     if (!session) return;
@@ -69,7 +71,15 @@ export function CustomerHistory({ id }: { id: number }) {
           <h1>{customer?.name ?? "ประวัติเคสลูกค้า"}</h1>
         </div>
       </div>
-      <PortalContacts organizationId={id} />
+      {session && (
+        <CustomerProfile
+          organizationId={id}
+          canEdit={Boolean(session.can_edit_customers)}
+          onContactsChanged={() => setContactsVersion((n) => n + 1)}
+        />
+      )}
+      <PortalContacts key={contactsVersion} organizationId={id} />
+      <h2 className="mt-4">ประวัติเคสของลูกค้า</h2>
       <section className="surface detail-card">
         <div className="detail-grid mb-4">
           <label>

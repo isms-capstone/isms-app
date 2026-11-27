@@ -422,7 +422,7 @@ export function CaseDetail({ id }: { id: number }) {
             <WorklogPanel key={`worklog:${ticket.id}:${attempt}`} ticket={ticket} />
           )}
           {!preview && (
-            <TicketRelationships id={id} editable={Boolean(editable)}
+            <TicketRelationships id={id} editable={Boolean(editable && session?.role !== "Developer")}
               revision={`${ticket.status}:${attempt}`} onUpdated={() => setAttempt((n) => n + 1)} />
           )}
         </>

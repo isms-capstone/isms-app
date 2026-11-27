@@ -308,7 +308,7 @@ export function QueueScreen({
                 ค้นหาขั้นสูง / ส่งออก
               </Link>
             )}
-            {session?.can_create_cases && (
+            {(session?.can_open_cases ?? session?.can_create_cases) && (
               <Link href={href("/cases/new")} className="button button-primary">
                 <Plus size={16} />
                 สร้างเคส

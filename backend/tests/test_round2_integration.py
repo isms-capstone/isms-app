@@ -26,7 +26,9 @@ def test_status_acl_persistence_and_no_auditor_side_effects(capture):
         db.commit()
     result = client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'IN_PROGRESS', 'assignee_id': admin_id})
     assert result.status_code == 200, result.text
-    result = client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'PENDING_EXTERNAL', 'pending_external_reason': 'Waiting for vendor'})
+    result = client.patch(f"/api/v1/tickets/{row['id']}/status", json={'status': 'PENDING_EXTERNAL', 'pending_external_reason': 'Waiting for vendor',
+                                 'pending_external_checked': 'Reproduced on staging',
+                                 'pending_external_expected': 'Vendor patch'})
     assert result.status_code == 200, result.text
     with factory() as db:
         assert db.get(Ticket, row['id']).pending_external_reason == 'Waiting for vendor'

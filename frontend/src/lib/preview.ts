@@ -6,6 +6,7 @@ export const previewSession: Session = {
   username: "CHS",
   role: "Agent",
   can_create_cases: true,
+  can_open_cases: true,
   can_edit_customers: true,
   can_edit_products: false,
 };

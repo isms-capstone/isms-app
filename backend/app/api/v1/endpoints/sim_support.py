@@ -32,6 +32,8 @@ router = APIRouter(
     ]
 )
 Database = Annotated[Session, Depends(get_db)]
+# SRS 3.2: linking or merging cases is not a Developer (Tier 0) action.
+relationship_editor = RoleChecker(["Admin", "Agent", "Specialist", "Team Lead"])
 
 
 class TicketLinkCreate(BaseModel):
@@ -87,7 +89,7 @@ def create_link(
     ticket_id: int,
     body: TicketLinkCreate,
     db: Database,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(relationship_editor)],
 ):
     """Create a link. Directional types point from this case to the selected case."""
     source, target = lock_pair(db, ticket_id, body.related_ticket_id)
@@ -119,7 +121,7 @@ def merge_duplicate(
     ticket_id: int,
     body: DuplicateMerge,
     db: Database,
-    user: Annotated[User, Depends(get_current_user)],
+    user: Annotated[User, Depends(relationship_editor)],
 ):
     source, master = lock_pair(db, ticket_id, body.master_ticket_id)
     authorize_case(source, user)

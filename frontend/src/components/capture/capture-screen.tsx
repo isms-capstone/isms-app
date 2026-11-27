@@ -29,6 +29,8 @@ import {
   UserRound,
   Ticket,
   Plus,
+  Camera,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useSession } from "@/components/providers/session-provider";
@@ -79,6 +81,10 @@ type CaptureSnapshot = {
   createdFor: string;
   savedAt?: number;
 };
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_TYPES = /^(image\/(jpeg|png|webp|gif)|application\/pdf|video\/(mp4|webm)|application\/(zip|gzip|x-gzip|x-zip-compressed))$/;
+const ATTACHMENT_EXTENSIONS = /\.(jpe?g|png|webp|gif|pdf|mp4|webm|zip|gz)$/i;
+
 export function CaptureScreen() {
   const { session, preview, href } = useSession();
   const router = useRouter();
@@ -108,6 +114,43 @@ export function CaptureScreen() {
   const [files, setFiles] = useState<File[]>([]);
   const savedTicketId = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  // CAP-07: evidence comes from the clipboard, a drag-and-drop or the phone
+  // camera as well as the file picker; every path lands in the same list.
+  const addFiles = useCallback((incoming: File[]) => {
+    const accepted = incoming.filter((file) => ATTACHMENT_TYPES.test(file.type) || ATTACHMENT_EXTENSIONS.test(file.name));
+    const tooBig = accepted.filter((file) => file.size > MAX_ATTACHMENT_BYTES);
+    const usable = accepted.filter((file) => file.size <= MAX_ATTACHMENT_BYTES);
+    if (incoming.length && (accepted.length < incoming.length || tooBig.length))
+      setError(
+        tooBig.length
+          ? `ไฟล์ใหญ่เกิน 25 MB: ${tooBig.map((file) => file.name).join(", ")}`
+          : "แนบได้เฉพาะภาพ, MP4, WebM, PDF หรือไฟล์ log แบบ ZIP/GZIP",
+      );
+    if (!usable.length) return;
+    setFiles((current) => [
+      ...current,
+      ...usable
+        .map((file, index) =>
+          file.name && file.name !== "image.png"
+            ? file
+            : new File([file], `screenshot-${Date.now()}-${index + 1}.${file.type.split("/")[1] || "png"}`, { type: file.type }),
+        )
+        .filter((file) => !current.some((item) => item.name === file.name && item.size === file.size)),
+    ]);
+  }, []);
+  useEffect(() => {
+    if (preview) return;
+    function onPaste(event: ClipboardEvent) {
+      const pasted = Array.from(event.clipboardData?.files ?? []);
+      if (!pasted.length) return;
+      event.preventDefault();
+      addFiles(pasted);
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [preview, addFiles]);
   // CAP-05 (P1-CAP-03): keep the form on this device every 5 seconds, on leaving
   // a field and when the page is hidden, so closing the tab or losing the
   // network never loses what was typed. Files cannot be stored and are re-attached.
@@ -240,7 +283,7 @@ export function CaptureScreen() {
       setMessage("หน้านี้เป็นตัวอย่างดีไซน์ ไม่มีการบันทึกข้อมูล");
       return;
     }
-    if (!session?.can_create_cases || saving || optionsLoading) return;
+    if (!(session?.can_open_cases ?? session?.can_create_cases) || saving || optionsLoading) return;
     if (!savedTicketId.current && !draft && similarBlocked) {
       setError("มีเคสที่คล้ายกัน กรุณาเลือกว่าจะใช้วิธีแก้เดิม ผูกกับเคสเดิม หรือเปิดสอบสวนใหม่ ก่อนสร้างเคส");
       return;
@@ -484,6 +527,10 @@ export function CaptureScreen() {
                   instanceId={instance}
                   onState={onSimilarityState}
                   onReuse={onReuse}
+                  onReopened={(id) => {
+                    forgetDraft();
+                    router.push(href(`/cases/${id}`));
+                  }}
                 />
               )}
               <label>
@@ -629,11 +676,36 @@ export function CaptureScreen() {
                     multiple
                     hidden
                     disabled={preview || saving}
-                    onChange={(event) =>
-                      setFiles(Array.from(event.target.files ?? []))
-                    }
+                    onChange={(event) => {
+                      addFiles(Array.from(event.target.files ?? []));
+                      event.target.value = "";
+                    }}
                   />
-                  <div className="capture-attachment-picker">
+                  <input
+                    ref={cameraInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                    disabled={preview || saving}
+                    onChange={(event) => {
+                      addFiles(Array.from(event.target.files ?? []));
+                      event.target.value = "";
+                    }}
+                  />
+                  <div
+                    className={cx("capture-attachment-picker capture-dropzone", dragging && "is-dragging")}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setDragging(true);
+                    }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setDragging(false);
+                      if (!preview && !saving) addFiles(Array.from(event.dataTransfer.files));
+                    }}
+                  >
                     <Button
                       type="button"
                       aria-describedby="capture-attachment-hint"
@@ -642,6 +714,14 @@ export function CaptureScreen() {
                     >
                       เลือกไฟล์
                     </Button>
+                    <Button
+                      type="button"
+                      disabled={preview || saving}
+                      onClick={() => cameraInput.current?.click()}
+                    >
+                      <Camera size={15} aria-hidden="true" /> ถ่ายภาพ
+                    </Button>
+                    <span className="field-hint">หรือลากไฟล์มาวาง / กด Ctrl+V วางภาพหน้าจอ</span>
                     <span role="status" className="field-hint">
                       {files.length
                         ? `เลือกแล้ว ${files.length} ไฟล์`
@@ -657,6 +737,15 @@ export function CaptureScreen() {
                         <li key={`${file.name}-${index}`}>
                           <FileText size={16} aria-hidden="true" />
                           <span>{file.name}</span>
+                          <button
+                            type="button"
+                            className="capture-attachment-remove"
+                            aria-label={`เอา ${file.name} ออก`}
+                            disabled={saving}
+                            onClick={() => setFiles((current) => current.filter((item) => item !== file))}
+                          >
+                            <X size={14} aria-hidden="true" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -774,7 +863,7 @@ export function CaptureScreen() {
           </span>
           <div>
             <Button
-              disabled={saving || optionsLoading || !session?.can_create_cases}
+              disabled={saving || optionsLoading || !(session?.can_open_cases ?? session?.can_create_cases)}
               onClick={() => save(true)}
             >
               บันทึกเป็นร่าง
@@ -788,7 +877,7 @@ export function CaptureScreen() {
                 optionsLoading ||
                 !complete ||
                 similarBlocked ||
-                !session?.can_create_cases
+                !(session?.can_open_cases ?? session?.can_create_cases)
               }
             >
               <Plus size={15} />

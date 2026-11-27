@@ -6,7 +6,7 @@ import { api, all } from "@/lib/api";
 import { statusNames, type Instance } from "@/lib/types";
 import { useSession } from "@/components/providers/session-provider";
 import { SelectControl, TextArea } from "@/components/ui/company-fields";
-import { Button } from "@/components/ui/primitives";
+import { Button, Input } from "@/components/ui/primitives";
 
 export type ReuseValues = {
   product_instance_id: number;
@@ -33,6 +33,7 @@ type SimilarCase = ReuseValues & {
   product: string;
   assignee: string | null;
   last_activity: string;
+  reopenable?: boolean;
 };
 type SearchResult = {
   feedback_id: number | null;
@@ -54,6 +55,8 @@ type Props = {
   onState?: (feedbackId: number | null, blocked: boolean) => void;
   onReuse?: (values: ReuseValues) => void;
   onApplied?: () => void;
+  /** SRS 7.3: the reporter's problem came back within 14 days — reopen instead of a new case. */
+  onReopened?: (ticketId: number) => void;
 };
 
 export function SimilarityPanel(props: Props) {
@@ -71,6 +74,21 @@ export function SimilarityPanel(props: Props) {
     callbacks.current = props;
   });
   const [retry, setRetry] = useState(0);
+  const [reopening, setReopening] = useState<number | null>(null);
+  const [reopenReason, setReopenReason] = useState("");
+  const [reopenError, setReopenError] = useState("");
+  async function reopen(id: number) {
+    setReopenError("");
+    try {
+      await api(`/tickets/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "REOPENED", reopen_reason: reopenReason.trim() }),
+      });
+      callbacks.current.onReopened?.(id);
+    } catch (e) {
+      setReopenError(e instanceof Error ? e.message : "เปิดเคสเดิมใหม่ไม่สำเร็จ");
+    }
+  }
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -347,6 +365,40 @@ export function SimilarityPanel(props: Props) {
             เลือกเคสนี้
           </label>
           <Link href={href(`/cases/${item.id}`)}>ดูเคส</Link>
+          {item.reopenable && !ticketId && props.onReopened && (
+            <div className="similarity-reopen">
+              <p>
+                ลูกค้ารายนี้เพิ่งปิดเคสนี้ไปไม่เกิน 14 วัน ถ้าเป็นปัญหาเดิมให้เปิดเคสเดิมใหม่แทนการสร้างเคสใหม่
+              </p>
+              {reopening === item.id ? (
+                <>
+                  <label>
+                    ลูกค้าแจ้งว่ายังพบปัญหาอะไร <span className="required">*</span>
+                    <Input
+                      value={reopenReason}
+                      maxLength={20000}
+                      onChange={setReopenReason}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    disabled={!reopenReason.trim() || saving}
+                    onClick={() => reopen(item.id)}
+                  >
+                    ยืนยันเปิดเคสเดิมใหม่
+                  </Button>
+                  {reopenError && (
+                    <p role="alert" className="form-error">{reopenError}</p>
+                  )}
+                </>
+              ) : (
+                <Button type="button" onClick={() => setReopening(item.id)}>
+                  เปิดเคสเดิมใหม่
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ))}
       {result?.feedback_id && (

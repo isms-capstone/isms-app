@@ -56,6 +56,8 @@ from app.services.auto_close import run_auto_close_resolved_tickets
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 require_capture = RoleChecker(['Admin', 'Agent', 'Specialist', 'Developer', 'Team Lead'])
+# SRS 3.2: Developer (Tier 0) reads and updates cases handed to them but does not open new ones.
+require_open_case = RoleChecker(['Admin', 'Agent', 'Specialist', 'Team Lead'])
 
 
 class TicketStatusUpdatePayload(BaseModel):
@@ -65,7 +67,9 @@ class TicketStatusUpdatePayload(BaseModel):
     contact_id: int | None = None
     subject: str | None = None
     channel: str | None = None
-    pending_external_reason: str | None = None
+    pending_external_reason: str | None = Field(None, max_length=20000)
+    pending_external_checked: str | None = Field(None, max_length=20000)
+    pending_external_expected: str | None = Field(None, max_length=20000)
     pending_customer_reason: str | None = Field(None, max_length=2000)
     sla_breach_reason: str | None = Field(None, max_length=2000)
     category_id: int | None = None
@@ -212,7 +216,7 @@ def ticket_history(ticket_id: int, db: Session = Depends(get_db),
             for r in rows]
 
 @router.post('/tickets', response_model=TicketOut, status_code=201)
-def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_capture)):
+def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User = Depends(require_open_case)):
     values, complete, now = capture_values(body, db)
     query = f'{body.subject or ""} {body.description or ""}'.strip()
     feedback = None
@@ -294,7 +298,7 @@ def create_ticket(body: TicketCreate, db: Session = Depends(get_db), user: User 
 
 @router.post('/tickets/{ticket_id}/follow-up', response_model=TicketOut, status_code=201)
 def create_follow_up(ticket_id: int, body: TicketFollowUp, db: Session = Depends(get_db),
-                     user: User = Depends(require_capture)):
+                     user: User = Depends(require_open_case)):
     """CAP-09: create a linked follow-up while preserving the source case unchanged."""
     source = db.get(Ticket, ticket_id)
     if source is None:
@@ -885,10 +889,15 @@ def lifecycle_options(ticket_id: int, db: Session = Depends(get_db), user: User 
                if rule['from'] == row.status and policy_role in rule['roles']]
     if row.status not in {'CLOSED', 'CANCELLED', 'DUPLICATE'}:
         actions += ['CANCELLED', 'DUPLICATE']
+    from app.services.lifecycle import CLOSING_STATUSES
+    if role == 'Developer':
+        actions = [action for action in actions if action not in CLOSING_STATUSES]
     def choices(model, *filters):
         return [{'id': record.id, 'name': getattr(record, 'name', None) or record.username}
                 for record in db.scalars(select(model).where(*filters)).all()]
+    from app.services.lifecycle import has_customer_reply
     return {'actions': actions,
+        'has_customer_reply': has_customer_reply(db, row.id),
         'assignees': choices(User, User.is_active.is_(True)),
         'causes': choices(CauseCode, CauseCode.is_active.is_(True)),
         'solutions': choices(SolutionCode, SolutionCode.is_active.is_(True)),

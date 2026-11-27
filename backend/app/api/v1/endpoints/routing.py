@@ -282,7 +282,7 @@ def routing_state(db, ticket, user):
                 row["id"] == user.id and row["default_tier"] == ticket.current_tier
                 for row in eligible
             ),
-            "respond": active and authorized and ticket.first_response_at is None,
+            "respond": active and authorized and ticket.status in {"NEW", "REOPENED"},
         },
         return_event_id=latest.id if latest else None,
     )
@@ -355,13 +355,17 @@ def respond(
 ):
     ticket = service.lock_case(db, ticket_id, body.expected_version)
     service.authorize(db, ticket, user)
-    if ticket.first_response_at is not None:
-        raise HTTPException(409, "บันทึกการตอบสนองครั้งแรกไปแล้ว")
+    # "Acknowledge and start" begins the work (SRS 7.2: NEW -> IN_PROGRESS sets the
+    # assignee to whoever pressed it). The first response time is recorded when the
+    # customer actually receives a reply, not here.
+    if ticket.status not in {"NEW", "REOPENED"}:
+        raise HTTPException(409, "เคสนี้เริ่มดำเนินการแล้ว")
     service.claim_version(db, ticket, body.expected_version)
-    ticket.first_response_at = service.utcnow()
-    from app.services.sla_engine import sync_clock, update_breach
-    sync_clock(db, ticket, ticket.first_response_at)
-    update_breach(db, ticket, ticket.first_response_at)
+    from app.services.lifecycle import transition
+    changes = {"status": "IN_PROGRESS"}
+    if ticket.assignee_id is None:
+        changes["assignee_id"] = user.id
+    transition(db, ticket, changes, user)
     service.record(
         db,
         ticket,
@@ -371,14 +375,6 @@ def respond(
         "response",
         "รับทราบและเริ่มตรวจสอบ",
     )
-    # Acknowledging is the moment work starts, so a new or reopened case moves
-    # to IN_PROGRESS instead of needing a second status change.
-    if ticket.status in {"NEW", "REOPENED"} and ticket.assignee_id:
-        from app.services.lifecycle import transition
-        try:
-            transition(db, ticket, {"status": "IN_PROGRESS"}, user)
-        except HTTPException:
-            pass  # e.g. a team lead acknowledging a case they do not work on
     commit(db)
     return routing_state(db, ticket, user)
 

@@ -498,7 +498,6 @@ def test_esc_response_and_closed_intervals(routing):
     s = state(r, case)
     result = post(r, case, "respond", expected_version=s["version"])
     assert result.status_code == 200, result.text
-    assert result.json()["first_response_at"]
     assert (
         post(r, case, "respond", expected_version=result.json()["version"]).status_code
         == 409
@@ -756,7 +755,48 @@ def test_acknowledging_a_new_case_starts_work(routing):
     with r.factory() as db:
         ticket = db.get(Ticket, case)
         assert ticket.status == "IN_PROGRESS"
-        assert ticket.first_response_at is not None
         assert db.scalar(select(TicketStatusHistory.id).where(
             TicketStatusHistory.ticket_id == case,
             TicketStatusHistory.to_status == "IN_PROGRESS"))
+        # SRS 7.2 / KPI-03: acknowledging is not a response to the customer.
+        assert ticket.first_response_at is None
+    reply = r.client.post(f"/api/v1/tickets/{case}/worklogs",
+                          json={"kind": "public_reply", "body": "กำลังตรวจสอบให้ครับ", "channel": "phone"})
+    assert reply.status_code == 201, reply.text
+    note = r.client.post(f"/api/v1/tickets/{case}/worklogs",
+                         json={"kind": "internal_note", "body": "internal only"})
+    assert note.status_code == 201, note.text
+    with r.factory() as db:
+        first = db.get(Ticket, case).first_response_at
+        assert first is not None
+    r.client.post(f"/api/v1/tickets/{case}/worklogs",
+                  json={"kind": "public_reply", "body": "ตามต่อ", "channel": "phone"})
+    with r.factory() as db:
+        assert db.get(Ticket, case).first_response_at == first
+
+
+def test_developer_cannot_open_close_or_link_cases(routing):
+    """SRS 3.2: Developer (Tier 0) updates handed-over cases but does not open, close or merge them."""
+    r = routing
+    case, other = r.create(), r.create()
+    with r.factory() as db:
+        db.get(Ticket, case).assignee_id = r.ids["developer"]
+        db.commit()
+    r.login("developer")
+    assert r.client.post("/api/v1/tickets", json={"subject": "dev", "channel": "phone"}).status_code == 403
+    options = r.client.get(f"/api/v1/tickets/{case}/lifecycle-options")
+    assert options.status_code == 200, options.text
+    assert not {"RESOLVED", "CLOSED", "CANCELLED", "DUPLICATE"} & set(options.json()["actions"])
+    cancel = r.client.patch(f"/api/v1/tickets/{case}/status",
+                            json={"status": "CANCELLED", "cancel_reason": "dev should not"})
+    assert cancel.status_code == 403
+    link = r.client.post(f"/api/v1/tickets/{case}/links",
+                         json={"related_ticket_id": other, "relationship_type": "related", "reason": "x"})
+    assert link.status_code == 403
+    note = r.client.post(f"/api/v1/tickets/{case}/worklogs",
+                         json={"kind": "internal_note", "body": "ตรวจแล้ว พบบั๊กที่ API"})
+    assert note.status_code == 201, note.text
+    r.login("lead")
+    assert r.client.get("/api/v1/admin/audit-log").status_code == 200
+    r.login("auditor")
+    assert r.client.get("/api/v1/admin/audit-log").status_code == 403

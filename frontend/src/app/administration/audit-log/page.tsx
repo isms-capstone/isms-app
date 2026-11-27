@@ -85,7 +85,7 @@ export default function Page() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (session?.role !== "Admin") return;
+    if (!["Admin", "Team Lead"].includes(session?.role ?? "")) return;
     const controller = new AbortController();
     api<AuditPage>(
       `/admin/audit-log?limit=${pageSize}&offset=${offset}&${search}`,
@@ -110,7 +110,7 @@ export default function Page() {
           <h1>ประวัติการแก้ไขข้อมูล</h1>
         </div>
       </div>
-      {session?.role === "Admin" ? (
+      {["Admin", "Team Lead"].includes(session?.role ?? "") ? (
         <section className="surface detail-card">
           <form
             className="mb-4 space-y-3"

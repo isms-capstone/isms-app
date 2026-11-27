@@ -143,11 +143,18 @@ def validate_status_transition(
             detail="กรุณาเลือกผู้ดำเนินการก่อนเริ่มดำเนินการ"
         )
 
-    if "pending_external_reason_required" in conditions and not ticket_data.get("pending_external_reason"):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="กรุณาระบุว่ากำลังรออะไรจากทีมพัฒนา/หน่วยงานภายนอก"
-        )
+    if "pending_external_reason_required" in conditions:
+        # SRS 7.2: handing a case outside support needs the reason, what was
+        # already checked and the expected outcome.
+        labels = {"pending_external_reason": "เหตุผลที่ส่งต่อ",
+                  "pending_external_checked": "สิ่งที่ตรวจสอบแล้ว",
+                  "pending_external_expected": "ผลที่คาดหวังจากปลายทาง"}
+        missing = [label for key, label in labels.items() if not str(ticket_data.get(key) or "").strip()]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"ก่อนส่งให้ทีมพัฒนา/หน่วยงานภายนอก กรุณากรอก: {', '.join(missing)}"
+            )
 
     if "resolution_fields_required" in conditions:
         required_fields = ["category_id", "root_cause_code_id", "resolution_code_id", "product_instance_id", "resolution_detail"]

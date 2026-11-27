@@ -18,7 +18,7 @@ const ACTION_LABELS: Record<string, string> = {
 const REASON_LABELS: Record<string, string> = {
   cancel_reason: "เหตุผลที่ยกเลิก",
   reopen_reason: "ลูกค้าแจ้งว่ายังพบปัญหาอะไร",
-  pending_external_reason: "กำลังรออะไรจากทีมพัฒนา/ภายนอก",
+  pending_external_reason: "เหตุผลที่ส่งต่อให้ทีมพัฒนา/ภายนอก",
   pending_customer_reason: "กำลังรออะไรจากลูกค้า",
   sla_breach_reason: "เคสนี้เกิน SLA — เหตุผลที่เกิน (ใช้วิเคราะห์เชิงระบบ ไม่ใช่การลงโทษ)",
 };
@@ -32,6 +32,7 @@ type Options = {
   causes: Choice[];
   solutions: Choice[];
   instances: (Choice & { product_id: number })[];
+  has_customer_reply?: boolean;
 };
 
 export function LifecycleActions({
@@ -49,6 +50,7 @@ export function LifecycleActions({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [editingSystems, setEditingSystems] = useState(false);
+  const resolving = target === "RESOLVED";
   useEffect(() => {
     const controller = new AbortController();
     api<Options>(`/tickets/${ticket.id}/lifecycle-options`, {
@@ -57,7 +59,8 @@ export function LifecycleActions({
       .then(setOptions)
       .catch(() => setOptions(null));
     return () => controller.abort();
-  }, [ticket.id, ticket.status]);
+    // Re-read when the resolve form opens, so a reply sent meanwhile counts (BR-05).
+  }, [ticket.id, ticket.status, resolving]);
   const [catalog, setCatalog] = useState<{
     product_id: number;
     modules: Choice[];
@@ -101,6 +104,7 @@ export function LifecycleActions({
           !values.root_cause_code_id && "สาเหตุปัญหา",
           !values.resolution_code_id && "วิธีแก้ไข",
           !values.resolution_detail?.trim() && "รายละเอียดการแก้ไข",
+          options?.has_customer_reply === false && "ข้อความถึงลูกค้าอย่างน้อย 1 ครั้ง",
         ].filter(Boolean)
       : [];
   function choice(field: string, label: string, rows: Choice[]) {
@@ -276,7 +280,7 @@ export function LifecycleActions({
               {choice("root_cause_code_id", "สาเหตุปัญหา", options.causes)}
               {choice("resolution_code_id", "วิธีแก้ไข", options.solutions)}
               <label>
-                รายละเอียดการแก้ไข <span className="required">*</span>
+                <span>รายละเอียดการแก้ไข <span className="required">*</span></span>
                 <TextArea
                   required
                   placeholder="สิ่งที่ทำเพื่อแก้ปัญหา และผลที่ลูกค้าได้รับ"
@@ -291,7 +295,7 @@ export function LifecycleActions({
           )}
           {reason && (
             <label>
-              {REASON_LABELS[reason]}
+              <span>{REASON_LABELS[reason]} <span className="required">*</span></span>
               <Input
                 required
                 maxLength={
@@ -305,6 +309,30 @@ export function LifecycleActions({
                 onChange={(value) => setValues({ ...values, [reason]: value })}
               />
             </label>
+          )}
+          {target === "PENDING_EXTERNAL" && (
+            <>
+              <label>
+                <span>สิ่งที่ตรวจสอบแล้วและผลลัพธ์ <span className="required">*</span></span>
+                <TextArea
+                  required
+                  maxLength={20000}
+                  placeholder="ทำซ้ำอย่างไร เจออะไร ตัดสาเหตุใดออกไปแล้ว"
+                  value={values.pending_external_checked || ""}
+                  onValueChange={(next) => setValues({ ...values, pending_external_checked: next })}
+                />
+              </label>
+              <label>
+                <span>ผลที่คาดหวังจากปลายทาง <span className="required">*</span></span>
+                <TextArea
+                  required
+                  maxLength={20000}
+                  placeholder="ต้องการให้ทีมพัฒนา/ภายนอกทำอะไร"
+                  value={values.pending_external_expected || ""}
+                  onValueChange={(next) => setValues({ ...values, pending_external_expected: next })}
+                />
+              </label>
+            </>
           )}
           {target === "DUPLICATE" && (
             <label>
